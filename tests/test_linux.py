@@ -2856,6 +2856,60 @@ Tighten up this layout, please.
         self.assertEqual(lifecycle["turnDurationMs"], 12_345)
         self.assertEqual(lifecycle["failureSummary"], "Tests failed safely")
 
+    def test_statusless_tool_history_does_not_reopen_completed_activity(self) -> None:
+        statusless_items = [
+            {"id": "image-1", "type": "imageView", "path": "/private/image.png"},
+            {"id": "search-1", "type": "webSearch", "query": "private query"},
+        ]
+        mapped = session(
+            {
+                **THREAD,
+                "turns": [
+                    {
+                        "id": "turn-before-compaction",
+                        "status": "completed",
+                        "items": [
+                            *statusless_items,
+                            {"id": "compact-1", "type": "contextCompaction"},
+                            {"id": "image-2", "type": "imageView", "path": "/private/after.png"},
+                        ],
+                    }
+                ],
+            },
+            include_messages=True,
+        )
+
+        tools = [item for item in mapped["messages"] if item["kind"] == "tool"]
+        self.assertEqual([item["status"] for item in tools], ["completed"] * 3)
+        self.assertEqual(
+            [item["kind"] for item in mapped["messages"]],
+            ["tool", "tool", "compaction", "tool"],
+        )
+
+        for raw_item in statusless_items:
+            _, started = normalize_event(
+                {
+                    "method": "item/started",
+                    "params": {
+                        "threadId": "thread-1",
+                        "turnId": "turn-live",
+                        "item": raw_item,
+                    },
+                }
+            )
+            _, completed = normalize_event(
+                {
+                    "method": "item/completed",
+                    "params": {
+                        "threadId": "thread-1",
+                        "turnId": "turn-live",
+                        "item": raw_item,
+                    },
+                }
+            )
+            self.assertEqual(started["item"]["status"], "inProgress")
+            self.assertEqual(completed["item"]["status"], "completed")
+
     def test_maps_authoritative_turn_timestamps_wait_types_and_safe_failures(self) -> None:
         _, started = normalize_event(
             {
