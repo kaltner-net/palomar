@@ -1531,7 +1531,7 @@ def session(thread: dict[str, Any], include_messages: bool = False) -> dict[str,
         messages: list[dict[str, Any]] = []
         for turn in turns:
             for item in turn.get("items", []):
-                normalized = normalize_item(item)
+                normalized = normalize_item(item, historical=True)
                 if normalized:
                     normalized["turnId"] = turn.get("id")
                     messages.append(normalized)
@@ -1680,7 +1680,11 @@ def display_user_text(text: str) -> str:
     return candidate[marker + len(DESKTOP_REQUEST_MARKER) :].strip()
 
 
-def normalize_item(item: dict[str, Any]) -> dict[str, Any] | None:
+def normalize_item(
+    item: dict[str, Any],
+    *,
+    historical: bool = False,
+) -> dict[str, Any] | None:
     kind = item.get("type")
     base = {"id": item.get("id", ""), "rawType": kind}
     if kind == "userMessage":
@@ -1753,7 +1757,12 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any] | None:
             # Search terms can contain credentials, private paths, or other
             # sensitive input. Never include them in Android-facing metadata.
             "description": "Web search",
-            "status": item.get("status", "inProgress"),
+            # Codex does not persist a status for this item type. Items read
+            # back from thread history have already passed through their live
+            # lifecycle; only item/started events should project them active.
+            "status": item.get(
+                "status", "completed" if historical else "inProgress"
+            ),
         }
     if kind == "fileChange":
         changes = item.get("changes", [])
@@ -1770,7 +1779,10 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any] | None:
             **base,
             "kind": "tool",
             "description": "Viewing an image",
-            "status": item.get("status", "inProgress"),
+            # imageView has the same status-less persisted schema as webSearch.
+            "status": item.get(
+                "status", "completed" if historical else "inProgress"
+            ),
         }
     if kind == "contextCompaction":
         return {
