@@ -6263,7 +6263,8 @@ private fun AccountUsageDialog(
                                         Text(
                                             rateLimitLabel(window),
                                             modifier = Modifier.weight(1f).padding(end = 12.dp),
-                                            style = MaterialTheme.typography.labelMedium,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
                                             maxLines = 2,
                                             overflow = TextOverflow.Ellipsis,
                                         )
@@ -6282,7 +6283,7 @@ private fun AccountUsageDialog(
                                         window.resetsAt?.let {
                                             "Resets ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it * 1000))}"
                                         } ?: "Reset time unavailable",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
@@ -6292,14 +6293,14 @@ private fun AccountUsageDialog(
                             Text(
                                 (if (usage.stale) "Cached · last observed " else "Last observed ") +
                                     DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it * 1000)),
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         if (usage.stale && usage.observedAt == null) {
                             Text(
                                 "Cached snapshot",
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
