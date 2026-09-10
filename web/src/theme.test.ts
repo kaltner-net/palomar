@@ -28,11 +28,12 @@ describe("curated Foreman themes", () => {
     ]);
   });
 
-  it("uses the canonical branching Foreman mark without embedding presence state", () => {
-    const favicon = readFileSync(join(process.cwd(), "public/favicon.svg"), "utf8");
-    expect(favicon).toContain("foreman-purple");
-    expect(favicon).toContain("M5 3a2 2");
-    expect(favicon).not.toContain("<circle");
+  it("reuses the canonical Android product mark for web identity and browser chrome", () => {
+    const webLogo = readFileSync(join(process.cwd(), "public/foreman-logo.png"));
+    const androidLogo = readFileSync(join(process.cwd(), "../android/app/src/main/res/drawable-nodpi/foreman_logo.png"));
+    const html = readFileSync(join(process.cwd(), "index.html"), "utf8");
+    expect(webLogo.equals(androidLogo)).toBe(true);
+    expect(html).toContain('<link rel="icon" type="image/png" href="/foreman-logo.png" />');
   });
 
   it("applies every named theme in light and dark modes", () => {

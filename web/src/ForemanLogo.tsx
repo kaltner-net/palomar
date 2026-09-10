@@ -2,7 +2,7 @@ export function ForemanLogo({ large = false, labelled = false }: { large?: boole
   return (
     <img
       className={`brand-mark${large ? " large" : ""}`}
-      src="/favicon.svg"
+      src="/foreman-logo.png"
       alt={labelled ? "Foreman logo" : ""}
     />
   );

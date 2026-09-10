@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ForemanLogo } from "./ForemanLogo";
 import type { ReleaseUpdateSnapshot } from "./protocol";
 import type { ServerUpdateCheck, ServerUpdateOperation } from "./protocol";
 import { componentUpdateStatus, type ComponentUpdateStatus } from "./update-status";
@@ -95,7 +96,7 @@ export function AboutSection({
   return (
     <section className="settings-card about-card" aria-labelledby="about-heading">
       <div className="about-identity">
-        <img src="/favicon.svg" alt="Foreman logo" />
+        <ForemanLogo large labelled />
         <div>
           <h2 id="about-heading">Foreman</h2>
           <p>Created by Michael Kaltner</p>
