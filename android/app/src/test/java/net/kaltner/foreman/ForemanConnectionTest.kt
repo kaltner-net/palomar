@@ -2423,6 +2423,53 @@ class ForemanConnectionTest {
     }
 
     @Test
+    fun repositoryAndWorkspaceGroupsStayNaturallyAlphabeticalAsActivityChanges() {
+        val repositories = listOf(
+            RepositoryInfo("zeta", "zeta", "zeta", "main", false),
+            RepositoryInfo("alpha-10", "alpha10", "alpha10", "main", false),
+            RepositoryInfo("alpha-2", "Alpha2", "Alpha2", "main", false),
+            RepositoryInfo("alpha-2-lower", "alpha2", "alpha2-lower", "main", false),
+        )
+        val sessions = listOf(
+            SessionSummary("zeta", "/projects/zeta", "Zeta", "waiting", 500),
+            SessionSummary("workspace-zeta", "/workspace/zeta", "Workspace zeta", "working", 400),
+            SessionSummary("alpha-10", "/projects/alpha10", "Alpha ten", "idle", 100),
+            SessionSummary("workspace-alpha", "/workspace/alpha", "Workspace alpha", "idle", 50),
+            SessionSummary("alpha-2", "/projects/Alpha2", "Alpha two", "idle", 25),
+            SessionSummary("alpha-2-lower", "/projects/alpha2-lower", "Alpha two lower", "idle", 20),
+        )
+        fun labels(source: List<SessionSummary>) = repositorySessionGroups(
+            filterSessions(
+                source,
+                SessionSearchFilters(),
+                emptySet(),
+                emptySet(),
+                emptyList(),
+                repositories,
+                "/projects",
+            ),
+            repositories,
+            "/projects",
+        ).map { it.repository.label }
+        val expected = listOf(
+            "Repository: Alpha2",
+            "Repository: alpha2",
+            "Repository: alpha10",
+            "Repository: zeta",
+            "Workspace: /workspace/alpha",
+            "Workspace: /workspace/zeta",
+        )
+        assertEquals(expected, labels(sessions))
+        assertEquals(
+            expected,
+            labels(sessions.map {
+                if (it.id == "alpha-2") it.copy(status = "working", lastActivity = 900)
+                else it.copy(status = "idle")
+            }),
+        )
+    }
+
+    @Test
     fun sessionCardsHideIdentityOnlyInsideTheirMatchingEnabledGroup() {
         val repositories = listOf(RepositoryInfo("foreman", "foreman", "foreman", "main", false))
         val repositorySession = SessionSummary("repo", "/projects/foreman/src", "Repository", "working", 200)

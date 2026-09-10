@@ -19,14 +19,11 @@ update the applicable boundary documentation before implementation starts.
 The current product pass is complete. Work proceeds through the **Next** list
 unless a correctness or security issue requires reprioritization.
 
-## Next — updates and releases
+## Next — release
 
-The current update-and-release architecture gates are complete. New work enters
-the ordered foundations list below unless a correctness or security issue
-requires reprioritization.
-
-- [ ] [#80 Complete theme-aware badge and semantic
-  colors](https://github.com/mkaltner/foreman/issues/80).
+The current product and update passes are complete. Prepare the v1.2.0 release,
+then select new work from the ordered foundations list below unless a
+correctness or security issue requires reprioritization.
 
 ## Later — product foundations
 
@@ -59,6 +56,12 @@ adapter and complete web/Android parity.
 
 ## Recently completed
 
+- [x] Keep repository and workspace session groups in stable natural-alphabetic
+  order while retaining activity ordering within each group
+  ([issue #109](https://github.com/mkaltner/foreman/issues/109)).
+- [x] Complete theme-aware badge colors and standardize Foreman branding,
+  including the Android notification icon
+  ([PR #107](https://github.com/mkaltner/foreman/pull/107)).
 - [x] Show and retain every provider account-usage limit on web and Android
   ([issue #71](https://github.com/mkaltner/foreman/issues/71)).
 - [x] Show connected devices and support host-scoped access revocation on web

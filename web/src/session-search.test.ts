@@ -75,6 +75,42 @@ describe("session discovery semantics", () => {
     expect(groups[0].sessions.map(({ session }) => session.id)).toEqual(["active", "done"]);
   });
 
+  it("keeps repository and workspace groups naturally alphabetical as activity changes", () => {
+    const known: RepositoryInfo[] = [
+      { id: "zeta", name: "zeta", path: "zeta", branch: "main", dirty: false },
+      { id: "alpha-10", name: "alpha10", path: "alpha10", branch: "main", dirty: false },
+      { id: "alpha-2", name: "Alpha2", path: "Alpha2", branch: "main", dirty: false },
+      { id: "alpha-2-lower", name: "alpha2", path: "alpha2-lower", branch: "main", dirty: false },
+    ];
+    const values: SessionSummary[] = [
+      { id: "zeta", title: "Zeta", repository: "/projects/zeta", status: "waiting", lastActivity: 500 },
+      { id: "workspace-zeta", title: "Workspace zeta", repository: "/workspace/zeta", status: "working", lastActivity: 400 },
+      { id: "alpha-10", title: "Alpha ten", repository: "/projects/alpha10", status: "idle", lastActivity: 100 },
+      { id: "workspace-alpha", title: "Workspace alpha", repository: "/workspace/alpha", status: "idle", lastActivity: 50 },
+      { id: "alpha-2", title: "Alpha two", repository: "/projects/Alpha2", status: "idle", lastActivity: 25 },
+      { id: "alpha-2-lower", title: "Alpha two lower", repository: "/projects/alpha2-lower", status: "idle", lastActivity: 20 },
+    ];
+    const labels = (source: SessionSummary[]) => repositorySessionGroups(
+      filterSessions(source, DEFAULT_SESSION_FILTERS, new Set(), new Set(), [], known, "/projects"),
+      known,
+      "/projects",
+    ).map(({ repository }) => repository.label);
+    const expected = [
+      "Repository: Alpha2",
+      "Repository: alpha2",
+      "Repository: alpha10",
+      "Repository: zeta",
+      "Workspace: /workspace/alpha",
+      "Workspace: /workspace/zeta",
+    ];
+    expect(labels(values)).toEqual(expected);
+    expect(labels(values.map((session) => ({
+      ...session,
+      status: session.id === "alpha-2" ? "working" : "idle",
+      lastActivity: session.id === "alpha-2" ? 900 : session.lastActivity,
+    })))).toEqual(expected);
+  });
+
   it("hides card identity only inside its matching enabled repository or workspace group", () => {
     const repositorySession = sessions[0];
     const workspaceSession = sessions[1];

@@ -8586,7 +8586,7 @@ private fun UiSettingsMenu(
                         Column {
                             Text("Group sessions by repository")
                             Text(
-                                "Active sessions appear first in each collapsible group",
+                                "Groups stay alphabetical; active sessions appear first within each group",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
