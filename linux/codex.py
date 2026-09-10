@@ -1099,7 +1099,7 @@ class Codex:
             result = await self.request("account/rateLimits/read")
         except CodexError:
             return {"available": False}
-        snapshot = rate_limit_snapshot(result.get("rateLimits"))
+        snapshot = account_rate_limit_snapshot(result)
         return {
             "available": snapshot is not None,
             **({"rateLimits": snapshot} if snapshot else {}),
@@ -1454,7 +1454,11 @@ def thread_token_usage(raw: Any) -> dict[str, Any] | None:
     }
 
 
-def rate_limit_window(raw: Any) -> dict[str, int | float] | None:
+def rate_limit_window(
+    raw: Any,
+    window_id: str | None = None,
+    label: str | None = None,
+) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
     used = raw.get("usedPercent")
@@ -1462,12 +1466,31 @@ def rate_limit_window(raw: Any) -> dict[str, int | float] | None:
         return None
     if used != used or used in (float("inf"), float("-inf")):
         return None
-    result: dict[str, int | float] = {
+    result: dict[str, Any] = {
         "usedPercent": round(max(0, min(100, used)), 1),
     }
+    raw_id = raw.get("id")
+    valid_id = next(
+        (
+            candidate
+            for candidate in (raw_id, window_id)
+            if isinstance(candidate, str)
+            and candidate
+            and len(candidate) <= 100
+            and re.fullmatch(r"[A-Za-z0-9._:-]+", candidate)
+        ),
+        None,
+    )
+    if valid_id is not None:
+        result["id"] = valid_id
+    raw_label = raw.get("label") if isinstance(raw.get("label"), str) else label
+    if isinstance(raw_label, str):
+        safe_label = re.sub(r"[\x00-\x1f\x7f]", " ", raw_label).strip()[:100]
+        if safe_label:
+            result["label"] = safe_label
     duration = token_count(raw.get("windowDurationMins"))
     resets_at = token_count(raw.get("resetsAt"))
-    if duration is not None:
+    if duration:
         result["windowDurationMins"] = min(duration, 525_600)
     if resets_at is not None:
         result["resetsAt"] = resets_at
@@ -1477,16 +1500,177 @@ def rate_limit_window(raw: Any) -> dict[str, int | float] | None:
 def rate_limit_snapshot(raw: Any) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
-    primary = rate_limit_window(raw.get("primary"))
-    secondary = rate_limit_window(raw.get("secondary"))
-    if not primary and not secondary:
+    limit_id = raw.get("limitId")
+    safe_limit_id = (
+        limit_id
+        if isinstance(limit_id, str)
+        and len(limit_id) <= 80
+        and re.fullmatch(r"[A-Za-z0-9._:-]+", limit_id)
+        else None
+    )
+    limit_name = raw.get("limitName")
+    safe_limit_name = (
+        re.sub(r"[\x00-\x1f\x7f]", " ", limit_name).strip()[:60]
+        if isinstance(limit_name, str)
+        else ""
+    )
+    windows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    raw_windows = raw.get("windows")
+    candidates: list[tuple[str | None, Any]] = []
+    if isinstance(raw_windows, list):
+        candidates.extend((None, item) for item in raw_windows[:32])
+    elif isinstance(raw_windows, dict):
+        candidates.extend(list(raw_windows.items())[:32])
+    candidates.extend(
+        (
+            f"{safe_limit_id}:{key}" if safe_limit_id else key,
+            raw.get(key),
+        )
+        for key in ("primary", "secondary")
+    )
+    for fallback_id, candidate in candidates:
+        if len(windows) >= 32:
+            break
+        duration = (
+            token_count(candidate.get("windowDurationMins"))
+            if isinstance(candidate, dict)
+            else None
+        )
+        period = None
+        if duration == 10_080:
+            period = "Weekly limit"
+        elif duration and duration % 1_440 == 0:
+            period = f"{duration // 1_440}-day limit"
+        elif duration and duration % 60 == 0:
+            period = f"{duration // 60}-hour limit"
+        elif duration:
+            period = f"{duration}-minute limit"
+        derived_label = (
+            f"{safe_limit_name} {period[0].lower()}{period[1:]}"
+            if safe_limit_name and period
+            else (f"{safe_limit_name} limit" if safe_limit_name else None)
+        )
+        window = rate_limit_window(candidate, fallback_id, derived_label)
+        if not window:
+            continue
+        window_id = window.get("id")
+        if not isinstance(window_id, str) or window_id in seen:
+            continue
+        seen.add(window_id)
+        windows.append(window)
+    if not windows:
         return None
-    result: dict[str, Any] = {"primary": primary, "secondary": secondary}
+    result: dict[str, Any] = {"windows": windows}
+    by_id = {window["id"]: window for window in windows}
+    for legacy_key in ("primary", "secondary"):
+        legacy_id = f"{safe_limit_id}:{legacy_key}" if safe_limit_id else legacy_key
+        legacy = rate_limit_window(raw.get(legacy_key), legacy_id)
+        if legacy is not None:
+            result[legacy_key] = by_id.get(legacy["id"], legacy)
     for key in ("limitId", "limitName", "planType", "rateLimitReachedType"):
         value = raw.get(key)
         if isinstance(value, str) and value:
-            result[key] = value[:100]
+            safe_value = re.sub(r"[\x00-\x1f\x7f]", " ", value).strip()[:100]
+            if safe_value:
+                result[key] = safe_value
     return result
+
+
+def account_rate_limit_snapshot(raw: Any) -> dict[str, Any] | None:
+    """Project every bucket from account/rateLimits/read into one collection."""
+    if not isinstance(raw, dict):
+        return None
+    legacy = rate_limit_snapshot(raw.get("rateLimits"))
+    buckets = raw.get("rateLimitsByLimitId")
+    if not isinstance(buckets, dict):
+        return legacy
+    windows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    bucket_items = list(buckets.items())[:32]
+    default_limit_id = legacy.get("limitId") if legacy else None
+    if isinstance(default_limit_id, str):
+        bucket_items.sort(key=lambda item: item[0] != default_limit_id)
+    for bucket_id, bucket in bucket_items:
+        if len(windows) >= 32:
+            break
+        if not isinstance(bucket, dict):
+            continue
+        if not isinstance(bucket_id, str) or not re.fullmatch(
+            r"[A-Za-z0-9._:-]{1,80}", bucket_id
+        ):
+            continue
+        projected = rate_limit_snapshot({**bucket, "limitId": bucket_id})
+        if not projected:
+            continue
+        for window in projected["windows"]:
+            window_id = window["id"]
+            if window_id in seen:
+                continue
+            seen.add(window_id)
+            windows.append(window)
+            if len(windows) >= 32:
+                break
+    if not windows:
+        return legacy
+    result: dict[str, Any] = {
+        **(
+            {
+                key: value
+                for key, value in legacy.items()
+                if key not in {"windows", "primary", "secondary"}
+            }
+            if legacy
+            else {}
+        ),
+        "windows": windows,
+    }
+    if legacy:
+        by_id = {window["id"]: window for window in windows}
+        for key in ("primary", "secondary"):
+            alias = legacy.get(key)
+            if isinstance(alias, dict) and isinstance(alias.get("id"), str):
+                result[key] = by_id.get(alias["id"], alias)
+    return result
+
+
+def merge_rate_limit_snapshots(previous: Any, incoming: Any) -> dict[str, Any] | None:
+    """Merge a sparse provider update without losing windows or window metadata."""
+    old = rate_limit_snapshot(previous)
+    new = rate_limit_snapshot(incoming)
+    if new is None:
+        return old
+    if old is None:
+        return new
+    old_windows = {
+        window["id"]: window
+        for window in old["windows"]
+        if isinstance(window.get("id"), str)
+    }
+    order = list(old_windows)
+    incoming_ids = {window["id"] for window in new["windows"]}
+    old_limit_id = old.get("limitId")
+    if isinstance(old_limit_id, str):
+        for slot in ("primary", "secondary"):
+            namespaced = f"{old_limit_id}:{slot}"
+            if namespaced in incoming_ids and slot in old_windows:
+                old_windows.pop(slot)
+                order.remove(slot)
+    for window in new["windows"]:
+        window_id = window["id"]
+        if window_id not in old_windows:
+            order.append(window_id)
+        old_windows[window_id] = {**old_windows.get(window_id, {}), **window}
+    merged: dict[str, Any] = {
+        **{key: value for key, value in old.items() if key not in {"windows", "primary", "secondary"}},
+        **{key: value for key, value in new.items() if key not in {"windows", "primary", "secondary"}},
+        "windows": [old_windows[window_id] for window_id in order],
+    }
+    for legacy_key in ("primary", "secondary"):
+        legacy = new.get(legacy_key) or old.get(legacy_key)
+        if isinstance(legacy, dict) and isinstance(legacy.get("id"), str):
+            merged[legacy_key] = old_windows.get(legacy["id"], legacy)
+    return merged
 
 
 def session(thread: dict[str, Any], include_messages: bool = False) -> dict[str, Any]:

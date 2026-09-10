@@ -1245,6 +1245,7 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
     private var preferences = PreferenceStore(application, activeHost?.id)
     private val savedPreferences = preferences.load()
     private val savedReleaseUpdateInfo = preferences.loadReleaseUpdateInfo()
+    private val savedAccountUsage = preferences.loadAccountUsage()
     private val initiallyRememberedSession = rememberedSessionTarget(
         savedPreferences.selectedSessionProvider,
         savedPreferences.selectedSessionId,
@@ -1302,6 +1303,7 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
                 foremanVersion = savedReleaseUpdateInfo?.serverVersion,
                 foremanReleaseBuild = savedReleaseUpdateInfo?.serverReleaseBuild,
                 releaseUpdates = savedReleaseUpdateInfo?.snapshot,
+                accountUsage = savedAccountUsage,
             ),
         )
     private val json = Json { ignoreUnknownKeys = true }
@@ -2729,6 +2731,7 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
         preferences = PreferenceStore(getApplication(), saved.id)
         val restored = preferences.load()
         val restoredReleaseUpdateInfo = preferences.loadReleaseUpdateInfo()
+        val restoredAccountUsage = preferences.loadAccountUsage()
         val remembered = rememberedSessionTarget(
             restored.selectedSessionProvider,
             restored.selectedSessionId,
@@ -2767,7 +2770,7 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
                 archivedError = null,
                 providers = emptyList(),
                 providerCatalogLoaded = false,
-                accountUsage = AccountUsage(),
+                accountUsage = restoredAccountUsage,
                 repositories = emptyList(),
                 selected = null,
                 showNewSession = false,
@@ -3568,7 +3571,8 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
                 val serviceStatus = serviceStatusRequest.await().payload
                 val accountUsage = usageRequest.await()?.payload?.let {
                     runCatching { json.decodeFromJsonElement<AccountUsage>(it) }.getOrNull()
-                } ?: AccountUsage()
+                }?.let { mergeAccountUsage(state.value.accountUsage, it) }
+                    ?: state.value.accountUsage
                 val codexStatus = serviceStatus["codex"]?.jsonObject
                 val repositoryRoot = serviceStatus["repositoryRoot"]?.jsonPrimitive?.content.orEmpty()
                 val models =
@@ -3667,6 +3671,7 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
             CachedReleaseUpdateInfo(snapshot.foremanVersion, snapshot.foremanReleaseBuild, it)
         }
         if (releaseUpdateInfo != null) preferences.setReleaseUpdateInfo(releaseUpdateInfo)
+        preferences.setAccountUsage(snapshot.accountUsage)
         snapshot.serverUpdateOperation?.let { preferences.setServerUpdateOperationId(it.id) }
         val applySelection = !archivedSelection &&
             (expectedNavigation == null || hostNavigation.isCurrent(expectedNavigation))
@@ -4452,7 +4457,11 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
             val usage = runCatching {
                 json.decodeFromJsonElement<AccountUsage>(message.payload)
             }.getOrNull() ?: return
-            state.update { it.copy(accountUsage = usage) }
+            state.update {
+                val merged = mergeAccountUsage(it.accountUsage, usage)
+                preferences.setAccountUsage(merged)
+                it.copy(accountUsage = merged)
+            }
             return
         }
         if (message.type == "provider.event") {
@@ -6185,8 +6194,8 @@ private fun AccountUsageDock(
     if (visible.isEmpty()) return
     val showProviderIdentity = shouldShowProviderIdentity(providers, providerCatalogLoaded)
     var open by remember { mutableStateOf(false) }
-    val usedPercent = visible.flatMap { accountUsageWindows(it.second) }
-        .maxOfOrNull { it.usedPercent }?.roundToInt()?.coerceIn(0, 100) ?: 0
+    val constraint = accountUsageConstraint(visible)
+    val usedPercent = constraint?.window?.usedPercent?.roundToInt()?.coerceIn(0, 100) ?: 0
     Surface(tonalElevation = 3.dp, shadowElevation = 4.dp) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { open = true }
@@ -6196,17 +6205,22 @@ private fun AccountUsageDock(
         ) {
             UsageRing(usedPercent, 28.dp)
             Column(Modifier.weight(1f)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    visible.forEach { (provider, providerUsage) ->
-                        Text(
-                            (if (showProviderIdentity) "${provider.displayName.removeSuffix(" Code")} " else "") +
-                                accountUsageRemaining(providerUsage),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                }
-                Text("Account usage", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    constraint?.let { accountUsageConstraintSummary(it, showProviderIdentity) }
+                        ?: "Usage unavailable",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "Account usage" + (if (constraint?.usage?.stale == true) " · cached" else "") +
+                        (constraint?.additionalWindows?.takeIf { it > 0 }?.let { " · +$it more" } ?: ""),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -6242,31 +6256,51 @@ private fun AccountUsageDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         } else {
-                            windows.forEachIndexed { index, window ->
+                            windows.forEach { window ->
                                 val remaining = (100 - window.usedPercent).roundToInt().coerceIn(0, 100)
                                 Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text(rateLimitLabel(window.windowDurationMins, index), style = MaterialTheme.typography.labelMedium)
-                                        Text("$remaining% left", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            rateLimitLabel(window),
+                                            modifier = Modifier.weight(1f).padding(end = 12.dp),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            "$remaining% left",
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                        )
                                     }
                                     LinearProgressIndicator(
                                         progress = { (window.usedPercent / 100).toFloat().coerceIn(0f, 1f) },
                                         modifier = Modifier.fillMaxWidth(),
                                     )
-                                    window.resetsAt?.let {
-                                        Text(
-                                            "Resets ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it * 1000))}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
+                                    Text(
+                                        window.resetsAt?.let {
+                                            "Resets ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it * 1000))}"
+                                        } ?: "Reset time unavailable",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
                             }
                         }
                         usage.observedAt?.let {
                             Text(
-                                "Last observed ${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it * 1000))}",
-                                style = MaterialTheme.typography.labelSmall,
+                                (if (usage.stale) "Cached · last observed " else "Last observed ") +
+                                    DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it * 1000)),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (usage.stale && usage.observedAt == null) {
+                            Text(
+                                "Cached snapshot",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -6277,17 +6311,6 @@ private fun AccountUsageDialog(
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
     )
 }
-
-private fun rateLimitLabel(durationMinutes: Long?, index: Int): String =
-    when (durationMinutes) {
-        10_080L -> "Weekly limit"
-        null -> if (index == 0) "Primary limit" else "Secondary limit"
-        else -> when {
-            durationMinutes > 0 && durationMinutes % 60 == 0L -> "${durationMinutes / 60}-hour limit"
-            durationMinutes > 0 -> "$durationMinutes-minute limit"
-            else -> if (index == 0) "Primary limit" else "Secondary limit"
-        }
-    }
 
 @Composable
 private fun UsageRing(percentUsed: Int, size: Dp) {

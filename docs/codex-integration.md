@@ -136,9 +136,14 @@ replay.
 - `contextCompaction` items are projected as metadata-only conversation items
   so the client can count compactions. Foreman never projects the compaction
   summary itself.
-- Account rate-limit projections contain only bounded percentages, durations,
-  reset times, and labels. They omit account identity, credits, and usage
-  history. Rolling sparse updates merge into the authenticated snapshot.
+- Account rate-limit projections retain every reported window in a
+  provider-scoped collection with bounded percentages, durations, reset times,
+  IDs, and labels. Foreman consumes the app-server's `rateLimitsByLimitId`
+  multi-bucket response and namespaces each primary/secondary window by its
+  metered limit ID, so model-specific limits coexist with the default Codex
+  bucket. Legacy single-bucket primary/secondary payloads are normalized without
+  inventing absent limits. Projections omit account identity, credits, and usage
+  history, and rolling sparse bucket updates merge into the restart-safe snapshot.
 - Access presets use allowed `:workspace` and `:danger-full-access` permission
   profiles. Standard approval routes to the user, automatic approval uses
   `auto_review`, and full access disables approval prompts.

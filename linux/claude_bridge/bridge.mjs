@@ -245,24 +245,76 @@ function boundedPercent(value) {
 function resetTimestamp(value) {
   if (typeof value !== "string") return undefined;
   const milliseconds = Date.parse(value);
-  return Number.isFinite(milliseconds) ? Math.max(0, Math.trunc(milliseconds / 1000)) : undefined;
+  return Number.isFinite(milliseconds)
+    ? Math.min(1_000_000_000_000, Math.max(0, Math.trunc(milliseconds / 1000)))
+    : undefined;
 }
 
-function claudeRateLimits(raw) {
+export function claudeRateLimits(raw) {
   if (!raw || typeof raw !== "object") return null;
-  const project = (window, duration) => {
+  const windows = [];
+  const seen = new Set();
+  const add = (id, window, { duration, label } = {}) => {
+    if (windows.length >= 32 || typeof id !== "string" || !/^[A-Za-z0-9._:-]{1,100}$/.test(id) || seen.has(id)) return;
     const usedPercent = boundedPercent(window?.utilization);
-    if (usedPercent === undefined) return null;
+    if (usedPercent === undefined) return;
+    const reportedDuration = boundedCount(
+      window?.window_duration_mins ?? window?.windowDurationMins ?? window?.duration_mins,
+      525_600,
+    );
     const resetsAt = resetTimestamp(window?.resets_at);
-    return {
+    const safeLabel = typeof (label ?? window?.display_name) === "string"
+      ? boundedText(label ?? window?.display_name, 100).trim()
+      : "";
+    seen.add(id);
+    windows.push({
+      id,
       usedPercent,
-      windowDurationMins: duration,
+      ...(reportedDuration !== undefined || duration !== undefined
+        ? { windowDurationMins: reportedDuration ?? duration }
+        : {}),
       ...(resetsAt !== undefined ? { resetsAt } : {}),
-    };
+      ...(safeLabel ? { label: safeLabel } : {}),
+    });
   };
-  const primary = project(raw.five_hour, 300);
-  const secondary = project(raw.seven_day, 10_080);
-  return primary || secondary ? { primary, secondary } : null;
+  const known = {
+    five_hour: { duration: 300, label: "5-hour limit" },
+    seven_day: { duration: 10_080, label: "Weekly limit" },
+    seven_day_oauth_apps: { duration: 10_080, label: "OAuth apps weekly limit" },
+    seven_day_opus: { duration: 10_080, label: "Opus weekly limit" },
+    seven_day_sonnet: { duration: 10_080, label: "Sonnet weekly limit" },
+  };
+  for (const [id, metadata] of Object.entries(known)) add(id, raw[id], metadata);
+  if (Array.isArray(raw.model_scoped)) {
+    for (const [index, window] of raw.model_scoped.slice(0, 24).entries()) {
+      const displayName = typeof window?.display_name === "string"
+        ? boundedText(window.display_name, 60).trim()
+        : "";
+      const slug = displayName.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-|-$/g, "");
+      add(`model_scoped:${slug || "model"}:${index + 1}`, window, {
+        duration: 10_080,
+        label: displayName ? `${displayName} weekly limit` : "Model weekly limit",
+      });
+    }
+  }
+  for (const [id, window] of Object.entries(raw).slice(0, 32)) {
+    if (id in known || id === "model_scoped") continue;
+    if (id === "extra_usage" && window?.is_enabled !== true) continue;
+    if (!/^[A-Za-z0-9._-]{1,80}$/.test(id)) continue;
+    if (/(?:account|email|identity|subscription|credit)/i.test(id)) continue;
+    const words = id.replace(/[._-]+/g, " ").trim();
+    const label = words
+      ? `${words.charAt(0).toUpperCase()}${words.slice(1)} limit`
+      : "Usage limit";
+    add(id, window, { label });
+  }
+  if (!windows.length) return null;
+  const byId = Object.fromEntries(windows.map((window) => [window.id, window]));
+  return {
+    windows,
+    ...(byId.five_hour ? { primary: byId.five_hour } : {}),
+    ...(byId.seven_day ? { secondary: byId.seven_day } : {}),
+  };
 }
 
 async function within(promise, milliseconds = 5_000) {
@@ -781,6 +833,7 @@ export class ClaudeBridge {
       event.accountUsage = {
         available: Boolean(rateLimits),
         ...(rateLimits ? { rateLimits } : {}),
+        complete: true,
         experimental: true,
         observedAt: Math.trunc(Date.now() / 1000),
         ...(!rateLimits ? { availabilityReason: "Claude plan limits are unavailable for this account." } : {}),

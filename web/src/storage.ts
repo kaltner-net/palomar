@@ -1,5 +1,6 @@
 import type { ActivityDetail } from "./activity-detail";
-import { isProviderId, type ProviderId, type ReleaseUpdateSnapshot } from "./protocol";
+import { isProviderId, type AccountUsage, type ProviderId, type ReleaseUpdateSnapshot } from "./protocol";
+import { normalizeAccountUsage } from "./account-usage";
 import { normalizeReleaseUpdates } from "./update-status";
 import { forgetServerUpdateOperationId } from "./server-update";
 
@@ -69,6 +70,7 @@ const SESSION_SEARCH_KEY = "foreman.session-search.v1";
 const COLLAPSED_REPOSITORIES_KEY = "foreman.collapsed-repositories.v1";
 const LAST_SESSION_KEY = "foreman.last-session.v1";
 const RELEASE_UPDATES_KEY = "foreman.release-updates.v1";
+const ACCOUNT_USAGE_KEY = "foreman.account-usage.v2";
 const HOST_SCOPED_KEYS = [
   LEGACY_APPEARANCE_KEY,
   APPEARANCE_KEY,
@@ -80,6 +82,7 @@ const HOST_SCOPED_KEYS = [
   COLLAPSED_REPOSITORIES_KEY,
   LAST_SESSION_KEY,
   RELEASE_UPDATES_KEY,
+  ACCOUNT_USAGE_KEY,
 ];
 export const DEFAULT_APPEARANCE: Appearance = {
   colorMode: "system",
@@ -280,6 +283,31 @@ export function saveReleaseUpdateInfo(
   ) {
     storage.setItem(scopedKey(RELEASE_UPDATES_KEY, hostId), JSON.stringify({ ...info, snapshot: validated }));
   }
+}
+
+export function loadAccountUsage(
+  hostId: string | null | undefined,
+  storage: Storage = localStorage,
+): AccountUsage | null {
+  if (!hostId) return null;
+  try {
+    const encoded = storage.getItem(scopedKey(ACCOUNT_USAGE_KEY, hostId));
+    if (!encoded || encoded.length > 64_000) return null;
+    return normalizeAccountUsage(JSON.parse(encoded), true);
+  } catch {
+    return null;
+  }
+}
+
+export function saveAccountUsage(
+  hostId: string | null | undefined,
+  usage: AccountUsage,
+  storage: Storage = localStorage,
+): void {
+  if (!hostId) return;
+  const normalized = normalizeAccountUsage(usage);
+  if (!normalized || !Object.values(normalized.providers).some((provider) => provider?.rateLimits?.windows?.length)) return;
+  storage.setItem(scopedKey(ACCOUNT_USAGE_KEY, hostId), JSON.stringify(normalized));
 }
 
 export function hostIdFromUrl(search = window.location.search): string | null {

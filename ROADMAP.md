@@ -30,8 +30,6 @@ requires reprioritization.
 
 ## Later — product foundations
 
-- [ ] [#71 Show and retain every provider account-usage
-  limit](https://github.com/mkaltner/foreman/issues/71).
 ### Architecture gate: [#60 First-class project management](https://github.com/mkaltner/foreman/issues/60)
 
 Model projects as durable host-scoped workspaces, optionally backed by Git, and
@@ -61,6 +59,8 @@ adapter and complete web/Android parity.
 
 ## Recently completed
 
+- [x] Show and retain every provider account-usage limit on web and Android
+  ([issue #71](https://github.com/mkaltner/foreman/issues/71)).
 - [x] Show connected devices and support host-scoped access revocation on web
   and Android ([PR #106](https://github.com/mkaltner/foreman/pull/106)).
 - [x] Reconcile unavailable providers as disabled while retaining their
