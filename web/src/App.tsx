@@ -33,7 +33,7 @@ import { UnifiedHostConnections } from "./unified-client";
 import { forgetHostSnapshot, loadHostSnapshots, saveHostSnapshots } from "./unified-storage";
 import { mergeHostSnapshot, projectHostSnapshot, sessionIdentityKey, type HostOverviewSnapshot, type UnifiedAttentionItem } from "./unified";
 import { SessionSearchControls, SessionSearchResults } from "./SessionDiscovery";
-import { formatDuration, recordRecentActivity, type RecentActivityEntry } from "./dashboard";
+import { formatAge, formatDuration, recordRecentActivity, type RecentActivityEntry } from "./dashboard";
 import {
   ForemanWebClient,
   inferPagePort,
@@ -373,11 +373,13 @@ function App() {
   const sessionOpenGenerationRef = useRef(0);
   const providerCatalogRevisionRef = useRef(0);
   const refreshGenerationRef = useRef(0);
+  const clientListGenerationRef = useRef(0);
   const refreshStateRef = useRef<((hostId: string, reconnected?: boolean) => Promise<void>) | null>(null);
   const openSessionRef = useRef<(provider: ProviderId, id: string, updateHistory?: boolean) => void>(() => undefined);
   const enterSessionsRef = useRef<(replace?: boolean) => void>(() => undefined);
   const notificationOpenRef = useRef<(hostId: string, sessionId: string) => void>(() => undefined);
   const unifiedConnectionsRef = useRef<UnifiedHostConnections | null>(null);
+  const authenticationRejectedRef = useRef<(detail: string) => void>(() => undefined);
 
   if (!unifiedConnectionsRef.current) {
     unifiedConnectionsRef.current = new UnifiedHostConnections((snapshot) => {
@@ -682,8 +684,15 @@ function App() {
         saveReleaseUpdateInfo(hostId, info);
         setReleaseUpdateInfo(info);
       }
+      const clientListHostId = activeHostIdRef.current;
+      const clientListGeneration = ++clientListGenerationRef.current;
       void clientRef.current?.request<{ clients: PairedClient[] } & Record<string, unknown>>("client.list")
-        .then((result) => setPairedClients(result.clients))
+        .then((result) => {
+          if (
+            clientListHostId === activeHostIdRef.current &&
+            clientListGeneration === clientListGenerationRef.current
+          ) setPairedClients(result.clients);
+        })
         .catch(() => undefined);
       return;
     }
@@ -1098,6 +1107,7 @@ function App() {
     setRepositories([]);
     setServiceStatus(null);
     setAccountUsage(null);
+    clientListGenerationRef.current += 1;
     setPairedClients([]);
     setRecentActivity([]);
     setSearchResults([]);
@@ -1128,8 +1138,7 @@ function App() {
           if (hostId) mutateHost(hostId, { runtimeMode: nextHello.codexRuntime });
         },
         onAuthenticationRejected: (detail) => {
-          clearHostProjections();
-          setError(detail);
+          authenticationRejectedRef.current(detail);
         },
       }),
     [clearHostProjections, mutateHost, onEvent],
@@ -1183,6 +1192,7 @@ function App() {
   const refreshState = useCallback(
     async (hostId: string, reconnected = false) => {
       const refreshGeneration = ++refreshGenerationRef.current;
+      const clientListGeneration = ++clientListGenerationRef.current;
       const providerCatalogRevision = providerCatalogRevisionRef.current;
       if (reconnected) setProviderCatalogLoaded(false);
       const providerResult = await client.request<{ providers: ProviderInfo[] } & Record<string, unknown>>("provider.list");
@@ -1317,7 +1327,9 @@ function App() {
       }
       setAccountUsage(usageResult);
       setRepositories(repositoryResult.repositories);
-      setPairedClients(clientResult.clients);
+      if (clientListGeneration === clientListGenerationRef.current) {
+        setPairedClients(clientResult.clients);
+      }
       if (reconnected) dashboardSubscriptions.current.clear();
       const wanted = new Set(
         reconciled
@@ -1751,6 +1763,12 @@ function App() {
     const search = next.activeHostId ? withHostInSearch("", next.activeHostId) : "";
     window.history.replaceState(null, "", `/sessions${search}`);
   };
+  authenticationRejectedRef.current = (detail) => {
+    const hostId = activeHostIdRef.current;
+    if (!hostId) return;
+    forget(hostId);
+    setError(detail);
+  };
 
   const pairHost = async (settings: PairingSettings, pairingKey: string) => {
     setBusy(true);
@@ -2006,6 +2024,7 @@ function App() {
 
       {view === "settings" ? (
         <SettingsView
+          key={activeHost.id}
           host={activeHost}
           hosts={hostRegistry.hosts}
           appearance={appearance}
@@ -2015,6 +2034,7 @@ function App() {
           releaseUpdates={normalizeReleaseUpdates(serviceStatus?.releaseUpdates) ?? releaseUpdateInfo?.snapshot ?? null}
           updateOperation={serverUpdateOperation}
           connected={connected}
+          pairedClients={pairedClients}
           providers={providers}
           onAppearance={updateAppearance}
           notificationPreferences={notificationPreferences}
@@ -2039,6 +2059,21 @@ function App() {
               await refreshState(activeHost.id);
             } catch (caught) {
               setError(caught instanceof Error ? caught.message : "Provider setting could not be updated");
+              throw caught;
+            }
+          }}
+          onRevokeClient={async (pairedClient) => {
+            const requestHostId = activeHost.id;
+            try {
+              await client.request("client.revoke", { clientId: pairedClient.id });
+              if (activeHostIdRef.current !== requestHostId) return;
+              clientListGenerationRef.current += 1;
+              setPairedClients((previous) => previous.filter((entry) => entry.id !== pairedClient.id));
+              if (pairedClient.current) forget(requestHostId);
+            } catch (caught) {
+              if (activeHostIdRef.current === requestHostId) {
+                setError(caught instanceof Error ? caught.message : "Device access could not be revoked");
+              }
               throw caught;
             }
           }}
@@ -2115,7 +2150,6 @@ function App() {
             serviceStatus={serviceStatus}
             repositories={repositories}
             recentActivity={recentActivity.filter((entry) => !organization.hiddenIds.includes(providerSessionKey("codex", entry.sessionId)))}
-            pairedClients={pairedClients}
             providers={providers}
             providerCatalogLoaded={providerCatalogLoaded}
             connection={connection}
@@ -2125,16 +2159,6 @@ function App() {
             onOpenInput={dashboardOpenInput}
             onInterrupt={dashboardInterrupt}
             onRefresh={dashboardRefresh}
-            onRevokeClient={async (pairedClient) => {
-              try {
-                await client.request("client.revoke", { clientId: pairedClient.id });
-                setPairedClients((previous) => previous.filter((entry) => entry.id !== pairedClient.id));
-                if (pairedClient.current) forget(activeHost.id);
-              } catch (caught) {
-                setError(caught instanceof Error ? caught.message : "Client token could not be revoked");
-                throw caught;
-              }
-            }}
             onFetchDiagnostics={async () => {
               const result = await client.request<{ events: DiagnosticEvent[] } & Record<string, unknown>>("diagnostics.list");
               return result.events;
@@ -3462,6 +3486,66 @@ function providerDisplayName(provider: ProviderId): string {
   return provider === "claude-code" ? "Claude Code" : "Codex";
 }
 
+export function clientTypeLabel(type: PairedClient["type"]): string {
+  return type === "browser"
+    ? "Browser"
+    : type === "android"
+      ? "Android"
+      : type === "mixed"
+        ? "Browser and Android"
+        : "Client";
+}
+
+export function DevicesAndAccess({
+  clients,
+  connected,
+  onRevoke,
+}: {
+  clients: PairedClient[];
+  connected: boolean;
+  onRevoke: (client: PairedClient) => Promise<void>;
+}) {
+  const now = Date.now();
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const revoke = (client: PairedClient) => {
+    const consequence = client.current
+      ? "This device will be signed out of this host."
+      : "All of this device’s current connections will close.";
+    const warning = `Disconnect and revoke access for “${client.name}”? ${consequence} Automatic reconnection will be prevented and the device must pair again. Sessions, repositories, and workspace data will not be deleted.`;
+    if (!window.confirm(warning)) return;
+    setRevoking(client.id);
+    setFeedback(null);
+    void onRevoke(client)
+      .then(() => {
+        if (!client.current) {
+          setFeedback({ tone: "success", message: `Access revoked for ${client.name}.` });
+        }
+      })
+      .catch((caught) => setFeedback({
+        tone: "error",
+        message: caught instanceof Error ? caught.message : "Device access could not be revoked.",
+      }))
+      .finally(() => setRevoking(null));
+  };
+  return <section className="settings-card devices-and-access">
+    <div className="settings-card-heading"><div><h2>Devices and access</h2><p className="muted">Paired devices for this host. Revoking access closes all current connections, prevents automatic reconnection, and requires pairing again. Sessions, repositories, and workspace data stay on the host.</p></div><span>{clients.filter((client) => client.connected).length} connected</span></div>
+    {!connected && <p className="device-access-notice" role="status">Reconnect to refresh or manage this host’s devices.</p>}
+    {feedback && <p className={`device-access-feedback ${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.message}</p>}
+    {clients.length === 0 ? <p className="muted">No paired devices are available.</p> : <div className="device-access-list">{clients.map((client) => {
+      const multipleConnections = client.connected && client.connectionCount > 1
+        ? ` · ${client.connectionCount} live connections`
+        : "";
+      const paired = client.pairedAt ? new Date(client.pairedAt) : null;
+      return <article className="device-access-row" key={client.id}>
+        <span className={`client-presence ${client.connected ? "online" : "offline"}`} aria-hidden="true">{client.connected ? "●" : "○"}</span>
+        <div className="device-access-identity"><div><strong>{client.name}</strong>{client.current && <span className="this-device">This device</span>}</div><small>{clientTypeLabel(client.type)} · {client.connected ? "Connected" : "Offline"}{multipleConnections}</small><time dateTime={client.pairedAt ?? undefined} title={paired?.toLocaleString()}>{client.pairedAt ? `Paired ${formatAge(client.pairedAt, now)}` : "Pairing date unavailable"}</time></div>
+        <button className="revoke-client" disabled={!connected || revoking !== null} onClick={() => revoke(client)} aria-label={`Disconnect and revoke access for ${client.name}`}>{revoking === client.id ? "Revoking…" : "Disconnect and revoke access"}</button>
+      </article>;
+    })}</div>}
+  </section>;
+}
+
 function SettingsView({
   host,
   hosts,
@@ -3472,6 +3556,7 @@ function SettingsView({
   releaseUpdates,
   updateOperation,
   connected,
+  pairedClients,
   providers,
   notificationPreferences,
   notificationState,
@@ -3483,6 +3568,7 @@ function SettingsView({
   onNotificationPermission,
   onNotificationTest,
   onProviderEnabled,
+  onRevokeClient,
   onCheckAgain,
   onReviewUpdate,
   onStartUpdate,
@@ -3500,6 +3586,7 @@ function SettingsView({
   releaseUpdates: import("./protocol").ReleaseUpdateSnapshot | null;
   updateOperation: ServerUpdateOperation | null;
   connected: boolean;
+  pairedClients: PairedClient[];
   providers: ProviderInfo[];
   notificationPreferences: NotificationPreferences;
   notificationState: BrowserNotificationState;
@@ -3511,6 +3598,7 @@ function SettingsView({
   onNotificationPermission: () => Promise<void>;
   onNotificationTest: () => Promise<NotificationDeliveryMethod>;
   onProviderEnabled: (provider: ProviderId, enabled: boolean) => Promise<void>;
+  onRevokeClient: (client: PairedClient) => Promise<void>;
   onCheckAgain: () => Promise<void>;
   onReviewUpdate?: () => Promise<ServerUpdateCheck>;
   onStartUpdate?: () => Promise<ServerUpdateOperation>;
@@ -3541,6 +3629,7 @@ function SettingsView({
   return <main className="settings-page">
     <header><span className="eyebrow">Preferences</span><h1>Settings</h1></header>
     <section className="settings-card"><h2>Saved hosts</h2><div className="saved-hosts">{hosts.map((saved) => <div className={`saved-host ${saved.id === host.id ? "active" : ""}`} key={saved.id}><button className="saved-host-main" onClick={() => onSelect(saved.id)}><strong>{saved.displayName}</strong><small>{saved.host}:{saved.webPort} · {saved.id === host.id ? "active" : saved.lastKnownStatus}</small></button><button onClick={() => { const name = window.prompt("Host display name", saved.displayName)?.trim(); if (name) onRename(saved.id, name); }}>Rename</button><button className="danger-link" onClick={() => { if (window.confirm(`Forget “${saved.displayName}”? Its browser-local token and preferences will be removed.`)) onForget(saved.id); }}>Forget</button></div>)}</div><button className="secondary add-host" onClick={onAdd}>Add host</button></section>
+    <DevicesAndAccess clients={pairedClients} connected={connected} onRevoke={onRevokeClient} />
     <ProviderSettings providers={providers} onProviderEnabled={onProviderEnabled} />
     <section className="settings-card"><h2>Appearance</h2><label>Color mode<select aria-label="Color mode" value={appearance.colorMode} onChange={(event) => onAppearance({ ...appearance, colorMode: event.target.value as Appearance["colorMode"] })}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><div><span className="field-label" id="theme-selector-label">Theme</span><div className="theme-grid" role="group" aria-labelledby="theme-selector-label">{CURATED_THEMES.map((theme) => { const selected = appearance.themeId === theme.id; return <button key={theme.id} type="button" className={`theme-option ${selected ? "selected" : ""}`} aria-pressed={selected} onClick={() => onAppearance({ ...appearance, themeId: theme.id })}><span className="theme-preview" aria-hidden="true">{theme.preview.map((color) => <i key={color} style={{ backgroundColor: color }} />)}</span><span><strong>{theme.name}{selected && <span className="selection-cue"> ✓</span>}</strong><small>{theme.description}</small></span></button>; })}</div></div><label>Activity detail<select value={appearance.activityDetail} onChange={(event) => onAppearance({ ...appearance, activityDetail: event.target.value as ActivityDetail })}><option value="focused">Focused</option><option value="full">Full</option></select><small>Focused groups completed commands and tools, including non-zero exits. Live, blocked, interrupted, execution-error, approval, and input items stay visible.</small></label><label className="check-row"><input type="checkbox" checked={appearance.groupSessionsByRepository} onChange={(event) => onAppearance({ ...appearance, groupSessionsByRepository: event.target.checked })} /><span><strong>Group sessions by repository</strong><small>Keep each project together and show its active sessions first.</small></span></label></section>
     <section className="settings-card notification-preferences">

@@ -25,6 +25,9 @@ The current update-and-release architecture gates are complete. New work enters
 the ordered foundations list below unless a correctness or security issue
 requires reprioritization.
 
+- [ ] [#82 Show connected devices and support forced
+  disconnection](https://github.com/mkaltner/foreman/issues/82).
+
 ## Later — product foundations
 
 - [ ] [#71 Show and retain every provider account-usage

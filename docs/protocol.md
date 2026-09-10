@@ -210,8 +210,9 @@ session's route before it is returned.
 Foreman and Codex versions, uptime, runtime mode, listener ports, repository
 root, aggregate browser/TCP client counts, last Codex event and successful
 request times, attach time, loaded/subscribed thread counts, and narrow runtime
-ownership diagnostics. Authenticated browsers receive `service.event` when safe
-aggregate client counts change; raw-TCP behavior is unchanged. Status never
+ownership diagnostics. Authenticated clients receive `service.event` when safe
+aggregate client counts change so device inventories can refresh on every
+transport. Status never
 includes pairing material, device tokens, environment variables, logs, source
 addresses, or unrestricted process details.
 

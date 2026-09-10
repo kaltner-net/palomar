@@ -118,6 +118,22 @@ data class DiagnosticEvent(
 )
 
 @Serializable
+data class PairedClient(
+    val id: String,
+    val name: String,
+    val type: String = "unknown",
+    val pairedAt: String? = null,
+    val connected: Boolean = false,
+    val connectionCount: Int = 0,
+    val current: Boolean = false,
+)
+
+class ForemanRequestException(
+    val code: String?,
+    message: String,
+) : IOException(message)
+
+@Serializable
 data class ImagePayload(
     val mimeType: String,
     val data: String,
@@ -407,7 +423,8 @@ class ForemanClient(
             }
             val response = withTimeout(120_000) { deferred.await() }
             if (response.type == "error") {
-                throw IOException(
+                throw ForemanRequestException(
+                    response.payload["code"]?.jsonPrimitive?.content,
                     response.payload["message"]?.jsonPrimitive?.content ?: "Request failed",
                 )
             }
@@ -455,7 +472,8 @@ class ForemanClient(
                         continue
                     }
                     if (message.type == "error") {
-                        throw IOException(
+                        throw ForemanRequestException(
+                            message.payload["code"]?.jsonPrimitive?.content,
                             message.payload["message"]?.jsonPrimitive?.content
                                 ?: "Foreman rejected the connection",
                         )

@@ -9,6 +9,7 @@ class MockSocket {
   onclose: ((event: CloseEvent) => void) | null = null;
   sent: Array<Record<string, unknown>> = [];
   hold = new Set<string>();
+  rejectAuthentication = false;
 
   constructor() {
     queueMicrotask(() => {
@@ -32,7 +33,9 @@ class MockSocket {
     queueMicrotask(() =>
       this.onmessage?.(
         new MessageEvent("message", {
-          data: JSON.stringify({ version: 1, id: request.id, type: `${request.type}.result`, payload }),
+          data: JSON.stringify(request.type === "authenticate" && this.rejectAuthentication
+            ? { version: 1, id: request.id, type: "error", payload: { code: "unauthorized", message: "device token is invalid" } }
+            : { version: 1, id: request.id, type: `${request.type}.result`, payload }),
         }),
       ),
     );
@@ -186,6 +189,34 @@ describe("web client pairing, authentication, and reconnect", () => {
 
     expect(rejected).toHaveBeenCalledWith(expect.stringContaining("token was revoked"));
     expect(onState).toHaveBeenLastCalledWith("disconnected", expect.stringContaining("token was revoked"));
+    expect(timers).toHaveLength(0);
+  });
+
+  it("stops reconnecting and requests pairing when an offline token is rejected", async () => {
+    const rejected = vi.fn();
+    const onState = vi.fn();
+    const timers: Array<() => void> = [];
+    const client = new ForemanWebClient(
+      { onEvent: vi.fn(), onState, onAuthenticationRejected: rejected },
+      () => {
+        const socket = new MockSocket();
+        socket.rejectAuthentication = true;
+        return socket;
+      },
+      (callback) => {
+        timers.push(callback);
+        return timers.length;
+      },
+    );
+
+    await expect(client.start(
+      parseEndpoint("codex.local", 8766, "http:"),
+      "fmt_revoked",
+      async () => undefined,
+    )).rejects.toMatchObject({ code: "unauthorized" });
+
+    expect(rejected).toHaveBeenCalledWith(expect.stringContaining("Pair this browser again"));
+    expect(onState).toHaveBeenLastCalledWith("disconnected", expect.stringContaining("no longer valid"));
     expect(timers).toHaveLength(0);
   });
 });
