@@ -252,6 +252,29 @@ describe("dashboard projections", () => {
     expect(groups.find((group) => group.id === "/home/operator")?.kind).toBe("workspace");
   });
 
+  it("keeps dashboard repository groups alphabetical instead of activity-ranked", () => {
+    const discovered = [
+      { id: "zeta", name: "zeta", path: "zeta", branch: "main", dirty: false },
+      { id: "alpha-10", name: "alpha10", path: "alpha10", branch: "main", dirty: false },
+      { id: "alpha-2", name: "Alpha2", path: "Alpha2", branch: "main", dirty: false },
+      { id: "alpha-2-lower", name: "alpha2", path: "alpha2-lower", branch: "main", dirty: false },
+    ];
+    const sessions = [
+      { ...base, id: "zeta", repository: "/work/zeta", status: "waiting", lastActivity: now },
+      { ...base, id: "alpha-10", repository: "/work/alpha10", status: "idle", lastActivity: now - 10 },
+      { ...base, id: "alpha-2", repository: "/work/Alpha2", status: "idle", lastActivity: now - 20 },
+      { ...base, id: "alpha-2-lower", repository: "/work/alpha2-lower", status: "idle", lastActivity: now - 30 },
+      { ...base, id: "workspace", repository: "/workspace/alpha", status: "working", lastActivity: now + 10 },
+    ];
+    expect(repositoryGroups(sessions, now, discovered, "/work").map(({ kind, name }) => `${kind}:${name}`)).toEqual([
+      "repository:Alpha2",
+      "repository:alpha2",
+      "repository:alpha10",
+      "repository:zeta",
+      "workspace:alpha",
+    ]);
+  });
+
   it("coalesces noisy activity and bounds the browser-only feed at twenty", () => {
     let entries = recordRecentActivity([], base, { kind: "activity", label: "Thinking", observedAt: now / 1000 }, now);
     entries = recordRecentActivity(entries, base, { kind: "activity", label: "Running tests", text: "private prompt", observedAt: now / 1000 + 1 }, now + 1000);

@@ -4,6 +4,7 @@ import type {
   SessionEvent,
   SessionSummary,
 } from "./protocol";
+import { compareStableSessionGroups } from "./group-order";
 
 export const RECENT_WINDOW_MS = 60 * 60 * 1000;
 export const STALE_ACTIVE_TURN_MS = 10 * 60 * 1000;
@@ -204,12 +205,7 @@ export function repositoryGroups(
       longestActiveDurationMs: activeStarts.length ? now - Math.min(...activeStarts) : null,
       latestCompletionAt: completions.length ? Math.max(...completions) : null,
     };
-  }).sort((left, right) =>
-    (right.waiting + right.failed) - (left.waiting + left.failed) ||
-    right.active - left.active ||
-    (right.lastActivity ?? 0) - (left.lastActivity ?? 0) ||
-    left.id.localeCompare(right.id)
-  );
+  }).sort(compareStableSessionGroups);
 }
 
 export function recordRecentActivity(

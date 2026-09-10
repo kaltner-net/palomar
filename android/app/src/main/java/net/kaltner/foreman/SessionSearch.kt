@@ -80,7 +80,7 @@ internal fun sessionRepositoryOptions(
 ): List<SessionRepositoryOption> =
     sessions.map { sessionRepositoryIdentity(it.repository, repositories, repositoryRoot) }
         .distinctBy { it.id }
-        .sortedBy { it.label.lowercase() }
+        .sortedWith(::compareRepositoryOptions)
 
 internal fun repositorySessionGroups(
     sessions: List<VisibleSession>,
@@ -101,7 +101,51 @@ internal fun repositorySessionGroups(
                     .thenBy { it.index },
             ).map { it.value },
         )
+    }.sortedWith { left, right -> compareRepositoryOptions(left.repository, right.repository) }
+}
+
+private fun compareRepositoryOptions(
+    left: SessionRepositoryOption,
+    right: SessionRepositoryOption,
+): Int {
+    fun orderKey(option: SessionRepositoryOption): Triple<Int, String, String> {
+        val repository = option.label.startsWith("Repository: ")
+        return Triple(
+            if (repository) 0 else 1,
+            option.label.substringAfter(':').trim(),
+            option.id,
+        )
     }
+    val leftKey = orderKey(left)
+    val rightKey = orderKey(right)
+    return leftKey.first.compareTo(rightKey.first)
+        .takeIf { it != 0 }
+        ?: compareNaturalGroupNames(leftKey.second, rightKey.second).takeIf { it != 0 }
+        ?: leftKey.second.compareTo(rightKey.second).takeIf { it != 0 }
+        ?: leftKey.third.compareTo(rightKey.third)
+}
+
+private val naturalGroupNamePart = Regex("\\d+|\\D+")
+
+private fun compareNaturalGroupNames(left: String, right: String): Int {
+    val leftParts = naturalGroupNamePart.findAll(left.lowercase(Locale.ROOT)).map { it.value }.toList()
+    val rightParts = naturalGroupNamePart.findAll(right.lowercase(Locale.ROOT)).map { it.value }.toList()
+    for (index in 0 until minOf(leftParts.size, rightParts.size)) {
+        val leftPart = leftParts[index]
+        val rightPart = rightParts[index]
+        val comparison = if (leftPart.firstOrNull()?.isDigit() == true && rightPart.firstOrNull()?.isDigit() == true) {
+            val leftNumber = leftPart.trimStart('0').ifEmpty { "0" }
+            val rightNumber = rightPart.trimStart('0').ifEmpty { "0" }
+            leftNumber.length.compareTo(rightNumber.length)
+                .takeIf { it != 0 }
+                ?: leftNumber.compareTo(rightNumber).takeIf { it != 0 }
+                ?: leftPart.length.compareTo(rightPart.length)
+        } else {
+            leftPart.compareTo(rightPart)
+        }
+        if (comparison != 0) return comparison
+    }
+    return leftParts.size.compareTo(rightParts.size)
 }
 
 internal fun sessionCardRepositoryLabel(

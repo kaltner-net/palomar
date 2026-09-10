@@ -1,4 +1,5 @@
 import { providerSessionKey, sessionProvider, type RepositoryInfo, type SessionSearchResult, type SessionSummary } from "./protocol";
+import { compareStableSessionGroups, type StableSessionGroupIdentity } from "./group-order";
 
 export type SearchStatus = "active" | "waiting" | "completed" | "failed" | "interrupted";
 export type DateRange = "all" | "today" | "7d" | "30d" | "custom";
@@ -100,7 +101,8 @@ export function repositoryFilterOptions(
     const option = repositoryIdentity(session.repository, repositories, repositoryRoot);
     options.set(option.id, option);
   });
-  return [...options.values()].sort((left, right) => left.label.localeCompare(right.label));
+  return [...options.values()].sort((left, right) =>
+    compareStableSessionGroups(repositoryOptionOrderKey(left), repositoryOptionOrderKey(right)));
 }
 
 export function repositorySessionGroups(
@@ -124,7 +126,19 @@ export function repositorySessionGroups(
         || Number(right.session.pinned) - Number(left.session.pinned)
         || left.index - right.index)
       .map(({ session }) => session),
-  }));
+  })).sort((left, right) => compareStableSessionGroups(
+    repositoryOptionOrderKey(left.repository),
+    repositoryOptionOrderKey(right.repository),
+  ));
+}
+
+function repositoryOptionOrderKey(option: RepositoryFilterOption): StableSessionGroupIdentity {
+  const kind = option.label.startsWith("Repository: ") ? "repository" : "workspace";
+  return {
+    id: option.id,
+    kind,
+    name: option.label.slice(option.label.indexOf(":") + 1).trim(),
+  };
 }
 
 export function showSessionCardRepository(
