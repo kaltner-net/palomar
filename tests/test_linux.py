@@ -32,6 +32,7 @@ from codex import (  # noqa: E402
     model,
     normalize_event,
     normalize_item,
+    merge_rate_limit_snapshots,
     rate_limit_snapshot,
     search_matches,
     safe_failure_summary,
@@ -1590,6 +1591,21 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 app.account_usage_projection()["providers"]["claude-code"]["rateLimits"]["secondary"]["usedPercent"],
                 28,
             )
+            await app.claude_event(
+                {
+                    "provider": "claude-code",
+                    "kind": "usage",
+                    "sessionId": "external-session",
+                    "runId": "run-resume",
+                    "accountUsage": {"available": False},
+                }
+            )
+            retained_claude_usage = app.account_usage_projection()["providers"]["claude-code"]
+            self.assertTrue(retained_claude_usage["stale"])
+            self.assertEqual(
+                retained_claude_usage["rateLimits"]["secondary"]["usedPercent"],
+                28,
+            )
             await app.flush_session_timestamp_persistence()
             restored = Foreman(
                 "127.0.0.1",
@@ -2770,8 +2786,52 @@ Tighten up this layout, please.
         self.assertEqual(snapshot["primary"]["usedPercent"], 100)
         self.assertEqual(snapshot["secondary"]["usedPercent"], 0)
         self.assertEqual(snapshot["secondary"]["windowDurationMins"], 10_080)
+        self.assertEqual(
+            [window["id"] for window in snapshot["windows"]],
+            ["primary", "secondary"],
+        )
         self.assertLessEqual(len(snapshot["limitName"]), 100)
         self.assertNotIn("private", str(snapshot))
+
+    def test_maps_provider_defined_windows_and_migrates_legacy_aliases(self) -> None:
+        snapshot = rate_limit_snapshot(
+            {
+                "windows": [
+                    {
+                        "id": "rolling",
+                        "label": "Rolling provider limit",
+                        "usedPercent": 12,
+                        "windowDurationMins": 180,
+                    },
+                    {"id": "unknown-period", "usedPercent": 140},
+                ],
+                "primary": {"id": "rolling", "usedPercent": 12},
+                "accountEmail": "private@example.com",
+            }
+        )
+
+        assert snapshot is not None
+        self.assertEqual(len(snapshot["windows"]), 2)
+        self.assertEqual(snapshot["windows"][1]["usedPercent"], 100)
+        self.assertEqual(snapshot["primary"]["id"], "rolling")
+        self.assertNotIn("accountEmail", str(snapshot))
+
+    def test_sparse_collection_merge_preserves_other_windows_and_metadata(self) -> None:
+        merged = merge_rate_limit_snapshots(
+            {
+                "windows": [
+                    {"id": "short", "label": "Short", "usedPercent": 10, "resetsAt": 100},
+                    {"id": "long", "label": "Long", "usedPercent": 20, "resetsAt": 200},
+                ]
+            },
+            {"windows": [{"id": "short", "usedPercent": 30}]},
+        )
+
+        assert merged is not None
+        self.assertEqual([item["id"] for item in merged["windows"]], ["short", "long"])
+        self.assertEqual(merged["windows"][0]["label"], "Short")
+        self.assertEqual(merged["windows"][0]["resetsAt"], 100)
+        self.assertEqual(merged["windows"][1]["usedPercent"], 20)
 
     def test_sparse_account_usage_event_preserves_other_window(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -2814,6 +2874,49 @@ Tighten up this layout, please.
         self.assertEqual(
             foreman.account_usage["rateLimits"]["secondary"]["usedPercent"], 11
         )
+
+    def test_codex_usage_restores_after_restart_and_unavailable_refresh_keeps_it(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            state = State(root / "state")
+            state.remember_provider_account_usage(
+                "codex",
+                {
+                    "available": True,
+                    "observedAt": 1_800_000_000,
+                    "rateLimits": {
+                        "windows": [
+                            {"id": "short", "usedPercent": 25, "windowDurationMins": 300},
+                            {"id": "provider", "label": "Provider limit", "usedPercent": 45},
+                        ]
+                    },
+                },
+            )
+            restored = Foreman(
+                "127.0.0.1",
+                8765,
+                root,
+                state,
+                "codex",
+                FakeCodex,
+            )
+
+            cached = restored.account_usage_projection()["providers"]["codex"]
+            self.assertTrue(cached["stale"])
+            self.assertEqual(len(cached["rateLimits"]["windows"]), 2)
+            restored.account_usage["stale"] = False
+            restored.codex.account_rate_limits = AsyncMock(return_value={"available": False})
+            result = asyncio.run(
+                restored.dispatch(
+                    Client(None, "local", authenticated=True),
+                    {"type": "usage.status", "payload": {}},
+                )
+            )
+            self.assertEqual(len(result["providers"]["codex"]["rateLimits"]["windows"]), 2)
+            self.assertTrue(result["providers"]["codex"]["stale"])
+            self.assertTrue(
+                state.provider_account_usage("codex")["stale"]
+            )
 
     def test_session_and_conversation_mapping(self) -> None:
         mapped = session(THREAD, include_messages=True)

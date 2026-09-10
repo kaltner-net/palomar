@@ -83,7 +83,11 @@ requests.
 
 ## Usage, context, and appearance
 
-Provider account-usage panels show the limits exposed by the installed CLI.
+Provider account-usage panels show every limit exposed by the installed CLI.
+The compact dock names the limit with the least remaining capacity and notes
+when more limits are available; opening it shows each independent window and
+reset time. A cached marker means Foreman is retaining the last valid snapshot
+while it reconnects or waits for a fresher provider response.
 Session context panels show model, access, turn and compaction counts, token
 consumption, and remaining context when the provider supplies those values.
 

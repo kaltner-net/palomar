@@ -121,6 +121,9 @@ export interface ThreadTokenUsage {
 }
 
 export interface RateLimitWindow {
+  /** Stable in collection payloads; omitted by legacy primary/secondary payloads. */
+  id?: string;
+  label?: string;
   usedPercent: number;
   windowDurationMins?: number;
   resetsAt?: number;
@@ -131,6 +134,7 @@ export interface RateLimitSnapshot {
   limitName?: string;
   primary?: RateLimitWindow | null;
   secondary?: RateLimitWindow | null;
+  windows?: RateLimitWindow[];
   planType?: string;
   rateLimitReachedType?: string;
 }
@@ -141,6 +145,7 @@ export interface ProviderAccountUsage {
   experimental?: boolean;
   observedAt?: number;
   availabilityReason?: string;
+  stale?: boolean;
 }
 
 export interface AccountUsage {

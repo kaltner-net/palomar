@@ -8,6 +8,7 @@ import test from "node:test";
 
 import {
   ClaudeBridge,
+  claudeRateLimits,
   detectClaudeCode,
   MAX_EVENT_TEXT_BYTES,
   MAX_HISTORY_BYTES,
@@ -20,6 +21,23 @@ import * as fakeSdk from "./test_fake_sdk.mjs";
 
 const BRIDGE = fileURLToPath(new URL("./bridge.mjs", import.meta.url));
 const FAKE_SDK = pathToFileURL(fileURLToPath(new URL("./test_fake_sdk.mjs", import.meta.url))).href;
+
+test("Claude usage keeps one provider-defined window without fabricating standard periods", () => {
+  const rateLimits = claudeRateLimits({
+    seven_day_sonnet: { utilization: 37, resets_at: "2027-01-20T12:00:00Z" },
+  });
+
+  assert.deepEqual(rateLimits.windows.map(({ id }) => id), ["seven_day_sonnet"]);
+  assert.equal(rateLimits.windows[0].label, "Sonnet weekly limit");
+  assert.equal("primary" in rateLimits, false);
+  assert.equal("secondary" in rateLimits, false);
+
+  const unknownPeriod = claudeRateLimits({
+    provider_period: { utilization: 48, resets_at: "2027-01-16T12:00:00Z" },
+  });
+  assert.equal(unknownPeriod.windows[0].label, "Provider period limit");
+  assert.equal(unknownPeriod.windows[0].windowDurationMins, undefined);
+});
 
 function waitFor(predicate, timeout = 3_000) {
   return new Promise((resolve, reject) => {
@@ -187,6 +205,14 @@ test("start, model, permission callback, discovery, interrupt, and minimal mappi
   assert.equal(usage.tokenUsage.modelContextWindow, 200_000);
   assert.equal(usage.accountUsage.rateLimits.primary.usedPercent, 15);
   assert.equal(usage.accountUsage.rateLimits.secondary.usedPercent, 28);
+  assert.deepEqual(
+    usage.accountUsage.rateLimits.windows.map(({ id }) => id),
+    ["five_hour", "seven_day", "seven_day_opus", "model_scoped:fable:1", "provider_period"],
+  );
+  assert.equal(usage.accountUsage.rateLimits.windows[2].label, "Opus weekly limit");
+  assert.equal(usage.accountUsage.rateLimits.windows[3].label, "Fable weekly limit");
+  assert.equal(usage.accountUsage.rateLimits.windows[4].windowDurationMins, undefined);
+  assert.equal(usage.accountUsage.complete, true);
   assert.equal(usage.accountUsage.experimental, true);
   assert.equal(JSON.stringify(messages).includes("sensitive output"), false);
   const state = JSON.parse(await readFile(statePath, "utf8"));

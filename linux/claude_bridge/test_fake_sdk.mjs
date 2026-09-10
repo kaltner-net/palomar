@@ -165,6 +165,11 @@ export function query({ prompt, options }) {
     rate_limits: {
       five_hour: { utilization: 15, resets_at: "2027-01-15T12:00:00Z" },
       seven_day: { utilization: 28, resets_at: "2027-01-20T12:00:00Z" },
+      seven_day_opus: { utilization: 41, resets_at: "2027-01-20T12:00:00Z" },
+      model_scoped: [
+        { display_name: "Fable", utilization: 52, resets_at: "2027-01-20T12:00:00Z" },
+      ],
+      provider_period: { utilization: 63, resets_at: "2027-01-16T12:00:00Z" },
     },
   });
   return iterator;

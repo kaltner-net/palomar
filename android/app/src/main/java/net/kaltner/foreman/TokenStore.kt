@@ -444,6 +444,22 @@ class PreferenceStore(context: Context, hostId: String?) {
             .putString("releaseUpdates.v1", json.encodeToString(info.copy(snapshot = snapshot)))
             .commit()
     }
+    internal fun loadAccountUsage(): AccountUsage {
+        val encoded = preferences.getString("accountUsage.v2", null) ?: return AccountUsage()
+        if (encoded.length > 64_000) return AccountUsage()
+        return runCatching { json.decodeFromString<AccountUsage>(encoded) }
+            .getOrNull()
+            ?.let { normalizedAccountUsage(it, stale = true) }
+            ?: AccountUsage()
+    }
+
+    internal fun setAccountUsage(usage: AccountUsage) {
+        val normalized = normalizedAccountUsage(usage)
+        if (normalized.providers.values.none { accountUsageWindows(it).isNotEmpty() }) return
+        preferences.edit()
+            .putString("accountUsage.v2", json.encodeToString(normalized))
+            .commit()
+    }
     internal fun loadServerUpdateOperationId(): String? =
         preferences.getString("serverUpdateOperation.v1", null)
             ?.takeIf { it.matches(Regex("^fmu_[A-Za-z0-9_-]{16,80}$")) }

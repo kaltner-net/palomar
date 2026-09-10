@@ -32,6 +32,7 @@ from codex import (
     Codex,
     CodexError,
     matching_snippet,
+    merge_rate_limit_snapshots,
     normalize_event,
     rate_limit_snapshot,
     search_matches,
@@ -310,23 +311,28 @@ class Foreman:
             "experimental": True,
             "availabilityReason": "Updates after a Foreman-managed Claude run begins.",
         }
-        cached_claude_usage = self.state.provider_account_usage("claude-code")
-        if isinstance(cached_claude_usage, dict):
-            cached_snapshot = rate_limit_snapshot(
-                cached_claude_usage.get("rateLimits")
-            )
-            cached_observed_at = token_count(cached_claude_usage.get("observedAt"))
-            if cached_snapshot:
-                self.claude_account_usage = {
-                    "available": True,
-                    "experimental": True,
-                    "rateLimits": cached_snapshot,
-                    **(
-                        {"observedAt": cached_observed_at}
-                        if cached_observed_at is not None
-                        else {}
-                    ),
-                }
+        for provider in PROVIDER_ORDER:
+            cached_usage = self.state.provider_account_usage(provider)
+            if not isinstance(cached_usage, dict):
+                continue
+            cached_snapshot = rate_limit_snapshot(cached_usage.get("rateLimits"))
+            cached_observed_at = token_count(cached_usage.get("observedAt"))
+            if not cached_snapshot:
+                continue
+            restored = {
+                "available": True,
+                "rateLimits": cached_snapshot,
+                "stale": True,
+                **(
+                    {"observedAt": cached_observed_at}
+                    if cached_observed_at is not None
+                    else {}
+                ),
+            }
+            if provider == "codex":
+                self.account_usage = restored
+            else:
+                self.claude_account_usage = {**restored, "experimental": True}
         self.claude_session_overlays: dict[str, dict[str, Any]] = {
             session_id: dict(settings)
             for session_id, settings in self.state.session_settings(
@@ -681,23 +687,41 @@ class Foreman:
             raw_account_usage = message.get("accountUsage")
             if isinstance(raw_account_usage, dict):
                 snapshot = rate_limit_snapshot(raw_account_usage.get("rateLimits"))
-                self.claude_account_usage = {
-                    "available": snapshot is not None,
-                    "experimental": True,
-                    "observedAt": observed_at,
-                    **({"rateLimits": snapshot} if snapshot else {}),
-                    **(
-                        {}
-                        if snapshot
-                        else {
-                            "availabilityReason": "Claude plan limits are unavailable for this account."
-                        }
-                    ),
-                }
-                self.state.remember_provider_account_usage(
-                    "claude-code", self.claude_account_usage
-                )
-                account_usage_changed = True
+                if snapshot:
+                    previous = self.claude_account_usage.get("rateLimits")
+                    current = (
+                        snapshot
+                        if raw_account_usage.get("complete") is True
+                        else merge_rate_limit_snapshots(previous, snapshot)
+                    )
+                    self.claude_account_usage = {
+                        "available": True,
+                        "experimental": True,
+                        "observedAt": observed_at,
+                        "stale": False,
+                        "rateLimits": current,
+                    }
+                    self.state.remember_provider_account_usage(
+                        "claude-code", self.claude_account_usage
+                    )
+                    account_usage_changed = True
+                elif rate_limit_snapshot(self.claude_account_usage.get("rateLimits")):
+                    self.claude_account_usage = {
+                        **self.claude_account_usage,
+                        "stale": True,
+                    }
+                    self.state.remember_provider_account_usage(
+                        "claude-code", self.claude_account_usage
+                    )
+                    account_usage_changed = True
+                else:
+                    self.claude_account_usage = {
+                        "available": False,
+                        "experimental": True,
+                        "observedAt": observed_at,
+                        "availabilityReason": "Claude plan limits are unavailable for this account.",
+                    }
+                    account_usage_changed = True
             outgoing_event = {
                 "kind": "usage",
                 "turnId": run_id,
@@ -1328,13 +1352,14 @@ class Foreman:
             )
             if snapshot:
                 previous = self.account_usage.get("rateLimits")
-                merged = dict(previous) if isinstance(previous, dict) else {}
-                merged.update(
-                    (key, value)
-                    for key, value in snapshot.items()
-                    if value is not None
-                )
-                self.account_usage = {"available": True, "rateLimits": merged}
+                merged = merge_rate_limit_snapshots(previous, snapshot)
+                self.account_usage = {
+                    "available": True,
+                    "rateLimits": merged,
+                    "observedAt": int(time.time()),
+                    "stale": False,
+                }
+                self.state.remember_provider_account_usage("codex", self.account_usage)
                 await self.broadcast_account_usage()
             return
         if method in (
@@ -3208,7 +3233,19 @@ class Foreman:
             return await self.release_updates.refresh(manual=True)
         if message_type == "usage.status":
             if self.provider_enabled["codex"]:
-                self.account_usage = await self.codex.account_rate_limits()
+                incoming = await self.codex.account_rate_limits()
+                snapshot = rate_limit_snapshot(incoming.get("rateLimits"))
+                if snapshot:
+                    self.account_usage = {
+                        "available": True,
+                        "rateLimits": snapshot,
+                        "observedAt": int(time.time()),
+                        "stale": False,
+                    }
+                    self.state.remember_provider_account_usage("codex", self.account_usage)
+                elif rate_limit_snapshot(self.account_usage.get("rateLimits")):
+                    self.account_usage = {**self.account_usage, "stale": True}
+                    self.state.remember_provider_account_usage("codex", self.account_usage)
             return self.account_usage_projection()
         if message_type == "diagnostics.list":
             return {"events": self.diagnostics.entries(), "limit": 100}

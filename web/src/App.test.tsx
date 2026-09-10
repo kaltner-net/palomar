@@ -1477,8 +1477,11 @@ describe("session context usage", () => {
             experimental: true,
             observedAt: 1_800_000_000,
             rateLimits: {
-              primary: { usedPercent: 15, windowDurationMins: 300, resetsAt: 1_800_000_000 },
-              secondary: { usedPercent: 28, windowDurationMins: 10_080, resetsAt: 1_800_086_400 },
+              windows: [
+                { id: "five_hour", label: "5-hour limit", usedPercent: 15, windowDurationMins: 300, resetsAt: 1_800_000_000 },
+                { id: "seven_day", label: "Weekly limit", usedPercent: 28, windowDurationMins: 10_080, resetsAt: 1_800_086_400 },
+                { id: "model_scoped:fable:1", label: "Fable weekly limit", usedPercent: 40, windowDurationMins: 10_080, resetsAt: 1_800_086_400 },
+              ],
             },
           },
         },
@@ -1500,7 +1503,7 @@ describe("session context usage", () => {
       onHide={vi.fn()}
     />);
 
-    const trigger = screen.getByRole("button", { name: "Account usage, Codex 89% left, Claude 72% left" });
+    const trigger = screen.getByRole("button", { name: "Account usage, Claude Fable weekly limit, 60% left, 4 more limits" });
     expect(trigger.closest(".session-pane")).toBeInTheDocument();
     fireEvent.click(trigger);
     const panel = screen.getByRole("complementary", { name: "Account usage" });
@@ -1509,6 +1512,7 @@ describe("session context usage", () => {
     expect(within(panel).getByRole("meter", { name: "Codex Weekly limit used" })).toHaveAttribute("aria-valuenow", "11");
     expect(within(panel).getByRole("meter", { name: "Claude 5-hour limit used" })).toHaveAttribute("aria-valuenow", "15");
     expect(within(panel).getByRole("meter", { name: "Claude Weekly limit used" })).toHaveAttribute("aria-valuenow", "28");
+    expect(within(panel).getByRole("meter", { name: "Claude Fable weekly limit used" })).toHaveAttribute("aria-valuenow", "40");
     expect(within(panel).getByText("Experimental")).toBeInTheDocument();
     fireEvent.focusIn(document.body);
     expect(screen.queryByRole("complementary", { name: "Account usage" })).not.toBeInTheDocument();
@@ -1526,8 +1530,8 @@ describe("session context usage", () => {
       ]}
     />);
 
-    expect(screen.getByRole("button", { name: "Account usage, 88% left" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Account usage, 88% left" }));
+    expect(screen.getByRole("button", { name: "Account usage, Usage limit, 88% left" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Account usage, Usage limit, 88% left" }));
     expect(screen.queryByText("Across providers")).not.toBeInTheDocument();
     expect(screen.queryByText("Codex")).not.toBeInTheDocument();
     expect(screen.queryByText("Claude")).not.toBeInTheDocument();
@@ -1542,8 +1546,8 @@ describe("session context usage", () => {
     const claude = { id: "claude-code" as const, displayName: "Claude Code", enabled: true, available: true, capabilities: [], limitations: [] };
     const view = render(<AccountUsageDock usage={usage} providers={[codex, claude]} />);
 
-    expect(screen.getByRole("button", { name: "Account usage, 66% left" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Account usage, 66% left" }));
+    expect(screen.getByRole("button", { name: "Account usage, Usage limit, 66% left" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Account usage, Usage limit, 66% left" }));
     expect(screen.queryByText("Across providers")).not.toBeInTheDocument();
     expect(screen.queryByText("Codex")).not.toBeInTheDocument();
 

@@ -271,14 +271,29 @@ Authenticated clients use `usage.status` for the current bounded account
 rate-limit snapshots of enabled providers, and receive
 `usage.event` updates. Provider usage is separate from per-session context: it
 exposes only quota percentages, window durations, reset timestamps, and bounded
-limit labels. Account identity, token activity history, credits, and raw
-provider payloads are not projected. Codex sparse rolling updates merge into
-the last complete snapshot without clearing an unmentioned quota window.
+limit IDs and labels. Account identity, token activity history, credit amounts,
+and raw provider payloads are not projected. Each provider's `rateLimits`
+contains a bounded `windows` collection. Every entry has a stable provider-scoped
+`id` and `usedPercent`, plus optional `label`, `windowDurationMins`, and
+`resetsAt`. Labels come from provider metadata or the reported duration; clients
+use the generic “Usage limit” when neither exists.
+
+Protocol v1 remains unchanged. New projections may also include deprecated
+`primary` and `secondary` aliases for older clients. Services and clients
+explicitly normalize those legacy aliases into the collection when reading old
+payloads or cached state. They prefer `windows` when present and de-duplicate
+aliases by window ID. Sparse rolling updates merge by ID and merge fields within
+the changed window, so an unmentioned window or reset time is not cleared.
+
 Claude account limits come from an explicitly experimental Agent SDK method
 available only during a Foreman-managed Claude query, so the projection is
-labeled experimental and last-observed. The last bounded Claude percentages
-and reset times survive a Foreman restart; an unavailable reason is returned
-until the first usable snapshot exists.
+labeled experimental and last-observed. Both Codex and Claude retain their last
+bounded complete snapshots in the mode-0600 service state file and mark restored
+data stale until a successful refresh. Browser and Android clients independently
+retain the same bounded projection in host-scoped, provider-scoped storage;
+forgetting a host deletes its copy. An unavailable refresh cannot erase a valid
+cached snapshot, and enabled/available provider filtering controls whether the
+retained provider data is rendered.
 
 Conversation items may include bounded `compaction` entries. Codex identifies
 that compaction occurred; Claude may additionally provide automatic/manual

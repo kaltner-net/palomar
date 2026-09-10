@@ -7,6 +7,7 @@ import {
   clearHostNotificationOverride,
   clearRememberedSession,
   loadAppearance,
+  loadAccountUsage,
   loadDashboardPreferences,
   loadHostRegistry,
   loadNotificationsEnabled,
@@ -17,6 +18,7 @@ import {
   loadReleaseUpdateInfo,
   loadCollapsedRepositories,
   saveAppearance,
+  saveAccountUsage,
   saveDashboardPreferences,
   saveHostRegistry,
   saveNotificationsEnabled,
@@ -106,6 +108,21 @@ describe("storage, appearance, and interaction helpers", () => {
     registry = forgetStoredHost(registry, home.id);
     expect(loadReleaseUpdateInfo(home.id)).toBeNull();
     expect(loadReleaseUpdateInfo(work.id)?.serverVersion).toBe("1.0.0");
+  });
+
+  it("restores account usage across reloads per host and deletes only the forgotten host", () => {
+    const home = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "fmt_home" });
+    const work = createStoredHost({ displayName: "Work", host: "work.local", webPort: 9766, deviceToken: "fmt_work" });
+    let registry = addStoredHost({ hosts: [], activeHostId: null }, home);
+    registry = addStoredHost(registry, work);
+    saveAccountUsage(home.id, { providers: { codex: { available: true, rateLimits: { windows: [{ id: "home", usedPercent: 25 }] } } } });
+    saveAccountUsage(work.id, { providers: { "claude-code": { available: true, rateLimits: { primary: { usedPercent: 50 } } } } });
+
+    expect(loadAccountUsage(home.id)?.providers.codex).toMatchObject({ stale: true });
+    expect(loadAccountUsage(work.id)?.providers["claude-code"]?.rateLimits?.windows?.[0]).toMatchObject({ id: "primary", usedPercent: 50 });
+    registry = forgetStoredHost(registry, home.id);
+    expect(loadAccountUsage(home.id)).toBeNull();
+    expect(loadAccountUsage(work.id)?.providers["claude-code"]).toBeDefined();
   });
 
   it("does not resurrect a forgotten host when a stale socket update arrives", () => {

@@ -164,6 +164,67 @@ class ProviderSupportTest {
         assertEquals("65% left", accountUsageRemaining(usage))
         assertEquals(2, accountUsageWindows(usage).size)
         assertEquals(300L, accountUsageWindows(usage).first().windowDurationMins)
+        assertEquals("Usage limit", rateLimitLabel(RateLimitWindow(usedPercent = 1.0)))
+    }
+
+    @Test
+    fun accountUsageRetainsProviderDefinedWindowsAndCompactConstraint() {
+        val claude = ProviderInfo(PROVIDER_CLAUDE_CODE, "Claude Code", available = true)
+        val usage = ProviderAccountUsage(
+            available = true,
+            rateLimits = RateLimitSnapshot(
+                windows = listOf(
+                    RateLimitWindow("five_hour", "5-hour limit", 15.0, 300),
+                    RateLimitWindow("seven_day", "Weekly limit", 28.0, 10_080),
+                    RateLimitWindow("model_scoped:fable:1", "Fable weekly limit", 67.0, 10_080),
+                    RateLimitWindow("provider_period", "Provider period limit", 42.0),
+                ),
+            ),
+        )
+        val constraint = accountUsageConstraint(listOf(claude to usage))
+
+        assertEquals(4, accountUsageWindows(usage).size)
+        assertEquals("model_scoped:fable:1", constraint?.window?.id)
+        assertEquals(3, constraint?.additionalWindows)
+        assertEquals("Fable weekly limit · 33% left", accountUsageConstraintSummary(constraint!!, false))
+    }
+
+    @Test
+    fun accountUsageNormalizationBoundsFieldsAndMigratesLegacyPayloads() {
+        val decoded = json.decodeFromString<AccountUsage>(
+            """{"providers":{"codex":{"available":true,"rateLimits":{"primary":{"usedPercent":140,"windowDurationMins":300,"resetsAt":9999999999999},"secondary":{"usedPercent":20}}},"private":{"available":true,"rateLimits":{"primary":{"usedPercent":10}}}}}""",
+        )
+        val normalized = normalizedAccountUsage(decoded, stale = true)
+        val windows = accountUsageWindows(normalized.providers[PROVIDER_CODEX])
+
+        assertEquals(listOf("primary", "secondary"), windows.map { it.id })
+        assertEquals(100.0, windows.first().usedPercent, 0.0)
+        assertEquals(null, windows.first().resetsAt)
+        assertEquals("5-hour limit", rateLimitLabel(windows.first()))
+        assertEquals("Usage limit", rateLimitLabel(windows.last()))
+        assertTrue(normalized.providers[PROVIDER_CODEX]?.stale == true)
+        assertFalse(normalized.providers.containsKey("private"))
+    }
+
+    @Test
+    fun unavailableReconnectDoesNotEraseLastValidProviderSnapshot() {
+        val cached = AccountUsage(
+            mapOf(
+                PROVIDER_CODEX to ProviderAccountUsage(
+                    available = true,
+                    rateLimits = RateLimitSnapshot(
+                        windows = listOf(RateLimitWindow("known", usedPercent = 55.0)),
+                    ),
+                ),
+            ),
+        )
+        val merged = mergeAccountUsage(
+            cached,
+            AccountUsage(mapOf(PROVIDER_CODEX to ProviderAccountUsage(available = false))),
+        )
+
+        assertEquals(1, accountUsageWindows(merged.providers[PROVIDER_CODEX]).size)
+        assertTrue(merged.providers[PROVIDER_CODEX]?.stale == true)
     }
 
     @Test
