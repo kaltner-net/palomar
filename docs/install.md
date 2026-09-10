@@ -1,13 +1,26 @@
 # Install and run
 
-## Linux host
+> [!NOTE]
+> Release artifacts are governed by the `LICENSE` bundled with their tag.
+> Confirm that a release contains the Apache License 2.0 before installing;
+> earlier artifacts retain the terms they shipped with.
 
-Install and authenticate at least one supported provider CLI: Codex or Claude
-Code. Confirm `codex --version` or `claude --version` works; installing both is
-also supported. Foreman never installs or authenticates either CLI. It needs
-Python 3.10+, OpenSSL, `curl`, Bash, and a user systemd session. Its pinned
-`websockets` dependency is included in the install payload, so installation
-doesn't require pip, venv support, or root access.
+## Linux host requirements
+
+The Foreman service runs on Linux under a systemd user manager. Before
+installing, provide:
+
+- Python 3.10 or newer, Bash, `curl`, and OpenSSL;
+- an authenticated Codex or Claude Code CLI (both are supported together);
+- Node.js 20 or newer only when using Claude Code.
+
+Confirm `codex --version` or `claude --version` works for the same Linux user
+that will run Foreman. Foreman never installs or authenticates either CLI.
+
+The pinned `websockets` dependency is included in the install payload, so
+installation doesn't require pip, venv support, or root access.
+
+## Install the latest stable release
 
 The recommended installation resolves and verifies the newest complete stable
 release before running its versioned installer:
@@ -294,57 +307,6 @@ WireGuard; for browser TLS, place Foreman behind a trusted same-origin reverse
 proxy and add its exact HTTPS origin to `FOREMAN_WEB_ORIGINS`. Tokens must never
 be placed in proxy URLs or query strings.
 
-## Rebuild the web client
-
-Normal installation uses the committed `web/dist` assets and doesn't require
-Node. Maintainers updating `web/src` must use the pinned Node version and
-refresh those assets before committing:
-
-```sh
-cd web
-npm ci
-npm test
-npm run typecheck
-npm run build
-git status --short dist
-```
-
-CI rebuilds the SPA and fails if the committed assets are stale.
-
-## Test the optional Claude bridge
-
-Maintainers use Node 20 or newer and the committed lockfile:
-
-```sh
-cd linux/claude_bridge
-npm ci --ignore-scripts
-npm run build
-npm test
-```
-
-Release and CI packaging repeat a production-only install and exclude bridge
-test fixtures from the archive. The production entry point remains
-`bridge.mjs`; release-archive installation never downloads dependencies. A
-source checkout can let `install.sh` perform the same production-only `npm ci`
-inside its staging payload.
-
-After ordinary automated tests, maintainers with authenticated Claude access can
-run the explicit disposable adapter and WebSocket proofs documented in
-[`claude-code-integration.md`](claude-code-integration.md). These are opt-in
-because they invoke live models and may incur usage.
-
-## Refresh the vendored Python dependency
-
-Maintainers can refresh the committed dependency payload from the exact pin in
-`requirements.txt` with:
-
-```sh
-PYTHON=/path/to/python-with-pip scripts/vendor_python_dependencies.sh
-```
-
-This preparation command may access the package index. `./install.sh` never
-invokes it and remains offline.
-
 ## Android phone
 
 Download the signed release APK from the matching tagged GitHub release,
@@ -402,3 +364,6 @@ rm -r ~/.local/share/foreman
 The commands above preserve device tokens and configuration. After confirming
 they are no longer needed, remove `~/.local/state/foreman` and
 `~/.config/foreman` separately.
+
+Maintainers working from source should continue with the
+[development workflow](development.md).

@@ -14,16 +14,17 @@ approved product direction for design, not implementation commitments. Their
 issues must first produce a reviewed architecture and security decision and
 update the applicable boundary documentation before implementation starts.
 
-## Now — current product pass complete
+## Now — v1.2.0 released
 
-The current product pass is complete. Work proceeds through the **Next** list
-unless a correctness or security issue requires reprioritization.
+The current product and update passes shipped in
+[v1.2.0](https://github.com/mkaltner/foreman/releases/tag/v1.2.0). GitHub Issues
+remain the source of truth for selecting the next implementation target.
 
-## Next — release
+## Next — select a product foundation
 
-The current product and update passes are complete. Prepare the v1.2.0 release,
-then select new work from the ordered foundations list below unless a
-correctness or security issue requires reprioritization.
+No foundation issue has been promoted for implementation yet. Choose from the
+ordered **Later** list below unless a correctness or security issue requires
+reprioritization.
 
 ## Later — product foundations
 
