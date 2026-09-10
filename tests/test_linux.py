@@ -5323,7 +5323,11 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 "client.revoke", {"clientId": phone_client["id"]}
             )
             self.assertTrue(revoked["payload"]["revoked"])
-            self.assertEqual(await reader.read(), b"")
+            trailing = await reader.read()
+            for encoded in trailing.splitlines():
+                event = protocol.decode(encoded)
+                self.assertEqual(event.get("type"), "service.event")
+                tcp_events.append(event)
         finally:
             writer.close()
             await writer.wait_closed()
