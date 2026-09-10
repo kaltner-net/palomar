@@ -28,6 +28,13 @@ describe("curated Foreman themes", () => {
     ]);
   });
 
+  it("uses the canonical branching Foreman mark without embedding presence state", () => {
+    const favicon = readFileSync(join(process.cwd(), "public/favicon.svg"), "utf8");
+    expect(favicon).toContain("foreman-purple");
+    expect(favicon).toContain("M5 3a2 2");
+    expect(favicon).not.toContain("<circle");
+  });
+
   it("applies every named theme in light and dark modes", () => {
     for (const { id } of CURATED_THEMES) {
       for (const colorMode of ["light", "dark"] as const) {
@@ -71,11 +78,10 @@ describe("curated Foreman themes", () => {
       "--warning", "--failure", "--full-access",
     ].forEach((token) => expect(css, `${token} is defined`).toContain(`${token}:`));
     const rule = (selector: string) => {
-      const start = css.indexOf(selector);
-      const open = css.indexOf("{", start);
-      const close = css.indexOf("}", open);
-      expect(start, `${selector} exists`).toBeGreaterThanOrEqual(0);
-      return tokens(css.slice(open + 1, close));
+      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const matches = [...css.matchAll(new RegExp(`${escaped}\\{([^}]*)}`, "g"))];
+      expect(matches.length, `${selector} exists`).toBeGreaterThan(0);
+      return Object.assign({}, ...matches.map((match) => tokens(match[1])));
     };
     const baseLight = rule(":root");
     const baseDark = rule(":root[data-color-mode=dark]");
@@ -89,19 +95,32 @@ describe("curated Foreman themes", () => {
         const palette = { ...baseLight, ...(dark ? baseDark : {}), ...override };
         expect(contrast(palette["--text-primary"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} text`).toBeGreaterThanOrEqual(7);
         expect(contrast(palette["--on-accent"], palette["--accent-primary"]), `${id} ${dark ? "dark" : "light"} accent`).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(palette["--failure"], palette["--failure-container"]), `${id} ${dark ? "dark" : "light"} failure`).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(palette["--full-access"], palette["--full-access-container"]), `${id} ${dark ? "dark" : "light"} full access`).toBeGreaterThanOrEqual(4.5);
+        for (const role of ["success", "working", "attention", "warning", "failure", "full-access"]) {
+          expect(
+            contrast(palette[`--${role}`], palette[`--${role}-container`]),
+            `${id} ${dark ? "dark" : "light"} ${role}`,
+          ).toBeGreaterThanOrEqual(id === "high-contrast" ? 7 : 4.5);
+        }
         expect(palette["--full-access"]).not.toBe(palette["--working"]);
         if (id === "high-contrast") {
           expect(contrast(palette["--text-muted"], palette["--app-background"]), `${dark ? "dark" : "light"} high contrast muted text`).toBeGreaterThanOrEqual(7);
           expect(contrast(palette["--border-default"], palette["--app-background"]), `${dark ? "dark" : "light"} high contrast borders`).toBeGreaterThanOrEqual(7);
           expect(contrast(palette["--accent-primary"], palette["--app-background"]), `${dark ? "dark" : "light"} high contrast accent`).toBeGreaterThanOrEqual(7);
           expect(contrast(palette["--disabled-text"], palette["--disabled-surface"]), `${dark ? "dark" : "light"} high contrast disabled`).toBeGreaterThanOrEqual(4.5);
-          for (const role of ["success", "working", "attention", "warning", "failure", "full-access"]) {
-            expect(contrast(palette[`--${role}`], palette[`--${role}-container`]), `${dark ? "dark" : "light"} high contrast ${role}`).toBeGreaterThanOrEqual(7);
-          }
         }
       }
+    }
+    for (const dark of [false, true]) {
+      const palettes = CURATED_THEMES.filter(({ id }) => id !== "high-contrast").map(({ id }) => {
+        const override = id === "foreman" ? {} : rule(
+          dark
+            ? `:root[data-color-mode=dark][data-foreman-theme=${id}]`
+            : `:root[data-foreman-theme=${id}]`,
+        );
+        return { ...baseLight, ...(dark ? baseDark : {}), ...override };
+      });
+      expect(new Set(palettes.map((palette) => palette["--working"])).size).toBe(palettes.length);
+      expect(new Set(palettes.map((palette) => palette["--success"])).size).toBe(palettes.length);
     }
   });
 });

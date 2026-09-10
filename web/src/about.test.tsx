@@ -165,6 +165,8 @@ describe("AboutSection", () => {
     ["Third-party notices", FOREMAN_THIRD_PARTY_NOTICES_URL],
   ])("uses the expected %s target", (name, href) => {
     render(<AboutSection serverVersion={null} connected={false} />);
-    expect(screen.getByRole("link", { name })).toHaveAttribute("href", href);
+    const link = screen.getByRole("link", { name });
+    expect(link).toHaveAttribute("href", href);
+    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 });

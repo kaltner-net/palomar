@@ -25,8 +25,8 @@ The current update-and-release architecture gates are complete. New work enters
 the ordered foundations list below unless a correctness or security issue
 requires reprioritization.
 
-- [ ] [#82 Show connected devices and support forced
-  disconnection](https://github.com/mkaltner/foreman/issues/82).
+- [ ] [#80 Complete theme-aware badge and semantic
+  colors](https://github.com/mkaltner/foreman/issues/80).
 
 ## Later — product foundations
 
@@ -61,6 +61,8 @@ adapter and complete web/Android parity.
 
 ## Recently completed
 
+- [x] Show connected devices and support host-scoped access revocation on web
+  and Android ([PR #106](https://github.com/mkaltner/foreman/pull/106)).
 - [x] Reconcile unavailable providers as disabled while retaining their
   diagnostic Settings entries
   ([PR #99](https://github.com/mkaltner/foreman/pull/99),

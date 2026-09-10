@@ -42,6 +42,7 @@ import {
 } from "./client";
 import { clipboardImageFiles, processImages, type ProcessedImage } from "./images";
 import { CopyFeedbackButton } from "./CopyFeedbackButton";
+import { ForemanLogo } from "./ForemanLogo";
 import {
   browserNotificationState,
   clearTurnNotification,
@@ -1984,7 +1985,7 @@ function App() {
     <div className={appShellClassName(view)}>
       <header className="topbar">
         <button className="brand" onClick={() => showDashboard()} aria-label="Dashboard">
-          <span className="brand-mark">F</span>
+          <ForemanLogo />
           <span>Foreman</span>
         </button>
         <HostSelector
@@ -2282,7 +2283,7 @@ function App() {
               />
             ) : (
               <div className="empty-detail">
-                <span className="brand-mark large">F</span>
+                <ForemanLogo large />
                 <h2>{busy ? "Loading session…" : "Select a session"}</h2>
                 <p>Open an existing session or start a new one.</p>
               </div>
@@ -2383,7 +2384,7 @@ export function SetupView({
     <main className={onCancel ? "setup-page embedded" : "setup-page"}>
       <section className="setup-card">
         <div className="setup-heading">
-          <span className="brand-mark large">F</span>
+          <ForemanLogo large />
           <div><h1>Connect to Foreman</h1><p>Your local Codex companion.</p></div>
           {onCancel && <button className="setup-close" onClick={onCancel} aria-label="Close">×</button>}
         </div>

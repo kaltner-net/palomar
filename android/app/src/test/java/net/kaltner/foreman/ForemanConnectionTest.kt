@@ -1046,8 +1046,18 @@ class ForemanConnectionTest {
                 assertEquals(palette.mutedText, scheme.onSurfaceVariant)
                 assertTrue(contrastRatio(palette.text, palette.background) >= 7.0)
                 assertTrue(contrastRatio(palette.onAccent, palette.accent) >= 4.5)
-                assertTrue(contrastRatio(palette.semantic.failure, palette.semantic.failureContainer) >= 4.5)
-                assertTrue(contrastRatio(palette.semantic.fullAccess, palette.semantic.fullAccessContainer) >= 4.5)
+                with(palette.semantic) {
+                    listOf(
+                        success to successContainer,
+                        working to workingContainer,
+                        attention to attentionContainer,
+                        warning to warningContainer,
+                        failure to failureContainer,
+                        fullAccess to fullAccessContainer,
+                    ).forEach { (foreground, container) ->
+                        assertTrue(contrastRatio(foreground, container) >= 4.5)
+                    }
+                }
                 assertFalse(palette.semantic.fullAccess == palette.semantic.working)
                 assertFalse(palette.semantic.failure == palette.semantic.attention)
                 if (themeId == ThemeId.HighContrast) {
@@ -1069,6 +1079,13 @@ class ForemanConnectionTest {
                     }
                 }
             }
+        }
+        listOf(false, true).forEach { dark ->
+            val themed = ThemeId.entries.filterNot { it == ThemeId.HighContrast }.map {
+                foremanThemeVariant(it, dark).semantic
+            }
+            assertEquals(themed.size, themed.map { it.working }.distinct().size)
+            assertEquals(themed.size, themed.map { it.success }.distinct().size)
         }
     }
 
