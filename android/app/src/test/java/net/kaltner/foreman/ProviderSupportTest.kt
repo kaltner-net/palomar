@@ -190,6 +190,34 @@ class ProviderSupportTest {
     }
 
     @Test
+    fun codexMeteredBucketsRemainDistinct() {
+        val codex = ProviderInfo(PROVIDER_CODEX, "Codex", available = true)
+        val usage = ProviderAccountUsage(
+            available = true,
+            rateLimits = RateLimitSnapshot(
+                windows = listOf(
+                    RateLimitWindow("codex:primary", "Weekly limit", 59.0, 10_080),
+                    RateLimitWindow(
+                        "codex_bengalfox:primary",
+                        "GPT-5.3-Codex-Spark 5-hour limit",
+                        2.0,
+                        300,
+                    ),
+                    RateLimitWindow(
+                        "codex_bengalfox:secondary",
+                        "GPT-5.3-Codex-Spark weekly limit",
+                        11.0,
+                        10_080,
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals(3, accountUsageWindows(usage).size)
+        assertEquals("codex:primary", accountUsageConstraint(listOf(codex to usage))?.window?.id)
+    }
+
+    @Test
     fun accountUsageNormalizationBoundsFieldsAndMigratesLegacyPayloads() {
         val decoded = json.decodeFromString<AccountUsage>(
             """{"providers":{"codex":{"available":true,"rateLimits":{"primary":{"usedPercent":140,"windowDurationMins":300,"resetsAt":9999999999999},"secondary":{"usedPercent":20}}},"private":{"available":true,"rateLimits":{"primary":{"usedPercent":10}}}}}""",

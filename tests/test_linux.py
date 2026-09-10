@@ -2788,8 +2788,9 @@ Tighten up this layout, please.
         self.assertEqual(snapshot["secondary"]["windowDurationMins"], 10_080)
         self.assertEqual(
             [window["id"] for window in snapshot["windows"]],
-            ["primary", "secondary"],
+            ["codex:primary", "codex:secondary"],
         )
+        self.assertTrue(snapshot["primary"]["label"].endswith("5-hour limit"))
         self.assertLessEqual(len(snapshot["limitName"]), 100)
         self.assertNotIn("private", str(snapshot))
 
@@ -2845,10 +2846,12 @@ Tighten up this layout, please.
             )
             foreman.account_usage = {
                 "available": True,
-                "rateLimits": {
-                    "primary": {"usedPercent": 2, "windowDurationMins": 300},
-                    "secondary": {"usedPercent": 11, "windowDurationMins": 10_080},
-                },
+                "rateLimits": rate_limit_snapshot(
+                    {
+                        "limitId": "codex",
+                        "primary": {"usedPercent": 2, "windowDurationMins": 10_080},
+                    }
+                ),
             }
             asyncio.run(
                 foreman.codex_event(
@@ -2856,11 +2859,29 @@ Tighten up this layout, please.
                         "method": "account/rateLimits/updated",
                         "params": {
                             "rateLimits": {
-                                "limitId": "codex",
+                                "limitId": "codex_bengalfox",
+                                "limitName": "GPT-5.3-Codex-Spark",
                                 "primary": {
                                     "usedPercent": 3,
                                     "windowDurationMins": 300,
                                 },
+                                "secondary": {
+                                    "usedPercent": 11,
+                                    "windowDurationMins": 10_080,
+                                },
+                            }
+                        },
+                    }
+                )
+            )
+            asyncio.run(
+                foreman.codex_event(
+                    {
+                        "method": "account/rateLimits/updated",
+                        "params": {
+                            "rateLimits": {
+                                "limitId": "codex_bengalfox",
+                                "primary": {"usedPercent": 4},
                                 "secondary": None,
                             }
                         },
@@ -2869,11 +2890,17 @@ Tighten up this layout, please.
             )
 
         self.assertEqual(
-            foreman.account_usage["rateLimits"]["primary"]["usedPercent"], 3
+            foreman.account_usage["rateLimits"]["primary"]["usedPercent"], 4
         )
+        windows = foreman.account_usage["rateLimits"]["windows"]
         self.assertEqual(
-            foreman.account_usage["rateLimits"]["secondary"]["usedPercent"], 11
+            [window["id"] for window in windows],
+            ["codex:primary", "codex_bengalfox:primary", "codex_bengalfox:secondary"],
         )
+        self.assertEqual(windows[0]["usedPercent"], 2)
+        self.assertEqual(windows[1]["label"], "GPT-5.3-Codex-Spark 5-hour limit")
+        self.assertEqual(windows[1]["usedPercent"], 4)
+        self.assertEqual(windows[2]["usedPercent"], 11)
 
     def test_codex_usage_restores_after_restart_and_unavailable_refresh_keeps_it(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -3259,13 +3286,31 @@ class CodexAdapterTests(unittest.IsolatedAsyncioTestCase):
                     "limitId": "codex",
                     "primary": {
                         "usedPercent": 24,
-                        "windowDurationMins": 300,
+                        "windowDurationMins": 10_080,
                         "resetsAt": 1_800_000_000,
                     },
                     "secondary": None,
                     "planType": "plus",
                     "accountEmail": "do-not-project@example.com",
-                }
+                },
+                "rateLimitsByLimitId": {
+                    "codex_bengalfox": {
+                        "limitId": "codex_bengalfox",
+                        "limitName": "GPT-5.3-Codex-Spark",
+                        "primary": {"usedPercent": 10, "windowDurationMins": 300},
+                        "secondary": {"usedPercent": 20, "windowDurationMins": 10_080},
+                        "credits": {"balance": "private"},
+                    },
+                    "codex": {
+                        "limitId": "codex",
+                        "primary": {
+                            "usedPercent": 24,
+                            "windowDurationMins": 10_080,
+                            "resetsAt": 1_800_000_000,
+                        },
+                        "planType": "plus",
+                    },
+                },
             }
         )
 
@@ -3274,7 +3319,16 @@ class CodexAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["available"])
         self.assertEqual(result["rateLimits"]["primary"]["usedPercent"], 24)
         self.assertEqual(result["rateLimits"]["planType"], "plus")
+        self.assertEqual(
+            [window["id"] for window in result["rateLimits"]["windows"]],
+            ["codex:primary", "codex_bengalfox:primary", "codex_bengalfox:secondary"],
+        )
+        self.assertEqual(
+            result["rateLimits"]["windows"][1]["label"],
+            "GPT-5.3-Codex-Spark 5-hour limit",
+        )
         self.assertNotIn("accountEmail", str(result))
+        self.assertNotIn("private", str(result))
         adapter.request.assert_awaited_once_with("account/rateLimits/read")
 
     async def test_reads_paginated_turns_with_full_command_items(self) -> None:

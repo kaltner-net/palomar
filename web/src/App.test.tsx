@@ -1468,8 +1468,11 @@ describe("session context usage", () => {
             available: true,
             rateLimits: {
               limitId: "codex",
-              primary: { usedPercent: 2, windowDurationMins: 300, resetsAt: 1_800_000_000 },
-              secondary: { usedPercent: 11, windowDurationMins: 10_080, resetsAt: 1_800_086_400 },
+              windows: [
+                { id: "codex:primary", label: "Weekly limit", usedPercent: 59, windowDurationMins: 10_080, resetsAt: 1_800_086_400 },
+                { id: "codex_bengalfox:primary", label: "GPT-5.3-Codex-Spark 5-hour limit", usedPercent: 2, windowDurationMins: 300, resetsAt: 1_800_000_000 },
+                { id: "codex_bengalfox:secondary", label: "GPT-5.3-Codex-Spark weekly limit", usedPercent: 11, windowDurationMins: 10_080, resetsAt: 1_800_086_400 },
+              ],
             },
           },
           "claude-code": {
@@ -1503,13 +1506,14 @@ describe("session context usage", () => {
       onHide={vi.fn()}
     />);
 
-    const trigger = screen.getByRole("button", { name: "Account usage, Claude Fable weekly limit, 60% left, 4 more limits" });
+    const trigger = screen.getByRole("button", { name: "Account usage, Codex Weekly limit, 41% left, 5 more limits" });
     expect(trigger.closest(".session-pane")).toBeInTheDocument();
     fireEvent.click(trigger);
     const panel = screen.getByRole("complementary", { name: "Account usage" });
     expect(within(panel).getByText("Across providers")).toBeInTheDocument();
-    expect(within(panel).getByRole("meter", { name: "Codex 5-hour limit used" })).toHaveAttribute("aria-valuenow", "2");
-    expect(within(panel).getByRole("meter", { name: "Codex Weekly limit used" })).toHaveAttribute("aria-valuenow", "11");
+    expect(within(panel).getByRole("meter", { name: "Codex Weekly limit used" })).toHaveAttribute("aria-valuenow", "59");
+    expect(within(panel).getByRole("meter", { name: "Codex GPT-5.3-Codex-Spark 5-hour limit used" })).toHaveAttribute("aria-valuenow", "2");
+    expect(within(panel).getByRole("meter", { name: "Codex GPT-5.3-Codex-Spark weekly limit used" })).toHaveAttribute("aria-valuenow", "11");
     expect(within(panel).getByRole("meter", { name: "Claude 5-hour limit used" })).toHaveAttribute("aria-valuenow", "15");
     expect(within(panel).getByRole("meter", { name: "Claude Weekly limit used" })).toHaveAttribute("aria-valuenow", "28");
     expect(within(panel).getByRole("meter", { name: "Claude Fable weekly limit used" })).toHaveAttribute("aria-valuenow", "40");

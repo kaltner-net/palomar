@@ -278,6 +278,12 @@ contains a bounded `windows` collection. Every entry has a stable provider-scope
 `resetsAt`. Labels come from provider metadata or the reported duration; clients
 use the generic “Usage limit” when neither exists.
 
+Codex may return multiple metered buckets in `rateLimitsByLimitId`. Foreman
+flattens their primary/secondary windows into the collection using IDs scoped by
+the metered limit ID, while retaining the backward-compatible single-bucket
+aliases. A sparse `account/rateLimits/updated` notification updates only its
+named bucket.
+
 Protocol v1 remains unchanged. New projections may also include deprecated
 `primary` and `secondary` aliases for older clients. Services and clients
 explicitly normalize those legacy aliases into the collection when reading old
