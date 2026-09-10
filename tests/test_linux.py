@@ -617,6 +617,26 @@ class StateTests(unittest.TestCase):
             self.assertEqual(state.list_devices(), [])
             self.assertFalse(state.revoke_device(devices[0]["id"]))
 
+    def test_paired_devices_and_revocations_survive_state_relaunch(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            state = State(directory)
+            first_key, _ = state.create_pairing()
+            second_key, _ = state.create_pairing()
+            first_token = state.pair(first_key, "Browser", "browser")
+            second_token = state.pair(second_key, "Android", "android")
+            self.assertIsNotNone(first_token)
+            self.assertIsNotNone(second_token)
+            first_id = state.list_devices()[0]["id"]
+            self.assertTrue(state.revoke_device(first_id))
+
+            restored = State(directory)
+            self.assertFalse(restored.authenticate(first_token or ""))
+            self.assertTrue(restored.authenticate(second_token or ""))
+            self.assertEqual(
+                [(device["name"], device["type"]) for device in restored.list_devices()],
+                [("Android", "android")],
+            )
+
     def test_pairing_expires_at_its_deadline(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             state = State(directory)
@@ -4841,10 +4861,15 @@ class TcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             )
         )
         await writer.drain()
-        self.assertEqual(
-            protocol.decode(await reader.readline())["type"],
-            "session.subscribe.result",
-        )
+        while True:
+            message = protocol.decode(await reader.readline())
+            if message.get("id") == "abrupt-subscribe":
+                self.assertEqual(message["type"], "session.subscribe.result")
+                break
+            self.assertEqual(message.get("type"), "service.event")
+            self.assertEqual(
+                message.get("payload", {}).get("activeTcpConnections"), 1
+            )
         self.assertEqual(len(self.app.clients), 2)
 
         writer.transport.abort()
@@ -4926,6 +4951,24 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
             if message.get("id") == request_id:
                 return message
             self.web_events.append(message)
+
+    @staticmethod
+    async def websocket_exchange(
+        websocket: Any,
+        request_id: str,
+        message_type: str,
+        payload: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        await websocket.send(json.dumps({
+            "version": 1,
+            "id": request_id,
+            "type": message_type,
+            "payload": payload or {},
+        }))
+        while True:
+            message = json.loads(await websocket.recv())
+            if message.get("id") == request_id:
+                return message
 
     async def http_get(self, path: str) -> tuple[str, dict[str, str], bytes]:
         reader, writer = await asyncio.open_connection("127.0.0.1", self.web_port)
@@ -5146,6 +5189,276 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
         rejected = await self.web_exchange("authenticate", {"deviceToken": token})
         self.assertEqual(rejected["type"], "error")
         self.assertEqual(rejected["payload"]["code"], "unauthorized")
+
+    async def test_lists_and_revokes_offline_devices_in_stable_connection_order(self) -> None:
+        await self.web_exchange("hello")
+        paired = await self.web_exchange(
+            "pair",
+            {"pairingKey": self.web_pairing_key, "deviceName": "Admin browser"},
+        )
+        admin_token = paired["payload"]["deviceToken"]
+        first_key, _ = self.state.create_pairing()
+        second_key, _ = self.state.create_pairing()
+        alpha_token = self.state.pair(first_key, "Alpha phone", "android")
+        zulu_token = self.state.pair(second_key, "Zulu browser", "browser")
+        self.assertIsNotNone(alpha_token)
+        self.assertIsNotNone(zulu_token)
+
+        listed = await self.web_exchange("client.list")
+        clients = listed["payload"]["clients"]
+        self.assertEqual(
+            [(client["name"], client["connected"]) for client in clients],
+            [
+                ("Admin browser", True),
+                ("Alpha phone", False),
+                ("Zulu browser", False),
+            ],
+        )
+        self.assertTrue(all(client["pairedAt"] for client in clients))
+        self.assertNotIn(admin_token, str(listed))
+        self.assertNotIn(alpha_token or "", str(listed))
+        self.assertNotIn(zulu_token or "", str(listed))
+        self.assertNotIn("digest", str(listed).lower())
+        alpha = next(client for client in clients if client["name"] == "Alpha phone")
+
+        revoked = await self.web_exchange("client.revoke", {"clientId": alpha["id"]})
+        self.assertTrue(revoked["payload"]["revoked"])
+        await self.web_exchange("ping")
+        self.assertTrue(any(event.get("type") == "service.event" for event in self.web_events))
+        refreshed = await self.web_exchange("client.list")
+        self.assertEqual(
+            [client["name"] for client in refreshed["payload"]["clients"]],
+            ["Admin browser", "Zulu browser"],
+        )
+        self.assertFalse(self.state.authenticate(alpha_token or ""))
+        self.assertTrue(self.state.authenticate(zulu_token or ""))
+
+    async def test_browser_revokes_every_live_connection_sharing_another_browser_token(self) -> None:
+        await self.web_exchange("hello")
+        await self.web_exchange(
+            "pair",
+            {"pairingKey": self.web_pairing_key, "deviceName": "Admin browser"},
+        )
+        shared_key, _ = self.state.create_pairing()
+        shared_token = self.state.pair(shared_key, "Shared browser", "browser")
+        self.assertIsNotNone(shared_token)
+        shared_connections = [
+            await connect(self.ws_url, proxy=None),
+            await connect(self.ws_url, proxy=None),
+        ]
+        try:
+            for index, websocket in enumerate(shared_connections):
+                hello = await self.websocket_exchange(
+                    websocket, f"shared-{index}-hello", "hello"
+                )
+                self.assertEqual(hello["type"], "hello.result")
+                authenticated = await self.websocket_exchange(
+                    websocket,
+                    f"shared-{index}-authenticate",
+                    "authenticate",
+                    {"deviceToken": shared_token},
+                )
+                self.assertTrue(authenticated["payload"]["authenticated"])
+
+            await self.web_exchange("ping")
+            connected = await self.web_exchange("client.list")
+            shared = next(
+                client
+                for client in connected["payload"]["clients"]
+                if client["name"] == "Shared browser"
+            )
+            self.assertTrue(shared["connected"])
+            self.assertEqual(shared["connectionCount"], 2)
+            self.assertFalse(shared["current"])
+
+            await shared_connections[0].close()
+            await self.web_exchange("ping")
+            one_connection = await self.web_exchange("client.list")
+            shared = next(
+                client
+                for client in one_connection["payload"]["clients"]
+                if client["name"] == "Shared browser"
+            )
+            self.assertEqual(shared["connectionCount"], 1)
+
+            revoked = await self.web_exchange(
+                "client.revoke", {"clientId": shared["id"]}
+            )
+            self.assertTrue(revoked["payload"]["revoked"])
+            with self.assertRaises(ConnectionClosedError) as closed:
+                while True:
+                    await shared_connections[1].recv()
+            self.assertIsNotNone(closed.exception.rcvd)
+            self.assertEqual(closed.exception.rcvd.code, 4003)
+
+            reconnect = await connect(self.ws_url, proxy=None)
+            try:
+                await self.websocket_exchange(reconnect, "reconnect-hello", "hello")
+                rejected = await self.websocket_exchange(
+                    reconnect,
+                    "reconnect-authenticate",
+                    "authenticate",
+                    {"deviceToken": shared_token},
+                )
+                self.assertEqual(rejected["type"], "error")
+                self.assertEqual(rejected["payload"]["code"], "unauthorized")
+            finally:
+                await reconnect.close()
+        finally:
+            for websocket in shared_connections:
+                if websocket.protocol.state.name != "CLOSED":
+                    await websocket.close()
+
+    async def test_android_client_can_revoke_a_connected_browser(self) -> None:
+        await self.web_exchange("hello")
+        browser_pair = await self.web_exchange(
+            "pair",
+            {"pairingKey": self.web_pairing_key, "deviceName": "Browser victim"},
+        )
+        browser_token = browser_pair["payload"]["deviceToken"]
+        android_key, _ = self.state.create_pairing()
+        tcp_socket = self.app.server.sockets[0]
+        reader, writer = await asyncio.open_connection(*tcp_socket.getsockname()[:2])
+        tcp_sequence = 0
+        tcp_events: list[dict[str, Any]] = []
+
+        async def tcp_exchange(
+            message_type: str, payload: dict[str, Any] | None = None
+        ) -> dict[str, Any]:
+            nonlocal tcp_sequence
+            tcp_sequence += 1
+            request_id = f"android-{tcp_sequence}"
+            writer.write(protocol.encode({
+                "version": 1,
+                "id": request_id,
+                "type": message_type,
+                "payload": payload or {},
+            }))
+            await writer.drain()
+            while True:
+                message = protocol.decode(await reader.readline())
+                if message.get("id") == request_id:
+                    return message
+                tcp_events.append(message)
+
+        try:
+            await tcp_exchange("hello")
+            paired = await tcp_exchange(
+                "pair", {"pairingKey": android_key, "deviceName": "Android admin"}
+            )
+            self.assertTrue(paired["payload"]["deviceToken"].startswith("fmt_"))
+            listed = await tcp_exchange("client.list")
+            clients = listed["payload"]["clients"]
+            android = next(client for client in clients if client["name"] == "Android admin")
+            browser = next(client for client in clients if client["name"] == "Browser victim")
+            self.assertTrue(android["current"])
+            self.assertEqual(android["type"], "android")
+            self.assertFalse(browser["current"])
+
+            observer = await connect(self.ws_url, proxy=None)
+            try:
+                await self.websocket_exchange(observer, "observer-hello", "hello")
+                await self.websocket_exchange(
+                    observer,
+                    "observer-authenticate",
+                    "authenticate",
+                    {"deviceToken": browser_token},
+                )
+                await tcp_exchange("ping")
+                self.assertTrue(any(
+                    event.get("type") == "service.event"
+                    and event.get("payload", {}).get("activeBrowserConnections") == 2
+                    for event in tcp_events
+                ))
+            finally:
+                await observer.close()
+            await tcp_exchange("ping")
+            self.assertTrue(any(
+                event.get("type") == "service.event"
+                and event.get("payload", {}).get("activeBrowserConnections") == 1
+                for event in tcp_events
+            ))
+
+            revoked = await tcp_exchange("client.revoke", {"clientId": browser["id"]})
+            self.assertTrue(revoked["payload"]["revoked"])
+            with self.assertRaises(ConnectionClosedError) as closed:
+                while True:
+                    await self.websocket.recv()
+            self.assertIsNotNone(closed.exception.rcvd)
+            self.assertEqual(closed.exception.rcvd.code, 4003)
+            self.assertFalse(self.state.authenticate(browser_token))
+            self.assertEqual((await tcp_exchange("ping"))["type"], "ping.result")
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    async def test_android_self_revocation_flushes_success_then_rejects_relaunch(self) -> None:
+        android_key, _ = self.state.create_pairing()
+        tcp_socket = self.app.server.sockets[0]
+        reader, writer = await asyncio.open_connection(*tcp_socket.getsockname()[:2])
+        sequence = 0
+
+        async def exchange(
+            message_type: str, payload: dict[str, Any] | None = None
+        ) -> dict[str, Any]:
+            nonlocal sequence
+            sequence += 1
+            request_id = f"self-{sequence}"
+            writer.write(protocol.encode({
+                "version": 1,
+                "id": request_id,
+                "type": message_type,
+                "payload": payload or {},
+            }))
+            await writer.drain()
+            while True:
+                message = protocol.decode(await reader.readline())
+                if message.get("id") == request_id:
+                    return message
+
+        await exchange("hello")
+        paired = await exchange(
+            "pair", {"pairingKey": android_key, "deviceName": "Self-revoking Android"}
+        )
+        token = paired["payload"]["deviceToken"]
+        listed = await exchange("client.list")
+        current = next(
+            client for client in listed["payload"]["clients"] if client["current"]
+        )
+        revoked = await exchange("client.revoke", {"clientId": current["id"]})
+        self.assertTrue(revoked["payload"]["revoked"])
+        self.assertEqual(await reader.read(), b"")
+        self.assertFalse(self.state.authenticate(token))
+
+        retry_reader, retry_writer = await asyncio.open_connection(*tcp_socket.getsockname()[:2])
+        try:
+            retry_writer.write(protocol.encode({
+                "version": 1,
+                "id": "retry-hello",
+                "type": "hello",
+                "payload": {},
+            }))
+            retry_writer.write(protocol.encode({
+                "version": 1,
+                "id": "retry-authenticate",
+                "type": "authenticate",
+                "payload": {"deviceToken": token},
+            }))
+            await retry_writer.drain()
+            responses = [
+                protocol.decode(await retry_reader.readline()),
+                protocol.decode(await retry_reader.readline()),
+            ]
+            rejected = next(
+                response for response in responses if response.get("id") == "retry-authenticate"
+            )
+            self.assertEqual(rejected["type"], "error")
+            self.assertEqual(rejected["payload"]["code"], "unauthorized")
+        finally:
+            retry_writer.close()
+            await retry_writer.wait_closed()
+            writer.close()
+            await writer.wait_closed()
 
     async def test_rejects_malformed_binary_and_oversize_frames_and_cleans_up(self) -> None:
         await self.websocket.send("not json")

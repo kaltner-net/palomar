@@ -149,7 +149,10 @@ import androidx.core.view.WindowCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.isSystemInDarkTheme
 import java.text.DateFormat
+import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import java.util.UUID
 import kotlin.math.roundToInt
 import kotlinx.coroutines.async
@@ -950,8 +953,58 @@ internal data class UiState(
     val diagnostics: List<DiagnosticEvent> = emptyList(),
     val diagnosticsLoading: Boolean = false,
     val diagnosticsError: String? = null,
+    val pairedClients: List<PairedClient> = emptyList(),
+    val revokingClientId: String? = null,
+    val deviceAccessMessage: String? = null,
+    val deviceAccessError: String? = null,
     val restartPhase: RestartPhase = RestartPhase.Idle,
 )
+
+internal fun sortPairedClients(clients: List<PairedClient>): List<PairedClient> =
+    clients.sortedWith(
+        compareBy<PairedClient> { !it.connected }
+            .thenBy { it.name.lowercase(Locale.ROOT) }
+            .thenBy { it.pairedAt.orEmpty() }
+            .thenBy { it.id },
+    )
+
+internal fun pairedClientTypeLabel(type: String): String =
+    when (type) {
+        "browser" -> "Browser"
+        "android" -> "Android"
+        "mixed" -> "Browser and Android"
+        else -> "Client"
+    }
+
+internal fun pairedClientConnectionLabel(client: PairedClient): String =
+    when {
+        !client.connected -> "Offline"
+        client.connectionCount > 1 -> "Connected · ${client.connectionCount} live connections"
+        else -> "Connected"
+    }
+
+private fun parsePairedAt(value: String?): Date? {
+    if (value == null || value.length < 19) return null
+    return runCatching {
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT).apply {
+            isLenient = false
+            timeZone = TimeZone.getTimeZone("UTC")
+        }.parse(value.take(19))
+    }.getOrNull()
+}
+
+internal fun pairedAtLabel(value: String?, now: Long = System.currentTimeMillis()): String {
+    val paired = parsePairedAt(value) ?: return "Pairing date unavailable"
+    val ageMillis = (now - paired.time).coerceAtLeast(0)
+    val age = when {
+        ageMillis < 60_000 -> "just now"
+        ageMillis < 3_600_000 -> "${ageMillis / 60_000}m ago"
+        ageMillis < 86_400_000 -> "${ageMillis / 3_600_000}h ago"
+        else -> "${ageMillis / 86_400_000}d ago"
+    }
+    val date = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(paired)
+    return "Paired $age · $date"
+}
 
 internal data class ComposerDraftKey(
     val hostId: String,
@@ -1062,6 +1115,7 @@ private data class SyncSnapshot(
     val codexVersion: String?,
     val runtimeMode: String?,
     val runtimeConnected: Boolean,
+    val pairedClients: List<PairedClient>,
 )
 
 private fun UiPreferences.searchFilters(): SessionSearchFilters =
@@ -1139,6 +1193,10 @@ internal fun UiState.withForgottenConnection(): UiState =
         diagnostics = emptyList(),
         diagnosticsLoading = false,
         diagnosticsError = null,
+        pairedClients = emptyList(),
+        revokingClientId = null,
+        deviceAccessMessage = null,
+        deviceAccessError = null,
         restartPhase = RestartPhase.Idle,
     )
 
@@ -1261,6 +1319,7 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
     private var serverUpdateGeneration = 0L
     private var providerCatalogRevision = 0L
     private var sessionSyncGeneration = 0L
+    private var pairedClientRefreshGeneration = 0L
     private var searchJob: Job? = null
     private var archivedDiscoveryJob: Job? = null
     private var archivedDiscoveryGeneration = 0L
@@ -1314,7 +1373,17 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
                     overviewSnapshots = snapshots,
                 )
             }
-            if (restartRequested || updateRequested) launchRestartReconnect()
+            if (restartRequested || updateRequested) {
+                launchRestartReconnect()
+            } else {
+                val current = state.value
+                val revokingSelf = current.revokingClientId?.let { id ->
+                    current.pairedClients.any { it.id == id && it.current }
+                } == true
+                if (!revokingSelf) {
+                    activeHost?.takeIf { it.id == current.activeHostId }?.let(::launchReconnect)
+                }
+            }
             updateActiveOverview()
         },
     )
@@ -1327,6 +1396,75 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
     fun setHost(value: String) = state.update { it.copy(host = value) }
     fun setPairingKey(value: String) = state.update { it.copy(pairingKey = value) }
     fun setDeviceName(value: String) = state.update { it.copy(deviceName = value) }
+
+    fun refreshPairedClients() {
+        val hostId = state.value.activeHostId ?: return
+        if (!state.value.connected) return
+        viewModelScope.launch {
+            runCatching { refreshPairedClients(hostId) }.onFailure { error ->
+                if (state.value.activeHostId == hostId) {
+                    state.update {
+                        it.copy(deviceAccessError = error.message ?: "Device list could not be refreshed.")
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun refreshPairedClients(hostId: String) {
+        val generation = ++pairedClientRefreshGeneration
+        val clients = client.request("client.list").payload.getValue("clients").jsonArray
+            .map { json.decodeFromJsonElement<PairedClient>(it) }
+        if (
+            state.value.activeHostId != hostId ||
+            !state.value.connected ||
+            generation != pairedClientRefreshGeneration
+        ) return
+        state.update { it.copy(pairedClients = sortPairedClients(clients)) }
+    }
+
+    fun revokeClient(pairedClient: PairedClient) {
+        val hostId = state.value.activeHostId ?: return
+        if (!state.value.connected || state.value.revokingClientId != null) return
+        viewModelScope.launch {
+            state.update {
+                it.copy(
+                    revokingClientId = pairedClient.id,
+                    deviceAccessMessage = null,
+                    deviceAccessError = null,
+                )
+            }
+            runCatching {
+                client.request(
+                    "client.revoke",
+                    buildJsonObject { put("clientId", pairedClient.id) },
+                )
+            }.onSuccess {
+                if (state.value.activeHostId != hostId) return@onSuccess
+                if (pairedClient.current) {
+                    forgetHost(hostId)
+                } else {
+                    pairedClientRefreshGeneration += 1
+                    state.update {
+                        it.copy(
+                            pairedClients = it.pairedClients.filterNot { client -> client.id == pairedClient.id },
+                            revokingClientId = null,
+                            deviceAccessMessage = "Access revoked for ${pairedClient.name}.",
+                        )
+                    }
+                }
+            }.onFailure { error ->
+                if (state.value.activeHostId == hostId) {
+                    state.update {
+                        it.copy(
+                            revokingClientId = null,
+                            deviceAccessError = error.message ?: "Device access could not be revoked.",
+                        )
+                    }
+                }
+            }
+        }
+    }
     fun setNewSession(open: Boolean) = state.update {
         it.copy(showNewSession = open && it.providerCatalogLoaded)
     }
@@ -2583,6 +2721,7 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
     private fun activateSavedHost(saved: SavedHost, requestedChoice: HostNavigationChoice? = null) {
         providerCatalogRevision += 1
         sessionSyncGeneration += 1
+        pairedClientRefreshGeneration += 1
         overviewNavigation.invalidateForHost(saved.id)
         preferences = PreferenceStore(getApplication(), saved.id)
         val restored = preferences.load()
@@ -2670,6 +2809,10 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
                 diagnostics = emptyList(),
                 diagnosticsLoading = false,
                 diagnosticsError = null,
+                pairedClients = emptyList(),
+                revokingClientId = null,
+                deviceAccessMessage = null,
+                deviceAccessError = null,
                 restartPhase = RestartPhase.Idle,
                 themeMode = restored.themeMode,
                 themeId = restored.themeId,
@@ -2983,6 +3126,13 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
             }
         }.onFailure { error ->
             if (state.value.activeHostId != saved.id) return
+            if (error is ForemanRequestException && error.code == "unauthorized") {
+                forgetHost(saved.id)
+                state.update {
+                    it.copy(error = "Access to ${saved.displayName} was revoked. Pair this device again to reconnect.")
+                }
+                return@onFailure
+            }
             hosts.updateConnection(saved.id, "disconnected")
             state.update {
                 it.copy(
@@ -3319,6 +3469,7 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
         expectedNavigation: HostNavigationChoice? = null,
     ) {
         val syncGeneration = ++sessionSyncGeneration
+        val pairedClientGeneration = ++pairedClientRefreshGeneration
         val catalogRevision = providerCatalogRevision
         val synchronizedHostId = expectedNavigation?.hostId ?: state.value.activeHostId
         state.update { it.copy(loading = true, error = null) }
@@ -3346,6 +3497,7 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
                 }
                 val repositoriesRequest = async { client.request("repository.list") }
                 val serviceStatusRequest = async { client.request("service.status") }
+                val clientsRequest = async { client.request("client.list") }
                 val usageRequest = async {
                     runCatching { client.request("usage.status") }.getOrNull()
                 }
@@ -3433,6 +3585,9 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
                     inputsRequest.await()?.payload?.get("inputs")?.jsonArray
                         ?.map { json.decodeFromJsonElement<InputRequest>(it) }
                         ?: emptyList()
+                val pairedClients =
+                    clientsRequest.await().payload.getValue("clients").jsonArray
+                        .map { json.decodeFromJsonElement<PairedClient>(it) }
                 SyncSnapshot(
                     sessions = sessions,
                     nonAuthoritativeSessionProviders = nonAuthoritativeSessionProviders,
@@ -3453,6 +3608,7 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
                     codexVersion = codexStatus?.get("version")?.jsonPrimitive?.content,
                     runtimeMode = codexStatus?.get("mode")?.jsonPrimitive?.content,
                     runtimeConnected = codexStatus?.get("connected")?.jsonPrimitive?.content == "true",
+                    pairedClients = sortPairedClients(pairedClients),
                 )
         }
         val sessions = snapshot.sessions
@@ -3541,6 +3697,13 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
                     codexVersion = snapshot.codexVersion,
                     runtimeMode = snapshot.runtimeMode,
                     runtimeConnected = snapshot.runtimeConnected,
+                    pairedClients = if (pairedClientGeneration == pairedClientRefreshGeneration) {
+                        snapshot.pairedClients
+                    } else {
+                        it.pairedClients
+                    },
+                    revokingClientId = null,
+                    deviceAccessError = null,
                     error = selectedReadError,
                 )
                 .let { synchronized ->
@@ -4264,6 +4427,12 @@ internal class ForemanViewModel(application: Application) : AndroidViewModel(app
                     serverUpdateOperation = updateOperation ?: it.serverUpdateOperation,
                     releaseCheckLoading = false,
                 )
+            }
+            val hostId = state.value.activeHostId
+            if (hostId != null && state.value.connected) {
+                viewModelScope.launch {
+                    runCatching { refreshPairedClients(hostId) }
+                }
             }
             return
         }
@@ -7849,6 +8018,7 @@ private fun UiSettingsMenu(
     var expanded by remember { mutableStateOf(false) }
     var showingThemes by remember { mutableStateOf(false) }
     var showingActivityDetail by remember { mutableStateOf(false) }
+    var showingDevices by remember { mutableStateOf(false) }
     var showingProviders by remember { mutableStateOf(false) }
     var showingNotifications by remember { mutableStateOf(false) }
     var showingAbout by remember { mutableStateOf(false) }
@@ -7856,12 +8026,14 @@ private fun UiSettingsMenu(
     var quietStartText by remember(state.notificationPreferences.quietStart) { mutableStateOf(state.notificationPreferences.quietStart) }
     var quietEndText by remember(state.notificationPreferences.quietEnd) { mutableStateOf(state.notificationPreferences.quietEnd) }
     var confirmForgetHost by remember { mutableStateOf(false) }
+    var revokeClient by remember { mutableStateOf<PairedClient?>(null) }
     val hapticFeedback = LocalHapticFeedback.current
     Box(modifier) {
         IconButton(
             onClick = {
                 showingThemes = false
                 showingActivityDetail = false
+                showingDevices = false
                 showingProviders = false
                 showingNotifications = false
                 notificationRepositoryId = null
@@ -7876,6 +8048,7 @@ private fun UiSettingsMenu(
                 expanded = false
                 showingThemes = false
                 showingActivityDetail = false
+                showingDevices = false
                 showingProviders = false
                 showingNotifications = false
                 notificationRepositoryId = null
@@ -7966,6 +8139,113 @@ private fun UiSettingsMenu(
                             showingActivityDetail = false
                         },
                     )
+                }
+            } else if (showingDevices) {
+                DropdownMenuItem(
+                    text = { Text("Devices and access", style = MaterialTheme.typography.labelLarge) },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to settings")
+                    },
+                    onClick = { showingDevices = false },
+                )
+                HorizontalDivider()
+                Text(
+                    "Paired devices for this host. Revoking access closes all current connections, prevents automatic reconnection, and requires pairing again. Sessions, repositories, and workspace data stay on the host.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(320.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                if (!state.connected) {
+                    Text(
+                        "Reconnect to refresh or manage this host’s devices.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = LocalForemanColors.current.warning,
+                        modifier = Modifier.width(320.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                state.deviceAccessMessage?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = LocalForemanColors.current.success,
+                        modifier = Modifier.width(320.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                state.deviceAccessError?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.width(320.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                if (state.pairedClients.isEmpty()) {
+                    Text(
+                        "No paired devices are available.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.width(320.dp).padding(16.dp),
+                    )
+                }
+                state.pairedClients.forEach { pairedClient ->
+                    Column(
+                        Modifier.width(320.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                if (pairedClient.connected) "●" else "○",
+                                color = if (pairedClient.connected) LocalForemanColors.current.success else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Text(
+                                        pairedClient.name,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false),
+                                    )
+                                    if (pairedClient.current) {
+                                        Text(
+                                            "This device",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                        )
+                                    }
+                                }
+                                Text(
+                                    "${pairedClientTypeLabel(pairedClient.type)} · ${pairedClientConnectionLabel(pairedClient)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Text(
+                                    pairedAtLabel(pairedClient.pairedAt),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        TextButton(
+                            enabled = state.connected && state.revokingClientId == null,
+                            onClick = { revokeClient = pairedClient },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            modifier = Modifier.align(Alignment.End),
+                        ) {
+                            Text(
+                                if (state.revokingClientId == pairedClient.id) "Revoking…"
+                                else "Disconnect and revoke access",
+                            )
+                        }
+                    }
+                    HorizontalDivider()
                 }
             } else if (showingProviders) {
                 DropdownMenuItem(
@@ -8342,6 +8622,20 @@ private fun UiSettingsMenu(
                     },
                 )
                 DropdownMenuItem(
+                    text = { Text("Devices and access") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Security, contentDescription = null)
+                    },
+                    trailingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+                    },
+                    enabled = state.hasSavedConnection,
+                    onClick = {
+                        showingDevices = true
+                        viewModel.refreshPairedClients()
+                    },
+                )
+                DropdownMenuItem(
                     text = { Text("Providers") },
                     leadingIcon = {
                         Icon(Icons.Default.Settings, contentDescription = null)
@@ -8395,6 +8689,48 @@ private fun UiSettingsMenu(
                 }
             }
         }
+    }
+    revokeClient?.let { pairedClient ->
+        AlertDialog(
+            onDismissRequest = { if (state.revokingClientId == null) revokeClient = null },
+            icon = {
+                Icon(
+                    Icons.Default.LinkOff,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            },
+            title = { Text("Disconnect and revoke access?") },
+            text = {
+                Text(
+                    (if (pairedClient.current) {
+                        "This device will be signed out of this host. "
+                    } else {
+                        "All of ${pairedClient.name}’s current connections will close. "
+                    }) +
+                        "Automatic reconnection will be prevented and the device must pair again. " +
+                        "Sessions, repositories, and workspace data will not be deleted.",
+                )
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = state.revokingClientId == null,
+                    onClick = { revokeClient = null },
+                ) { Text("Cancel") }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = state.revokingClientId == null,
+                    onClick = {
+                        viewModel.revokeClient(pairedClient)
+                        revokeClient = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) {
+                    Text("Disconnect and revoke access")
+                }
+            },
+        )
     }
     if (confirmForgetHost) {
         AlertDialog(

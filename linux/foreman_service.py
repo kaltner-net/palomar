@@ -1551,7 +1551,7 @@ class Foreman:
             *(
                 client.send(outgoing)
                 for client in self.clients
-                if client.authenticated and client.websocket is not None
+                if client.authenticated
             ),
             return_exceptions=True,
         )
@@ -2717,7 +2717,12 @@ class Foreman:
             )
         return sorted(
             projected,
-            key=lambda item: (not item["connected"], not item["current"], item["name"].lower()),
+            key=lambda item: (
+                not item["connected"],
+                item["name"].casefold(),
+                item["pairedAt"] or "",
+                item["id"],
+            ),
         )
 
     async def disconnect_device(self, device_id: str) -> None:

@@ -773,6 +773,18 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
             "pair",
             {"pairingKey": pairing_key, "deviceName": "Phone"},
         )
+
+        async def read_session_event() -> dict[str, Any]:
+            while True:
+                message = protocol.decode(await asyncio.wait_for(reader.readline(), 2))
+                if message.get("type") == "service.event":
+                    self.assertEqual(
+                        message.get("payload", {}).get("activeTcpConnections"), 1
+                    )
+                    continue
+                self.assertEqual(message.get("type"), "session.event")
+                return message
+
         await server.emit(
             "turn/started",
             {
@@ -780,7 +792,7 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
                 "turn": {"id": "turn-desktop"},
             },
         )
-        working = protocol.decode(await asyncio.wait_for(reader.readline(), 2))
+        working = await read_session_event()
         self.assertEqual(working["payload"]["event"]["status"], "working")
         await server.emit(
             "turn/completed",
@@ -789,7 +801,7 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
                 "turn": {"id": "turn-desktop", "status": "completed"},
             },
         )
-        completed = protocol.decode(await asyncio.wait_for(reader.readline(), 2))
+        completed = await read_session_event()
         self.assertEqual(completed["payload"]["event"]["status"], "completed")
 
         writer.close()

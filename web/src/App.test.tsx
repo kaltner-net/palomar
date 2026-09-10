@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import App, { AccountUsageDock, appShellClassName, ConversationView, LinkedUserText, Markdown, NewSessionDialog, ProviderSettings, RouteSelect, SessionList, SetupView, reconcileSessionPending, sessionActionRequest, workspaceFileTarget } from "./App";
-import type { ApprovalRequest, SessionSummary } from "./protocol";
+import App, { AccountUsageDock, appShellClassName, ConversationView, DevicesAndAccess, LinkedUserText, Markdown, NewSessionDialog, ProviderSettings, RouteSelect, SessionList, SetupView, reconcileSessionPending, sessionActionRequest, workspaceFileTarget } from "./App";
+import type { ApprovalRequest, PairedClient, SessionSummary } from "./protocol";
 import { inferPagePort } from "./client";
 import { DEFAULT_SESSION_FILTERS } from "./session-search";
 import { loadHostRegistry, loadRememberedSession, loadSessionSearch, saveHostRegistry, saveRememberedSession, type StoredHost } from "./storage";
@@ -13,6 +13,7 @@ const clientMock = vi.hoisted(() => ({
   disconnect: vi.fn(),
   onState: undefined as undefined | ((state: "connected") => void),
   onEvent: undefined as undefined | ((message: unknown) => void),
+  onAuthenticationRejected: undefined as undefined | ((detail: string) => void),
 }));
 
 vi.mock("./client", async (importOriginal) => {
@@ -20,9 +21,10 @@ vi.mock("./client", async (importOriginal) => {
   return {
     ...actual,
     ForemanWebClient: class {
-      constructor(options: { onState: (state: "connected") => void; onEvent: (message: unknown) => void }) {
+      constructor(options: { onState: (state: "connected") => void; onEvent: (message: unknown) => void; onAuthenticationRejected?: (detail: string) => void }) {
         clientMock.onState = options.onState;
         clientMock.onEvent = options.onEvent;
+        clientMock.onAuthenticationRejected = options.onAuthenticationRejected;
       }
       pair = clientMock.pair;
       start = clientMock.start;
@@ -141,6 +143,7 @@ describe("host navigation history", () => {
     clientMock.disconnect.mockReset();
     clientMock.onState = undefined;
     clientMock.onEvent = undefined;
+    clientMock.onAuthenticationRejected = undefined;
   });
 
   afterEach(() => {
@@ -173,6 +176,108 @@ describe("host navigation history", () => {
     expect(window.location.pathname).toBe("/sessions");
     expect(window.location.search).toBe(`?host=${work.id}`);
     expect(loadHostRegistry().activeHostId).toBe(work.id);
+  });
+
+  it("clears only a remotely revoked host credential and returns to setup", async () => {
+    saveHostRegistry({ hosts: [home], activeHostId: home.id });
+    window.history.replaceState(null, "", `/settings?host=${home.id}`);
+    mockConnectedState([]);
+    render(<App />);
+    await screen.findByRole("heading", { name: "Devices and access" });
+
+    act(() => clientMock.onAuthenticationRejected?.("This client token was revoked. Pair this browser again to reconnect."));
+
+    await screen.findByRole("heading", { name: "Connect to Foreman" });
+    expect(loadHostRegistry()).toEqual({ hosts: [], activeHostId: null });
+    expect(screen.getByRole("alert")).toHaveTextContent("token was revoked");
+  });
+
+  it("self-revocation clears the active host credential after server success", async () => {
+    saveHostRegistry({ hosts: [home], activeHostId: home.id });
+    window.history.replaceState(null, "", `/settings?host=${home.id}`);
+    mockConnectedState([]);
+    const baseRequest = clientMock.request.getMockImplementation();
+    if (!baseRequest) throw new Error("Connected request mock is missing");
+    clientMock.request.mockImplementation((type: string, payload?: Record<string, unknown>) => {
+      if (type === "client.list") return Promise.resolve({ clients: [
+        { id: "current", name: "Office browser", type: "browser", pairedAt: null, connected: true, connectionCount: 1, current: true },
+      ] });
+      if (type === "client.revoke") return Promise.resolve({ revoked: true, clientId: payload?.clientId });
+      return baseRequest(type, payload);
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<App />);
+    await screen.findByText("Office browser");
+
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect and revoke access for Office browser" }));
+
+    await screen.findByRole("heading", { name: "Connect to Foreman" });
+    expect(loadHostRegistry()).toEqual({ hosts: [], activeHostId: null });
+    expect(clientMock.request).toHaveBeenCalledWith("client.revoke", { clientId: "current" });
+  });
+
+  it("refreshes device state from service events without leaving Settings", async () => {
+    const browser = { id: "browser", name: "Office browser", type: "browser" as const, pairedAt: "2026-09-10T12:00:00+00:00", connected: true, connectionCount: 1, current: true };
+    let clients: PairedClient[] = [browser];
+    saveHostRegistry({ hosts: [home], activeHostId: home.id });
+    window.history.replaceState(null, "", `/settings?host=${home.id}`);
+    mockConnectedState([]);
+    const baseRequest = clientMock.request.getMockImplementation();
+    if (!baseRequest) throw new Error("Connected request mock is missing");
+    clientMock.request.mockImplementation((type: string, payload?: Record<string, unknown>) =>
+      type === "client.list" ? Promise.resolve({ clients }) : baseRequest(type, payload)
+    );
+    render(<App />);
+    await screen.findByText("Office browser");
+
+    clients = [
+      browser,
+      { id: "phone", name: "Pixel", type: "android", pairedAt: "2026-09-09T12:00:00+00:00", connected: true, connectionCount: 2, current: false },
+    ];
+    act(() => clientMock.onEvent?.({ type: "service.event", payload: { foremanVersion: "test", codex: {}, listeners: {} } }));
+
+    expect(await screen.findByText("Pixel")).toBeInTheDocument();
+    expect(screen.getByText("Android · Connected · 2 live connections")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
+  });
+
+  it("never carries a device inventory across host switches", async () => {
+    let activeToken = "";
+    saveHostRegistry({ hosts: [home, work], activeHostId: home.id });
+    window.history.replaceState(null, "", `/settings?host=${home.id}`);
+    mockConnectedState([]);
+    const baseRequest = clientMock.request.getMockImplementation();
+    if (!baseRequest) throw new Error("Connected request mock is missing");
+    clientMock.start.mockImplementation(async (
+      _endpoint: unknown,
+      token: string,
+      onReady: (reconnected: boolean) => Promise<void>,
+    ) => {
+      activeToken = token;
+      clientMock.onState?.("connected");
+      await onReady(false);
+    });
+    clientMock.request.mockImplementation((type: string, payload?: Record<string, unknown>) => {
+      if (type === "client.list") {
+        return Promise.resolve({ clients: activeToken === "token-home" ? [
+          { id: "home-browser", name: "Home browser", type: "browser", pairedAt: null, connected: true, connectionCount: 1, current: true },
+        ] : [
+          { id: "work-phone", name: "Work phone", type: "android", pairedAt: null, connected: true, connectionCount: 1, current: false },
+        ] });
+      }
+      return baseRequest(type, payload);
+    });
+    render(<App />);
+    await screen.findByText("Home browser");
+
+    const workCard = [...document.querySelectorAll<HTMLElement>(".saved-host")].find(
+      (candidate) => candidate.querySelector("strong")?.textContent === "Work",
+    );
+    if (!workCard) throw new Error("Work host was not rendered");
+    fireEvent.click(within(workCard).getByRole("button", { name: /Work/ }));
+
+    expect(await screen.findByText("Work phone")).toBeInTheDocument();
+    expect(screen.queryByText("Home browser")).not.toBeInTheDocument();
   });
 
   it("resumes the last session when Sessions is entered from Settings", async () => {
@@ -979,6 +1084,45 @@ describe("host navigation history", () => {
 
     await act(async () => { resolveFirst({ session: first }); });
     await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(second.title));
+  });
+});
+
+describe("DevicesAndAccess", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("shows paired online and offline devices with aligned identity and connection details", () => {
+    render(<DevicesAndAccess connected clients={[
+      { id: "browser", name: "Office browser", type: "browser", pairedAt: new Date(Date.now() - 60_000).toISOString(), connected: true, connectionCount: 2, current: true },
+      { id: "phone", name: "Pixel", type: "android", pairedAt: new Date(Date.now() - 120_000).toISOString(), connected: false, connectionCount: 0, current: false },
+    ]} onRevoke={vi.fn()} />);
+
+    expect(screen.getByRole("heading", { name: "Devices and access" })).toBeInTheDocument();
+    expect(screen.getByText("This device")).toBeInTheDocument();
+    expect(screen.getByText("Browser · Connected · 2 live connections")).toBeInTheDocument();
+    expect(screen.getByText("Android · Offline")).toBeInTheDocument();
+    expect(screen.getAllByText(/Paired .* ago/)).toHaveLength(2);
+    expect(screen.getByText(/prevents automatic reconnection/)).toBeInTheDocument();
+    expect(screen.getByText(/workspace data stay on the host/)).toBeInTheDocument();
+  });
+
+  it("confirms destructive semantics and prevents duplicate revocation while pending", async () => {
+    let resolveRevoke: (() => void) | undefined;
+    const revoke = vi.fn(() => new Promise<void>((resolve) => { resolveRevoke = resolve; }));
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<DevicesAndAccess connected clients={[
+      { id: "phone", name: "Pixel", type: "android", pairedAt: null, connected: true, connectionCount: 1, current: false },
+      { id: "browser", name: "Office browser", type: "browser", pairedAt: null, connected: false, connectionCount: 0, current: true },
+    ]} onRevoke={revoke} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect and revoke access for Pixel" }));
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/must pair again.*will not be deleted/));
+    expect(revoke).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Disconnect and revoke access for Pixel" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Disconnect and revoke access for Office browser" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect and revoke access for Pixel" }));
+    expect(revoke).toHaveBeenCalledTimes(1);
+    resolveRevoke?.();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Access revoked for Pixel"));
   });
 });
 

@@ -1162,8 +1162,40 @@ class ForemanConnectionTest {
         assertFalse(forgotten.showNewSession)
         assertNull(forgotten.pendingSessionAction)
         assertTrue(forgotten.capabilities.isEmpty())
+        assertTrue(forgotten.pairedClients.isEmpty())
+        assertNull(forgotten.revokingClientId)
         assertEquals(ThemeMode.Dark, forgotten.themeMode)
         assertTrue(forgotten.monitorActiveTurns)
+    }
+
+    @Test
+    fun pairedDeviceInventoryIsStableConnectedFirstAndUsesSharedTerminology() {
+        val offline = PairedClient("offline", "Alpha", "android", connected = false)
+        val connectedLater = PairedClient("connected-z", "Zulu", "browser", connected = true)
+        val connectedFirst = PairedClient(
+            "connected-a",
+            "Alpha",
+            "mixed",
+            pairedAt = "2026-09-10T12:00:00+00:00",
+            connected = true,
+            connectionCount = 3,
+            current = true,
+        )
+
+        assertEquals(
+            listOf(connectedFirst, connectedLater, offline),
+            sortPairedClients(listOf(offline, connectedLater, connectedFirst)),
+        )
+        assertEquals("Browser", pairedClientTypeLabel("browser"))
+        assertEquals("Android", pairedClientTypeLabel("android"))
+        assertEquals("Browser and Android", pairedClientTypeLabel("mixed"))
+        assertEquals("Connected · 3 live connections", pairedClientConnectionLabel(connectedFirst))
+        assertEquals("Connected", pairedClientConnectionLabel(connectedLater))
+        assertEquals("Offline", pairedClientConnectionLabel(offline))
+        assertTrue(
+            pairedAtLabel("2026-09-10T12:00:00+00:00", now = 1_789_041_660_000)
+                .startsWith("Paired 1m ago ·"),
+        )
     }
 
     @Test
@@ -1380,6 +1412,61 @@ class ForemanConnectionTest {
                 client.pair("127.0.0.1:${server.localPort}", "fmp_test", "Phone"),
             )
             assertEquals(setOf("archive"), client.capabilities)
+        } finally {
+            client.close()
+            server.close()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun authenticationRejectionPreservesTheUnauthorizedReasonForCredentialCleanup() = runBlocking {
+        val json = Json { ignoreUnknownKeys = true }
+        val server = ServerSocket(0)
+        val executor = Executors.newSingleThreadExecutor()
+        executor.submit {
+            server.accept().use { socket ->
+                val hello = json.decodeFromString<WireMessage>(FrameCodec.read(socket.getInputStream())!!)
+                FrameCodec.write(
+                    socket.getOutputStream(),
+                    json.encodeToString(
+                        WireMessage(
+                            version = 1,
+                            id = hello.id,
+                            type = "hello.result",
+                            payload = buildJsonObject {
+                                put("server", "Foreman")
+                                put("capabilities", buildJsonObject {})
+                            },
+                        ),
+                    ),
+                )
+                val authenticate = json.decodeFromString<WireMessage>(FrameCodec.read(socket.getInputStream())!!)
+                FrameCodec.write(
+                    socket.getOutputStream(),
+                    json.encodeToString(
+                        WireMessage(
+                            version = 1,
+                            id = authenticate.id,
+                            type = "error",
+                            payload = buildJsonObject {
+                                put("code", "unauthorized")
+                                put("message", "device token is invalid")
+                            },
+                        ),
+                    ),
+                )
+            }
+        }
+        val client = ForemanClient(this, {}, {})
+        try {
+            val failure = runCatching {
+                client.authenticate("127.0.0.1:${server.localPort}", "fmt_revoked")
+            }.exceptionOrNull()
+            assertTrue(failure is ForemanRequestException)
+            failure as ForemanRequestException
+            assertEquals("unauthorized", failure.code)
+            assertEquals("device token is invalid", failure.message)
         } finally {
             client.close()
             server.close()

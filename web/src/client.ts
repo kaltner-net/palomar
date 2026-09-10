@@ -209,6 +209,13 @@ export class ForemanWebClient {
       await this.onReady?.(reconnected || wasConnected);
     } catch (error) {
       if (!this.reconnectEnabled) throw error;
+      if (error instanceof ForemanError && error.code === "unauthorized") {
+        const detail = "This client token was revoked or is no longer valid. Pair this browser again to reconnect.";
+        this.disconnect();
+        this.hooks.onState("disconnected", detail);
+        this.hooks.onAuthenticationRejected?.(detail);
+        throw new ForemanError(detail, "unauthorized");
+      }
       this.scheduleReconnect(error instanceof Error ? error.message : "Connection failed");
       if (!reconnected && !this.hasConnected) throw error;
     }

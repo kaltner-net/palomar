@@ -556,11 +556,21 @@ class TurnMonitorService : Service() {
                 while (isActive && (!lifecycle.isEmpty() || monitorAllTurns)) {
                     showForeground(reconnecting = true)
                     delay(lifecycle.nextReconnectDelay())
-                    val restored = runCatching {
+                    val attempt = runCatching {
                         connected = false
                         connectAndSync(lifecycle.sessionIds())
-                    }.isSuccess
-                    if (restored) return@launch
+                    }
+                    if (attempt.isSuccess) return@launch
+                    val failure = attempt.exceptionOrNull()
+                    if (failure is ForemanRequestException && failure.code == "unauthorized") {
+                        monitoredHostId?.let { HostStore(this@TurnMonitorService).forget(it) }
+                        lifecycle.sessionIds().forEach {
+                            failMonitoring(it, "Access was revoked. Pair Foreman again to monitor turns.")
+                        }
+                        monitorAllTurns = false
+                        stopMonitoring()
+                        return@launch
+                    }
                 }
             }
     }
