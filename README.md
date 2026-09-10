@@ -1,16 +1,25 @@
-# Foreman
+# Foreman — self-hosted coding-agent control plane
 
 <p align="center">
   <img src="android/app/src/main/res/drawable-nodpi/foreman_logo.png" alt="Foreman logo" width="128">
   <br>
-  <strong>A fast, self-hosted control plane for Codex and Claude Code.</strong>
+  <strong>Self-hosted control plane for Codex and Claude Code on persistent Linux hosts.</strong>
 </p>
 
-Foreman gives Android and web clients direct control of coding-agent sessions
-running on your own Linux host. It connects to the local Codex app-server and
-uses the official Claude Agent SDK through a bounded host-side bridge. The
-result is a dedicated, low-latency, LAN-first interface for monitoring work,
-answering requests, and continuing sessions away from the terminal.
+Foreman is designed for persistent Linux coding hosts: an always-on VM, server,
+homelab machine, or remote development box where Codex and Claude Code run. The
+host is the durable execution environment; native Android and responsive web
+clients are remote control surfaces for monitoring, steering, interrupting,
+approving, resuming, and organizing its sessions.
+
+Pair either client with one or more hosts and connect directly over a trusted
+LAN or private overlay such as Tailscale or WireGuard. No Foreman-hosted
+account, relay, or central backend is required.
+
+Each host runs a small Foreman service that connects to the local Codex
+app-server and to Claude Code through a bounded bridge built on the official
+Claude Agent SDK. Provider sessions remain authoritative; Foreman supplies the
+remote control plane around them.
 
 > A Foreman host needs an authenticated Codex or Claude Code CLI. Claude Code
 > additionally requires Node.js 20 or newer and the pinned Agent SDK.
@@ -20,41 +29,57 @@ See the [documentation](docs/README.md), [product roadmap](ROADMAP.md), and
 
 ## Why Foreman?
 
-Foreman is for people who want a dedicated, self-hosted interface to one or
-more always-on Linux coding hosts. It provides:
+Foreman supports a host-first workflow in which the controlling device never
+becomes the coding-agent execution environment:
 
-- a unified view of active, waiting, failed, recent, and archived sessions;
-- live prompts, steering, interrupts, approvals, and structured input;
-- provider-aware Codex and Claude Code configuration and controls;
-- responsive web and native Android clients with durable multi-host pairing;
-- context and account-usage meters, search, grouping, pins, and themes;
-- cross-client presence and privacy-safe background notifications;
-- signed, recoverable Linux and Android update flows.
+- **Persistent execution:** source trees, working directories, provider
+  authentication, and provider session state stay on the Linux host. Work can
+  continue when an Android or browser client disconnects.
+- **Direct multi-host access:** pair Android and browser clients with multiple
+  Linux hosts without routing session traffic through a hosted Foreman relay.
+- **Provider-native behavior:** Codex and Claude Code sessions remain
+  authoritative. Foreman exposes only the models, permissions, and live
+  operations supported by the active provider.
+- **Remote supervision:** follow live work and use provider-supported prompts,
+  steering, interrupts, approvals, structured input, resume, search, archive,
+  and organization controls from either client.
+- **Operational continuity:** durable pairing, device revocation, usage and
+  context visibility, privacy-safe notifications, and signed updates support
+  hosts intended to run unattended. Linux updates can roll back after failed
+  activation.
 
-[Codex Remote](https://learn.chatgpt.com/docs/remote-connections) is the
-first-party choice for controlling Codex through ChatGPT. Foreman is an
-independent option for users who prefer a dedicated, self-hosted, LAN-first
-control surface with direct access to their own hosts.
-
-## Screenshots
-
-<table>
-  <tr>
-    <td align="center"><img src="docs/screenshots/pairing.png" alt="Pair Foreman with a Linux host" width="260"></td>
-    <td align="center"><img src="docs/screenshots/session-list.png" alt="Browse active and recent coding-agent sessions" width="260"></td>
-    <td align="center"><img src="docs/screenshots/live-session.png" alt="Monitor work in progress" width="260"></td>
-  </tr>
-  <tr>
-    <td align="center">Pair with a Linux host</td>
-    <td align="center">Browse live sessions</td>
-    <td align="center">Monitor work in progress</td>
-  </tr>
-</table>
+[Codex Remote Control](https://learn.chatgpt.com/docs/remote-connections) and
+[Claude Code Remote Control](https://support.claude.com/en/articles/14554000-claude-code-power-user-tips)
+are the first-party paths for their respective ecosystems. Foreman instead
+provides one independently hosted Android/web control plane for both providers
+and multiple Linux machines, reached over infrastructure you manage. It does
+not use either provider's Remote Control transport.
 
 ## Quick start
 
-Install and authenticate at least one supported provider CLI: Codex (`codex`)
-or Claude Code (`claude`). Then install the newest complete Foreman release:
+> [!NOTE]
+> Release artifacts are governed by the `LICENSE` bundled with their tag.
+> Confirm that a release contains the Apache License 2.0 before installing;
+> earlier artifacts retain the terms they shipped with.
+
+### 1. Prepare a Linux host
+
+You need Python 3.10 or newer, Bash, `curl`, OpenSSL, and a systemd user
+session. Install and authenticate at least one supported provider CLI:
+Codex (`codex`) or Claude Code (`claude`). Claude Code support additionally
+needs Node.js 20 or newer.
+
+Confirm at least one provider works locally:
+
+```sh
+codex --version
+# or
+claude --version
+```
+
+Foreman does not install or authenticate either provider.
+
+### 2. Install the latest stable Foreman release
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/mkaltner/foreman/main/scripts/install-foreman.sh | sh
@@ -62,16 +87,23 @@ curl -fsSL https://raw.githubusercontent.com/mkaltner/foreman/main/scripts/insta
 
 The rootless bootstrapper verifies the pinned release identity, signed checksum
 manifest, Linux archive checksum, and archive layout before running the
-release's installer. To inspect it first or install from a checkout, follow the
-[installation guide](docs/install.md).
+release's installer. To inspect the bootstrapper first, use a source checkout,
+or review platform requirements, follow the [installation guide](docs/install.md).
 
-Verify the service, create a one-time pairing code, and print the browser URL:
+### 3. Verify and pair the web client
+
+Verify the service, print its browser URL, and create a single-use pairing code
+valid for ten minutes:
 
 ```sh
 foreman status
-foreman pair
 foreman web
+foreman pair
 ```
+
+Open the printed URL and enter the code. When opening it from another device,
+replace `localhost` with the Linux host's trusted-LAN or private-overlay name or
+address. The bundled web client normally listens on port `8766`.
 
 Foreman runs as an enabled systemd user service. On a headless or SSH-managed
 host, enable lingering so the user service starts at boot and survives the last
@@ -86,22 +118,25 @@ The second command should report `Linger=yes`. This one-time host setting may
 require administrator privileges; the Foreman installer itself never invokes
 `sudo`.
 
+### 4. Add Android
+
 Download the signed Android APK from the
 [latest release](https://github.com/mkaltner/foreman/releases/latest), sideload
-it, and pair it with the same short-lived code. The bundled web client normally
-runs at `http://HOST:8766`; Android connects to port `8765` by default.
+it, and create a new `foreman pair` code for the phone. Each code pairs exactly
+one client. Android connects directly to the host on port `8765` by default.
 
 ## How it works
 
 ```text
 Android ── authenticated JSONL/TCP :8765 ─┐
-                                          ├─ Foreman service ─┬─ Codex app-server
-Browser ── HTTP + authenticated WS :8766 ─┘                   └─ Claude Agent SDK bridge
+                                          ├─ Foreman service on Linux host ─┬─ Codex app-server
+Browser ── HTTP + authenticated WS :8766 ─┘                                 └─ Claude Agent SDK bridge
 ```
 
 Both clients use the same protocol and provider-aware session model. Foreman
 serves the web application and Android transport from one `foreman.service`;
-there is no separate web server to manage. See the
+there is no separate web server, hosted relay, or Foreman cloud service to
+manage. See the
 [architecture](docs/architecture.md), [protocol](docs/protocol.md), and
 [user guide](docs/user-guide.md) for details.
 
@@ -145,3 +180,11 @@ release engineering, and historical acceptance records.
 - [Documentation](docs/README.md)
 - [License](LICENSE)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
+
+## License
+
+Foreman's original source code is available under the
+[Apache License 2.0](LICENSE). Bundled third-party components remain subject to
+their own licenses and terms; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Copyright 2026 Michael
+Kaltner.

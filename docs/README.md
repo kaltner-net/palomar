@@ -16,6 +16,8 @@ static documentation site without creating a second source of truth.
   and presence-indicator rules.
 - [Compatibility policy](compatibility.md) — supported protocol, clients,
   upgrades, state, and versioning expectations.
+- [Development workflow](development.md) — web assets, Claude bridge checks,
+  and vendored dependency maintenance for contributors and maintainers.
 
 ## Understand the system
 
