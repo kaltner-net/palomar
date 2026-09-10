@@ -57,11 +57,6 @@ not use either provider's Remote Control transport.
 
 ## Quick start
 
-> [!NOTE]
-> Release artifacts are governed by the `LICENSE` bundled with their tag.
-> Confirm that a release contains the Apache License 2.0 before installing;
-> earlier artifacts retain the terms they shipped with.
-
 ### 1. Prepare a Linux host
 
 You need Python 3.10 or newer, Bash, `curl`, OpenSSL, and a systemd user
@@ -183,8 +178,8 @@ release engineering, and historical acceptance records.
 
 ## License
 
-Foreman's original source code is available under the
-[Apache License 2.0](LICENSE). Bundled third-party components remain subject to
-their own licenses and terms; see
+Foreman's original source code and first-party binaries are available under
+the [Apache License 2.0](LICENSE). Bundled third-party components remain subject
+to their own licenses and terms; see
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Copyright 2026 Michael
 Kaltner.

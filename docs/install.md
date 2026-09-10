@@ -1,10 +1,5 @@
 # Install and run
 
-> [!NOTE]
-> Release artifacts are governed by the `LICENSE` bundled with their tag.
-> Confirm that a release contains the Apache License 2.0 before installing;
-> earlier artifacts retain the terms they shipped with.
-
 ## Linux host requirements
 
 The Foreman service runs on Linux under a systemd user manager. Before
@@ -312,7 +307,8 @@ be placed in proxy URLs or query strings.
 Download the signed release APK from the matching tagged GitHub release,
 sideload it, and run `foreman pair` immediately before setup. For development,
 open `android/` in current Android Studio (compile SDK 37) and build the debug
-app. Enter:
+app. The release APK embeds Foreman's `LICENSE` and
+`THIRD_PARTY_NOTICES.md`. Enter:
 
 - Host: for example `192.168.1.59` or `codex.local:8765`;
 - Pairing key: the six-digit code;

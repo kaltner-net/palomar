@@ -155,6 +155,8 @@ jobs:
       - name: Test, lint, and build debug APK
         working-directory: android
         run: ./gradlew --no-daemon test lint assembleDebug
+      - name: Verify Android legal assets
+        run: python scripts/verify_apk_legal_assets.py android/app/build/outputs/apk/debug/app-debug.apk
       - name: Upload Android lint report
         if: always()
         uses: actions/upload-artifact@v4
