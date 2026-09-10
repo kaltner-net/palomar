@@ -64,10 +64,13 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.NewReleases
+import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.FilterList
@@ -9130,6 +9133,16 @@ private fun AboutDialog(
                     serverUpdateError?.let { message ->
                         item { Text(message, color = MaterialTheme.colorScheme.error) }
                     }
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Foreman links", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Project source, releases, licensing, and bundled dependency notices.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     items(foremanAboutLinks) { (label, url) ->
                         FilledTonalButton(
                             onClick = {
@@ -9141,6 +9154,16 @@ private fun AboutDialog(
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
+                            when (label) {
+                                "GitHub repository" -> Icon(
+                                    painterResource(R.drawable.ic_github),
+                                    contentDescription = null,
+                                )
+                                "Current releases" -> Icon(Icons.Default.NewReleases, contentDescription = null)
+                                "License" -> Icon(Icons.Default.Description, contentDescription = null)
+                                else -> Icon(Icons.Default.Policy, contentDescription = null)
+                            }
+                            Spacer(Modifier.width(10.dp))
                             Text(label, modifier = Modifier.weight(1f))
                             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
                         }

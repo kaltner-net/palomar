@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ForemanLogo } from "./ForemanLogo";
 import type { ReleaseUpdateSnapshot } from "./protocol";
 import type { ServerUpdateCheck, ServerUpdateOperation } from "./protocol";
 import { componentUpdateStatus, type ComponentUpdateStatus } from "./update-status";
@@ -12,6 +13,13 @@ export const FOREMAN_THIRD_PARTY_NOTICES_URL = `${FOREMAN_REPOSITORY_URL}/blob/m
 export const WEB_CLIENT_VERSION = __FOREMAN_CLIENT_VERSION__;
 export const WEB_CLIENT_COMMIT = __FOREMAN_CLIENT_COMMIT__;
 export const WEB_RELEASE_BUILD = __FOREMAN_RELEASE_BUILD__;
+
+const ABOUT_LINKS = [
+  { label: "GitHub repository", href: FOREMAN_REPOSITORY_URL, icon: "github" },
+  { label: "Current releases", href: FOREMAN_RELEASES_URL, icon: "release" },
+  { label: "License", href: FOREMAN_LICENSE_URL, icon: "document" },
+  { label: "Third-party notices", href: FOREMAN_THIRD_PARTY_NOTICES_URL, icon: "shield" },
+] as const;
 
 export interface AboutSectionProps {
   serverVersion: string | null;
@@ -37,6 +45,16 @@ function UpdateStatus({ status }: { status: ComponentUpdateStatus }) {
       Release notes for {status.release.tag}
     </a>}
   </div>;
+}
+
+function AboutLinkIcon({ icon }: { icon: (typeof ABOUT_LINKS)[number]["icon"] }) {
+  const path = {
+    github: "M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.64.35-1.08.63-1.33-2.22-.25-4.56-1.1-4.56-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.6 9.6 0 0 1 12 6.84a9.6 9.6 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.85-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.75c0 .27.18.58.69.48A10 10 0 0 0 12 2Z",
+    release: "M20 12v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-7h2v6h12v-6h2ZM11 3h2v9.17l2.59-2.58L17 11l-5 5-5-5 1.41-1.41L11 12.17V3Z",
+    document: "M6 2h8l4 4v16H6V2Zm2 2v16h8V7h-3V4H8Zm2 7h4v2h-4v-2Zm0 4h4v2h-4v-2Z",
+    shield: "m12 2 8 3v6c0 5.25-3.44 9.54-8 11-4.56-1.46-8-5.75-8-11V5l8-3Zm0 2.13L6 6.38V11c0 4.1 2.53 7.65 6 8.82 3.47-1.17 6-4.72 6-8.82V6.38l-6-2.25ZM11 7h2v6h-2V7Zm0 8h2v2h-2v-2Z",
+  }[icon];
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={path} /></svg>;
 }
 
 export function AboutSection({
@@ -78,7 +96,7 @@ export function AboutSection({
   return (
     <section className="settings-card about-card" aria-labelledby="about-heading">
       <div className="about-identity">
-        <img src="/favicon.svg" alt="Foreman logo" />
+        <ForemanLogo large labelled />
         <div>
           <h2 id="about-heading">Foreman</h2>
           <p>Created by Michael Kaltner</p>
@@ -168,10 +186,9 @@ export function AboutSection({
       {updateError && <p className="error-text" role="alert">{updateError}</p>}
       <p className="muted about-scope">Server updates install only signed official stable releases. Android APK installation remains a separate platform action.</p>
       <nav className="about-links" aria-label="Foreman links">
-        <a href={FOREMAN_REPOSITORY_URL} target="_blank" rel="noreferrer noopener">GitHub repository</a>
-        <a href={FOREMAN_RELEASES_URL} target="_blank" rel="noreferrer noopener">Current releases</a>
-        <a href={FOREMAN_LICENSE_URL} target="_blank" rel="noreferrer noopener">License</a>
-        <a href={FOREMAN_THIRD_PARTY_NOTICES_URL} target="_blank" rel="noreferrer noopener">Third-party notices</a>
+        {ABOUT_LINKS.map(({ label, href, icon }) => <a key={href} href={href} target="_blank" rel="noreferrer noopener">
+          <AboutLinkIcon icon={icon} /><span>{label}</span>
+        </a>)}
       </nav>
     </section>
   );

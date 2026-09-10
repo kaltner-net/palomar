@@ -4899,6 +4899,7 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
         (self.web_root / "favicon.svg").write_text(
             '<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8"
         )
+        (self.web_root / "foreman-logo.png").write_bytes(b"\x89PNG\r\n\x1a\nlogo")
         self.state = State(base / "state")
         self.web_pairing_key, _ = self.state.create_pairing()
         self.app = Foreman(
@@ -5046,6 +5047,12 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(headers["cache-control"], "no-store")
         self.assertIn("image/svg+xml", headers["content-type"])
         self.assertIn(b"<svg", body)
+
+        status, headers, body = await self.http_get("/foreman-logo.png")
+        self.assertIn("200", status)
+        self.assertEqual(headers["cache-control"], "no-store")
+        self.assertIn("image/png", headers["content-type"])
+        self.assertEqual(body, b"\x89PNG\r\n\x1a\nlogo")
 
         status, _, body = await self.http_get("/health")
         self.assertIn("200", status)

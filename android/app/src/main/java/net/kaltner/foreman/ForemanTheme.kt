@@ -61,7 +61,7 @@ internal data class ForemanThemePalette(
     val dark: ForemanThemeVariant,
 )
 
-private val lightSemantic =
+private val baseLightSemantic =
     ForemanSemanticColors(
         success = Color(0xFF087443),
         successContainer = Color(0xFFD9F4E5),
@@ -77,7 +77,7 @@ private val lightSemantic =
         fullAccessContainer = Color(0xFFFFE4E9),
     )
 
-private val darkSemantic =
+private val baseDarkSemantic =
     ForemanSemanticColors(
         success = Color(0xFF6CE9A6),
         successContainer = Color(0xFF153C2E),
@@ -125,6 +125,36 @@ private val highContrastDarkSemantic =
         fullAccessContainer = Color(0xFF4A0018),
     )
 
+private fun tint(base: Color, accent: Color, amount: Float): Color =
+    Color(
+        red = base.red + (accent.red - base.red) * amount,
+        green = base.green + (accent.green - base.green) * amount,
+        blue = base.blue + (accent.blue - base.blue) * amount,
+        alpha = base.alpha + (accent.alpha - base.alpha) * amount,
+    )
+
+private fun themedSemanticColors(
+    base: ForemanSemanticColors,
+    accent: Color,
+    accentContainer: Color,
+    background: Color,
+    dark: Boolean,
+): ForemanSemanticColors =
+    base.copy(
+        success = tint(base.success, accent, 0.10f),
+        successContainer = tint(base.successContainer, accentContainer, 0.10f),
+        working = accent,
+        workingContainer = if (dark) tint(accentContainer, background, 0.20f) else accentContainer,
+        attention = tint(base.attention, accent, 0.10f),
+        attentionContainer = tint(base.attentionContainer, accentContainer, 0.10f),
+        warning = tint(base.warning, accent, 0.10f),
+        warningContainer = tint(base.warningContainer, accentContainer, 0.10f),
+        failure = tint(base.failure, accent, 0.10f),
+        failureContainer = tint(base.failureContainer, accentContainer, 0.10f),
+        fullAccess = tint(base.fullAccess, accent, 0.10f),
+        fullAccessContainer = tint(base.fullAccessContainer, accentContainer, 0.10f),
+    )
+
 private fun lightVariant(
     background: Long,
     surface: Long,
@@ -141,7 +171,7 @@ private fun lightVariant(
     disabledSurface: Long = 0xFFE7E3EB,
     disabledText: Long = 0xFF8A8492,
     disabledBorder: Long = 0xFFD3CDD9,
-    semantic: ForemanSemanticColors = lightSemantic,
+    semantic: ForemanSemanticColors? = null,
 ) = ForemanThemeVariant(
     background = Color(background),
     surface = Color(surface),
@@ -172,7 +202,13 @@ private fun lightVariant(
     navigation = Color(surface),
     dialog = Color(surface),
     popover = Color(surface),
-    semantic = semantic,
+    semantic = semantic ?: themedSemanticColors(
+        baseLightSemantic,
+        Color(accent),
+        Color(accentContainer),
+        Color(background),
+        dark = false,
+    ),
 )
 
 private fun darkVariant(
@@ -192,7 +228,7 @@ private fun darkVariant(
     disabledSurface: Long = 0xFF2D2834,
     disabledText: Long = 0xFF746C7D,
     disabledBorder: Long = 0xFF3A3442,
-    semantic: ForemanSemanticColors = darkSemantic,
+    semantic: ForemanSemanticColors? = null,
 ) = ForemanThemeVariant(
     background = Color(background),
     surface = Color(surface),
@@ -223,7 +259,13 @@ private fun darkVariant(
     navigation = Color(surface),
     dialog = Color(surface),
     popover = Color(surface),
-    semantic = semantic,
+    semantic = semantic ?: themedSemanticColors(
+        baseDarkSemantic,
+        Color(accent),
+        Color(accentContainer),
+        Color(background),
+        dark = true,
+    ),
 )
 
 internal fun foremanThemePalette(themeId: ThemeId): ForemanThemePalette =

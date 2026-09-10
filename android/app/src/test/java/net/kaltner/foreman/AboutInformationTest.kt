@@ -66,4 +66,17 @@ class AboutInformationTest {
         )
         assertTrue(foremanAboutLinks.all { (_, url) -> url.startsWith("https://") })
     }
+
+    @Test
+    fun productAndNotificationMarksUsePurposeBuiltCanonicalVariants() {
+        val project =
+            generateSequence(File(requireNotNull(System.getProperty("user.dir")))) { it.parentFile }
+                .first { File(it, "app/src/main/AndroidManifest.xml").isFile }
+        val manifest = File(project, "app/src/main/AndroidManifest.xml").readText()
+        val notification = File(project, "app/src/main/res/drawable/ic_notification.xml").readText()
+
+        assertTrue(manifest.contains("@drawable/foreman_logo"))
+        assertTrue(notification.contains("M5,3h14.5v4.25H10"))
+        assertFalse(notification.contains("a2,2 0,1 0"))
+    }
 }

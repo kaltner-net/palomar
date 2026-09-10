@@ -2549,7 +2549,7 @@ class Foreman:
         if not relative or relative in ("dashboard", "sessions", "settings") or relative.startswith("sessions/"):
             relative = "index.html"
         if not relative or not (
-            relative in ("index.html", "sw.js", "favicon.svg")
+            relative in ("index.html", "sw.js", "favicon.svg", "foreman-logo.png")
             or relative.startswith("assets/")
         ):
             return None
