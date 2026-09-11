@@ -6614,11 +6614,12 @@ private fun SessionCard(
     providerUsable: Boolean,
     showProviderIdentity: Boolean,
 ) {
+    val theme = LocalPalomarThemeVariant.current
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = if (session.archived) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
-            else MaterialTheme.colorScheme.surfaceVariant,
+            else theme.card,
         ),
         border = if (session.archived) BorderStroke(1.dp, MaterialTheme.colorScheme.secondary) else null,
     ) {
@@ -7158,7 +7159,12 @@ private fun SessionDetailScreen(
 @Composable
 private fun CollapsedActivityGroup(items: List<ConversationItem>) {
     var expanded by remember(items.map { it.id }) { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth()) {
+    val theme = LocalPalomarThemeVariant.current
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = theme.card),
+        border = BorderStroke(1.dp, theme.border),
+    ) {
         Column {
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(12.dp),
@@ -7194,9 +7200,10 @@ private fun CollapsedActivityGroup(items: List<ConversationItem>) {
 private fun LiveActivityRow(session: SessionSummary) {
     val activityMessage = liveActivityMessage(session)
     val activityTitle = activityMessage ?: "${liveActivityLabel(session)}…"
+    val theme = LocalPalomarThemeVariant.current
     Surface(
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        color = theme.subtleAccentSurface,
+        contentColor = theme.text,
         shape = RoundedCornerShape(14.dp),
     ) {
         Row(
@@ -7213,7 +7220,7 @@ private fun LiveActivityRow(session: SessionSummary) {
                 Text(
                     inlineMarkdown(
                         activityTitle,
-                        MaterialTheme.colorScheme.onSecondaryContainer,
+                        theme.text,
                     ),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
@@ -7285,13 +7292,15 @@ private fun ConversationRow(
         }
         "command", "tool" -> {
             val tone = activityStatusTone(item)
+            val theme = LocalPalomarThemeVariant.current
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = theme.card),
                 border =
                     when (tone) {
                         ActivityStatusTone.Active -> BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                         ActivityStatusTone.Attention -> BorderStroke(1.dp, MaterialTheme.colorScheme.error)
-                        ActivityStatusTone.Neutral -> null
+                        ActivityStatusTone.Neutral -> BorderStroke(1.dp, theme.border)
                     },
             ) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -7320,23 +7329,27 @@ private fun ConversationRow(
                 }
             }
         }
-        "compaction" -> Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer,
-        ) {
-            Row(
-                Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+        "compaction" -> LocalPalomarThemeVariant.current.let { theme ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = theme.card,
+                contentColor = theme.text,
+                border = BorderStroke(1.dp, theme.border),
             ) {
-                Text("↻", color = LocalPalomarThemeVariant.current.brandStructure, style = MaterialTheme.typography.titleMedium)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Context compacted", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
-                    Text(compactionDetail(item), style = MaterialTheme.typography.bodySmall)
-                }
-                item.durationMs?.let {
-                    Text(compactDuration(it), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(
+                    Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("↻", color = theme.brandStructure, style = MaterialTheme.typography.titleMedium)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Context compacted", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                        Text(compactionDetail(item), style = MaterialTheme.typography.bodySmall)
+                    }
+                    item.durationMs?.let {
+                        Text(compactDuration(it), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }
@@ -8129,6 +8142,8 @@ private fun UiSettingsMenu(
                                         ThemeId.Ember -> "Warm plum and clay surfaces"
                                         ThemeId.Dune -> "Warm sand and amber with earthy neutrals"
                                         ThemeId.Slate -> "Cool blue-gray surfaces with a steady blue accent"
+                                        ThemeId.NeonWave -> "Deep indigo with focused magenta, cyan, and violet energy"
+                                        ThemeId.Obsidian -> "Graphite depth with restrained wine and violet structure"
                                         ThemeId.HighContrast -> "Maximum separation for text, controls, and status cues"
                                     },
                                     style = MaterialTheme.typography.bodySmall,

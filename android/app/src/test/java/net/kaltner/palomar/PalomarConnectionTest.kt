@@ -1019,16 +1019,18 @@ class PalomarConnectionTest {
     @Test
     fun curatedThemesShareStableIdentityAndProvideCompleteLightAndDarkRoles() {
         assertEquals(
-            listOf("palomar", "harbor", "grove", "ember", "dune", "slate", "high-contrast"),
+            listOf("palomar", "harbor", "grove", "ember", "dune", "slate", "neon-wave", "obsidian", "high-contrast"),
             ThemeId.entries.map(ThemeId::id),
         )
         assertEquals(
-            listOf("Palomar", "Harbor", "Grove", "Ember", "Dune", "Slate", "High Contrast"),
+            listOf("Palomar", "Harbor", "Grove", "Ember", "Dune", "Slate", "Neon Wave", "Obsidian", "High Contrast"),
             ThemeId.entries.map(ThemeId::displayName),
         )
         assertEquals(ThemeId.Palomar, parseThemeId(null))
         assertEquals(ThemeId.Palomar, parseThemeId("unsupported"))
         assertEquals(ThemeId.Palomar, parseThemeId("foreman"))
+        assertEquals(ThemeId.NeonWave, parseThemeId("neon-wave"))
+        assertEquals(ThemeId.Obsidian, parseThemeId("obsidian"))
 
         assertEquals(
             ThemeId.entries.size,
@@ -1043,13 +1045,24 @@ class PalomarConnectionTest {
                 assertEquals(palette.background, scheme.background)
                 assertEquals(palette.surface, scheme.surface)
                 assertEquals(palette.alternateSurface, scheme.surfaceVariant)
+                assertEquals(palette.background, scheme.surfaceDim)
+                assertEquals(palette.alternateSurface, scheme.surfaceBright)
+                assertEquals(palette.background, scheme.surfaceContainerLowest)
+                assertEquals(palette.raisedSurface, scheme.surfaceContainer)
+                assertEquals(palette.card, scheme.surfaceContainerLow)
+                assertEquals(palette.groupedHeader, scheme.surfaceContainerHigh)
+                assertEquals(palette.card, scheme.surfaceContainerHighest)
                 assertEquals(palette.border, scheme.outline)
                 assertEquals(palette.text, scheme.onSurface)
                 assertEquals(palette.mutedText, scheme.onSurfaceVariant)
                 assertTrue(contrastRatio(palette.text, palette.background) >= 7.0)
+                assertTrue(contrastRatio(palette.text, palette.subtleAccentSurface) >= 4.5)
                 assertTrue(contrastRatio(palette.onAccent, palette.accent) >= 4.5)
-                if (themeId == ThemeId.Palomar) {
+                if (themeId in setOf(ThemeId.Palomar, ThemeId.NeonWave, ThemeId.Obsidian)) {
+                    assertTrue(contrastRatio(palette.onAccent, palette.accentEmphasis) >= 4.5)
+                    assertTrue(contrastRatio(palette.mutedText, palette.background) >= 4.5)
                     assertTrue(contrastRatio(palette.link, palette.background) >= 4.5)
+                    assertTrue(contrastRatio(palette.focus, palette.background) >= 3.0)
                     assertTrue(contrastRatio(palette.selectionText, palette.selection) >= 4.5)
                     assertTrue(contrastRatio(palette.disabledText, palette.disabledSurface) >= 3.0)
                     assertFalse(palette.usageFill == palette.contextFill)
@@ -1138,6 +1151,38 @@ class PalomarConnectionTest {
             assertEquals(Color(0xFF30344A), disabledBorder)
             assertEquals(Color(0xFFCFC1FD), usageFill)
             assertEquals(Color(0xFF62F9F8), contextFill)
+        }
+        with(palomarThemeVariant(ThemeId.NeonWave, darkTheme = false)) {
+            assertEquals(Color(0xFFF8F6FC), background)
+            assertEquals(Color(0xFF9B006F), accent)
+            assertEquals(Color(0xFF006F78), accentEmphasis)
+            assertEquals(Color(0xFF6C3CB2), brandStructure)
+            assertEquals(Color(0xFF006F78), contextFill)
+            assertEquals(Color(0xFF006F78), semantic.working)
+        }
+        with(palomarThemeVariant(ThemeId.NeonWave, darkTheme = true)) {
+            assertEquals(Color(0xFF060817), background)
+            assertEquals(Color(0xFFFF4FD8), accent)
+            assertEquals(Color(0xFF55F6FF), accentEmphasis)
+            assertEquals(Color(0xFFB69CFF), brandStructure)
+            assertEquals(Color(0xFF55F6FF), contextFill)
+            assertEquals(Color(0xFF55F6FF), semantic.working)
+        }
+        with(palomarThemeVariant(ThemeId.Obsidian, darkTheme = false)) {
+            assertEquals(Color(0xFFF7F5F6), background)
+            assertEquals(Color(0xFF872957), accent)
+            assertEquals(Color(0xFF67507C), accentEmphasis)
+            assertEquals(Color(0xFF67507C), brandStructure)
+            assertEquals(Color(0xFF872957), contextFill)
+            assertEquals(Color(0xFF67507C), semantic.working)
+        }
+        with(palomarThemeVariant(ThemeId.Obsidian, darkTheme = true)) {
+            assertEquals(Color(0xFF0B0C0F), background)
+            assertEquals(Color(0xFFD66A99), accent)
+            assertEquals(Color(0xFFB39BC8), accentEmphasis)
+            assertEquals(Color(0xFFB39BC8), brandStructure)
+            assertEquals(Color(0xFFD66A99), contextFill)
+            assertEquals(Color(0xFFB39BC8), semantic.working)
         }
     }
 

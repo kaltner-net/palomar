@@ -530,6 +530,7 @@ internal fun MarkdownText(
                         }
                     }
                 is MarkdownBlock.AppDirective -> {
+                    val theme = LocalPalomarThemeVariant.current
                     val label =
                         when (block.name) {
                             "created-thread" -> "Task created"
@@ -550,8 +551,8 @@ internal fun MarkdownText(
                             Modifier.fillMaxWidth().let { base ->
                                 if (url == null) base else base.clickable { uriHandler.openUri(url) }
                             },
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        color = theme.subtleAccentSurface,
+                        contentColor = theme.text,
                         shape = RoundedCornerShape(10.dp),
                     ) {
                         Row(
@@ -574,7 +575,7 @@ internal fun MarkdownText(
                                     Text(
                                         it,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f),
+                                        color = theme.mutedText,
                                     )
                                 }
                             }

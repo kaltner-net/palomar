@@ -6,6 +6,7 @@ import {
   hostIdFromUrl,
   clearHostNotificationOverride,
   clearRememberedSession,
+  DEFAULT_APPEARANCE,
   loadAppearance,
   loadAccountUsage,
   loadDashboardPreferences,
@@ -177,6 +178,16 @@ describe("storage, appearance, and interaction helpers", () => {
     expect(loadAppearance()).toEqual({ colorMode: "light", themeId: "palomar", activityDetail: "full", groupSessionsByRepository: false });
     localStorage.setItem("palomar.appearance.v2", "not-json");
     expect(loadAppearance()).toEqual({ colorMode: "system", themeId: "palomar", activityDetail: "focused", groupSessionsByRepository: true });
+  });
+
+  it("persists the Neon Wave and Obsidian IDs independently per host", () => {
+    saveAppearance({ ...DEFAULT_APPEARANCE, colorMode: "dark", themeId: "neon-wave" }, "studio");
+    saveAppearance({ ...DEFAULT_APPEARANCE, colorMode: "light", themeId: "obsidian" }, "server-room");
+
+    expect(loadAppearance("studio").themeId).toBe("neon-wave");
+    expect(loadAppearance("server-room").themeId).toBe("obsidian");
+    expect(localStorage.getItem("palomar.appearance.v2.studio")).toContain('"themeId":"neon-wave"');
+    expect(localStorage.getItem("palomar.appearance.v2.server-room")).toContain('"themeId":"obsidian"');
   });
 
   it("migrates the former persisted theme ID without losing appearance settings", () => {

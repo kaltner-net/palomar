@@ -553,6 +553,8 @@ enum class ThemeId(val id: String, val displayName: String) {
     Ember("ember", "Ember"),
     Dune("dune", "Dune"),
     Slate("slate", "Slate"),
+    NeonWave("neon-wave", "Neon Wave"),
+    Obsidian("obsidian", "Obsidian"),
     HighContrast("high-contrast", "High Contrast"),
 }
 
