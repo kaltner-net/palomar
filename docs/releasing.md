@@ -65,8 +65,9 @@ one. The expected signing-certificate SHA-256 digest is public metadata in
    configuration and state bytes before/after and confirm paired clients still
    authenticate. Inject an obsolete installed file and confirm it is removed.
 5. Build the signed release APK locally or in a non-publishing workflow. Verify
-   its signature, certificate digest, version name, and monotonic version code;
-   install that exact APK on the physical test device.
+   its signature, certificate digest, version name, monotonic version code, and
+   embedded `LICENSE` and `THIRD_PARTY_NOTICES.md`; install that exact APK on
+   the physical test device.
 6. Build the Linux archive with the workflow exclusions. Inspect its complete
    file list, dependency licenses, committed web assets, absence of Python cache
    files, extraction/install behavior, external updater, and enabled boot
@@ -89,7 +90,8 @@ one. The expected signing-certificate SHA-256 digest is public metadata in
 `.github/workflows/release.yml` checks out the full annotated tag and confirms it
 points at the tested commit. It validates release metadata, signing-secret
 presence, Linux/web/Android tests, committed web assets, signed APK metadata and
-certificate, the Linux archive, dependency-license marker, and checksums. It
+certificate, embedded Android legal files, the Linux archive,
+dependency-license markers, and checksums. It
 then creates an unpublished draft, uploads the APK, Linux archive, signed
 checksum manifest, detached signature, and public signing certificate, queries
 GitHub for the exact nonempty asset set, downloads those assets into an empty

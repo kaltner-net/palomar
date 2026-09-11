@@ -83,8 +83,12 @@ def main() -> None:
     lock = json.loads((ROOT / "web/package-lock.json").read_text(encoding="utf-8"))
     if package.get("version") != version:
         raise SystemExit("web/package.json version does not match release.properties")
+    if package.get("license") != "Apache-2.0":
+        raise SystemExit("web/package.json must declare Apache-2.0")
     if lock.get("version") != version or lock.get("packages", {}).get("", {}).get("version") != version:
         raise SystemExit("web/package-lock.json version does not match release.properties")
+    if lock.get("packages", {}).get("", {}).get("license") != "Apache-2.0":
+        raise SystemExit("web/package-lock.json must declare Apache-2.0 for the root package")
 
     bridge_package = json.loads(
         (ROOT / "linux/claude_bridge/package.json").read_text(encoding="utf-8")
@@ -94,12 +98,18 @@ def main() -> None:
     )
     if bridge_package.get("version") != version:
         raise SystemExit("linux/claude_bridge/package.json version does not match release.properties")
+    if bridge_package.get("license") != "Apache-2.0":
+        raise SystemExit("linux/claude_bridge/package.json must declare Apache-2.0")
     if (
         bridge_lock.get("version") != version
         or bridge_lock.get("packages", {}).get("", {}).get("version") != version
     ):
         raise SystemExit(
             "linux/claude_bridge/package-lock.json version does not match release.properties"
+        )
+    if bridge_lock.get("packages", {}).get("", {}).get("license") != "Apache-2.0":
+        raise SystemExit(
+            "linux/claude_bridge/package-lock.json must declare Apache-2.0 for the root package"
         )
     require_text(
         ROOT / "linux/claude_bridge/bridge.mjs",

@@ -1,4 +1,35 @@
 import java.util.Properties
+import javax.inject.Inject
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.FileSystemOperations
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.TaskAction
+
+abstract class GenerateForemanLegalAssets : DefaultTask() {
+    @get:InputFile
+    abstract val licenseFile: RegularFileProperty
+
+    @get:InputFile
+    abstract val noticesFile: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @get:Inject
+    abstract val fileSystemOperations: FileSystemOperations
+
+    @TaskAction
+    fun generate() {
+        fileSystemOperations.sync {
+            from(licenseFile)
+            from(noticesFile)
+            into(outputDirectory)
+        }
+    }
+}
 
 plugins {
     id("com.android.application")
@@ -33,6 +64,12 @@ val foremanBuildCommit =
         }.standardOutput.asText.get().trim()
     }.getOrDefault("unknown").takeIf { it.matches(Regex("[0-9a-f]{7,40}")) } ?: "unknown"
 val releaseKeystorePath = System.getenv("FOREMAN_ANDROID_KEYSTORE")
+val generateForemanLegalAssets =
+    tasks.register<GenerateForemanLegalAssets>("generateForemanLegalAssets") {
+        licenseFile.set(rootProject.layout.projectDirectory.file("../LICENSE"))
+        noticesFile.set(rootProject.layout.projectDirectory.file("../THIRD_PARTY_NOTICES.md"))
+        outputDirectory.set(layout.buildDirectory.dir("generated/foremanLegalAssets"))
+    }
 
 android {
     namespace = "net.kaltner.foreman"
@@ -99,6 +136,15 @@ android {
                 )
             }
         }
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(
+            generateForemanLegalAssets,
+            GenerateForemanLegalAssets::outputDirectory,
+        )
     }
 }
 

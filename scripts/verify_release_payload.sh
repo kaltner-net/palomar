@@ -50,6 +50,7 @@ grep -Fq "versionCode='$expected_code'" <<<"$badging" || fail "APK version code 
 signing="$("$apksigner_path" verify --verbose --print-certs "$apk")"
 grep -Fq 'Verifies' <<<"$signing" || fail "APK signature verification failed"
 python3 scripts/verify_apk_certificate.py --expected "$expected_cert" <<<"$signing"
+python3 scripts/verify_apk_legal_assets.py "$apk"
 
 archive_listing="$(tar -tzf "$archive")"
 require_archive_entry 'linux/vendor/websockets-16.1.1.dist-info/licenses/LICENSE'
