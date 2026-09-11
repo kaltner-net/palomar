@@ -1613,13 +1613,14 @@ internal class PalomarViewModel(application: Application) : AndroidViewModel(app
 
     fun openOverviewSessions(hostId: String) {
         overviewNavigation.clear()
+        // This button names the list destination; remembered detail is restored only by enterSessions.
         when (hostNavigationAction(state.value.activeHostId, state.value.connected, hostId)) {
-            HostNavigationAction.Show -> enterSessions()
+            HostNavigationAction.Show -> showSessions()
             HostNavigationAction.Reconnect -> {
-                enterSessions()
+                showSessions()
                 reconnect()
             }
-            HostNavigationAction.Switch -> switchHost(hostId)
+            HostNavigationAction.Switch -> switchHost(hostId, Screen.Sessions)
         }
     }
 

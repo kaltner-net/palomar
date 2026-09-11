@@ -76,11 +76,15 @@ function HostOverviewCard({ host, active, snapshot, now, onOpen, onReconnect, on
       <div><dt>Oldest turn</dt><dd>{snapshot?.oldestTurn ? formatElapsed(snapshot.oldestTurn.startedAt, now) : "—"}</dd></div>
       <div><dt>Latest activity</dt><dd>{formatAge(snapshot?.latestActivity, now)}</dd></div>
     </dl>
-    <footer>
-      <button className="primary" onClick={onOpen} disabled={active}>{active ? "Current host" : "Switch host"}</button>
-      {!live && <button onClick={onReconnect}>Reconnect</button>}
-      <button onClick={onEdit}>Edit</button>
-      <button className="danger-link" onClick={onForget}>Forget</button>
+    <footer className="host-overview-actions">
+      {active
+        ? <span className="current-host-cue">Current host</span>
+        : <button className="primary" onClick={onOpen}>Switch host</button>}
+      {!live && <button className="host-secondary-action" onClick={onReconnect}>Reconnect</button>}
+      <span className="host-management-actions">
+        <button onClick={onEdit}>Edit</button>
+        <button className="danger-link" onClick={onForget}>Forget</button>
+      </span>
     </footer>
   </article>;
 }
