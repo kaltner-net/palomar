@@ -6476,7 +6476,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.repositorySessionSect
         Surface(
             modifier = Modifier.fillMaxWidth().clickable(onClick = toggleCollapsed),
             shape = RoundedCornerShape(10.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+            color = LocalPalomarThemeVariant.current.groupedHeader,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
             Row(
