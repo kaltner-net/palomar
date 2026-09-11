@@ -2,13 +2,16 @@ package net.kaltner.foreman
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -98,26 +101,34 @@ internal class CopyFeedbackController(
 }
 
 @Composable
-internal fun CopyFeedbackButton(
-    onCopy: suspend () -> Unit,
-    enabled: Boolean,
-    modifier: Modifier = Modifier,
-) {
+private fun rememberCopyFeedbackController(): CopyFeedbackController {
     val scope = rememberCoroutineScope()
     val controller = remember(scope) { CopyFeedbackController(scope) }
     DisposableEffect(controller) {
         onDispose(controller::dispose)
     }
+    return controller
+}
+
+private fun Modifier.copyFeedbackSemantics(state: CopyFeedbackState): Modifier =
+    semantics {
+        contentDescription = state.accessibilityLabel
+        liveRegion = LiveRegionMode.Polite
+    }
+
+@Composable
+internal fun CopyFeedbackButton(
+    onCopy: suspend () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val controller = rememberCopyFeedbackController()
 
     val state = controller.state
     FilledTonalButton(
         onClick = { controller.copy(onCopy) },
         enabled = enabled,
-        modifier =
-            modifier.semantics {
-                contentDescription = state.accessibilityLabel
-                liveRegion = LiveRegionMode.Polite
-            },
+        modifier = modifier.copyFeedbackSemantics(state),
     ) {
         Box(
             modifier = Modifier.width(54.dp).height(24.dp).clearAndSetSemantics { },
@@ -126,6 +137,33 @@ internal fun CopyFeedbackButton(
             when (state) {
                 CopyFeedbackState.Idle -> Text("Copy")
                 CopyFeedbackState.Copying -> CircularProgressIndicator(modifier = Modifier.width(18.dp).height(18.dp), strokeWidth = 2.dp)
+                CopyFeedbackState.Copied -> Icon(Icons.Default.Check, contentDescription = null)
+                CopyFeedbackState.Failed -> Icon(Icons.Default.Close, contentDescription = null)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun CopyFeedbackIconButton(
+    onCopy: suspend () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val controller = rememberCopyFeedbackController()
+    val state = controller.state
+    IconButton(
+        onClick = { controller.copy(onCopy) },
+        enabled = enabled,
+        modifier = modifier.copyFeedbackSemantics(state),
+    ) {
+        Box(
+            modifier = Modifier.size(24.dp).clearAndSetSemantics { },
+            contentAlignment = Alignment.Center,
+        ) {
+            when (state) {
+                CopyFeedbackState.Idle -> Icon(Icons.Default.ContentCopy, contentDescription = null)
+                CopyFeedbackState.Copying -> CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 CopyFeedbackState.Copied -> Icon(Icons.Default.Check, contentDescription = null)
                 CopyFeedbackState.Failed -> Icon(Icons.Default.Close, contentDescription = null)
             }

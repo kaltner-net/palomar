@@ -1,5 +1,8 @@
 package net.kaltner.foreman
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import java.net.URI
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -28,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -64,6 +68,16 @@ internal data class WorkspaceFile(
     val content: String,
     val line: Int? = null,
 )
+
+internal fun copyCodeBlockToClipboard(
+    context: Context,
+    text: String,
+) {
+    val clipboard =
+        context.getSystemService(ClipboardManager::class.java)
+            ?: error("Clipboard access is unavailable")
+    clipboard.setPrimaryClip(ClipData.newPlainText("Code block", text))
+}
 
 private val displayedDirectives =
     setOf(
@@ -391,6 +405,7 @@ internal fun MarkdownText(
     contentColor: Color = MaterialTheme.colorScheme.onBackground,
     onOpenWorkspaceFile: ((WorkspaceFileTarget) -> Unit)? = null,
 ) {
+    val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     Column(
         modifier = modifier,
@@ -485,20 +500,33 @@ internal fun MarkdownText(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(8.dp),
                     ) {
-                        Column(Modifier.horizontalScroll(rememberScrollState()).padding(12.dp)) {
-                            block.language?.let {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp, end = 4.dp),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            ) {
                                 Text(
-                                    it,
+                                    block.language.orEmpty(),
+                                    modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary,
                                 )
+                                CopyFeedbackIconButton(
+                                    onCopy = { copyCodeBlockToClipboard(context, block.text) },
+                                    enabled = block.text.isNotEmpty(),
+                                )
                             }
-                            Text(
-                                block.text,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontFamily = FontFamily.Monospace,
-                                softWrap = false,
-                            )
+                            Box(
+                                Modifier.horizontalScroll(rememberScrollState())
+                                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                            ) {
+                                Text(
+                                    block.text,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontFamily = FontFamily.Monospace,
+                                    softWrap = false,
+                                )
+                            }
                         }
                     }
                 is MarkdownBlock.AppDirective -> {
