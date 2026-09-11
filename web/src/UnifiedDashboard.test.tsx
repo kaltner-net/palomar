@@ -47,4 +47,22 @@ describe("unified dashboard", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Open" }).at(-1)!);
     expect(open).toHaveBeenCalledWith(expect.objectContaining({ hostId: "one", sessionId: "same", type: "input" }));
   });
+
+  it("shows the active host as status and keeps host management actions quiet", () => {
+    const live: HostOverviewSnapshot = {
+      hostId: "one", observedAt: Date.now(), connection: "connected", palomarVersion: "1", codexVersion: "2",
+      runtimeMode: "shared", runtimeConnected: true, active: 0, waiting: 0, failed: 0,
+      oldestTurn: null, latestCompletion: null, latestActivity: Date.now(), attention: [],
+    };
+    const edit = vi.fn();
+    const forget = vi.fn();
+    render(<UnifiedDashboard hosts={[host("one")]} activeHostId="one" snapshots={new Map([["one", live]])} onOpenHost={vi.fn()} onOpenSession={vi.fn()} onReconnect={vi.fn()} onEdit={edit} onForget={forget} />);
+
+    expect(screen.queryByRole("button", { name: "Current host" })).not.toBeInTheDocument();
+    expect(screen.getByText("Current host")).toHaveClass("current-host-cue");
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Forget" }));
+    expect(edit).toHaveBeenCalledWith("one");
+    expect(forget).toHaveBeenCalledWith("one");
+  });
 });

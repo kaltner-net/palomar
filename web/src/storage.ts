@@ -94,8 +94,8 @@ export const CURATED_THEMES: readonly CuratedTheme[] = [
   {
     id: "palomar",
     name: "Palomar",
-    description: "Dark violet, lavender, and cyan production palette.",
-    preview: ["#171527", "#ffffff", "#CFC1FD", "#62F9F8"],
+    description: "Ink and navy foundations with lavender structure and cyan controls.",
+    preview: ["#090B16", "#111326", "#CFC1FD", "#62F9F8"],
   },
   {
     id: "harbor",

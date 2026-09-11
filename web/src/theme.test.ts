@@ -14,6 +14,8 @@ describe("curated Palomar themes", () => {
       .toContain("palomar.appearance.v2");
     const startup = readFileSync(join(process.cwd(), "public/assets/theme-startup.js"), "utf8");
     for (const { id } of CURATED_THEMES) expect(startup).toContain(`"${id}"`);
+    expect(startup).toContain('palomar: { light: "#f7f8fc", dark: "#090b16" }');
+    expect(startup).not.toContain('palomar: { light: "#f7f5fc", dark: "#171527" }');
   });
 
   it("uses the same stable IDs and names as Android", () => {
@@ -91,7 +93,7 @@ describe("curated Palomar themes", () => {
     [
       "--app-background", "--surface-primary", "--surface-alternate", "--surface-raised",
       "--border-default", "--divider", "--text-primary", "--text-muted", "--accent-primary",
-      "--accent-emphasis", "--accent-container", "--link", "--focus-indicator", "--selection",
+      "--accent-emphasis", "--accent-container", "--brand-structure", "--link", "--focus-indicator", "--selection",
       "--disabled-surface", "--card-surface", "--grouped-header-surface", "--usage-track",
       "--usage-fill", "--context-track", "--context-fill", "--navigation-surface",
       "--dialog-surface", "--popover-surface", "--success", "--working", "--attention",
@@ -105,6 +107,8 @@ describe("curated Palomar themes", () => {
     };
     const baseLight = rule(":root");
     const baseDark = rule(":root[data-color-mode=dark]");
+    const nonPalomarLight = rule(":root:not([data-palomar-theme=palomar])");
+    const nonPalomarDark = rule(":root[data-color-mode=dark]:not([data-palomar-theme=palomar])");
     for (const { id } of CURATED_THEMES) {
       for (const dark of [false, true]) {
         const override = id === "palomar" ? {} : rule(
@@ -112,14 +116,27 @@ describe("curated Palomar themes", () => {
             ? `:root[data-color-mode=dark][data-palomar-theme=${id}]`
             : `:root[data-palomar-theme=${id}]`,
         );
-        const palette = { ...baseLight, ...(dark ? baseDark : {}), ...override };
+        const palette = {
+          ...baseLight,
+          ...(dark ? baseDark : {}),
+          ...(id === "palomar" ? {} : nonPalomarLight),
+          ...(id !== "palomar" && dark ? nonPalomarDark : {}),
+          ...override,
+        };
         expect(contrast(palette["--text-primary"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} text`).toBeGreaterThanOrEqual(7);
         expect(contrast(palette["--on-accent"], palette["--accent-primary"]), `${id} ${dark ? "dark" : "light"} accent`).toBeGreaterThanOrEqual(4.5);
         if (id === "palomar") {
           expect(contrast(palette["--link"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} link`).toBeGreaterThanOrEqual(4.5);
           expect(contrast(palette["--on-accent-container"], palette["--accent-container"]), `${id} ${dark ? "dark" : "light"} selection`).toBeGreaterThanOrEqual(4.5);
           expect(contrast(palette["--disabled-text"], palette["--disabled-surface"]), `${id} ${dark ? "dark" : "light"} disabled`).toBeGreaterThanOrEqual(3);
-          expect(palette["--accent-primary"]).not.toBe(palette["--context-fill"]);
+          expect(palette["--brand-structure"]).not.toBe(palette["--accent-primary"]);
+          expect(palette["--usage-fill"]).not.toBe(palette["--context-fill"]);
+        } else if (id !== "high-contrast") {
+          expect(palette["--brand-structure"]).toBe("var(--accent-primary)");
+          expect(palette["--usage-fill"]).toBe("var(--accent-primary)");
+          expect(palette["--disabled-surface"]).toBe(dark ? "#302b45" : "#e9e5f1");
+          expect(palette["--disabled-text"]).toBe(dark ? "#9d94b2" : "#685f7e");
+          expect(palette["--disabled-border"]).toBe(dark ? "#403a55" : "#ccc5d8");
         }
         for (const role of ["success", "working", "attention", "warning", "failure", "full-access"]) {
           expect(
@@ -137,14 +154,54 @@ describe("curated Palomar themes", () => {
       }
     }
     expect(baseLight).toMatchObject({
-      "--app-background": "#f7f5fc",
-      "--text-primary": "#171527",
+      "--app-background": "#f7f8fc",
+      "--surface-primary": "#fff",
+      "--surface-alternate": "#eef0f7",
+      "--border-default": "#d7dae5",
+      "--text-primary": "#111326",
+      "--text-muted": "#5d6175",
+      "--accent-primary": "#006e73",
+      "--accent-emphasis": "#493b82",
+      "--accent-container": "#eae5ff",
+      "--on-accent": "#fff",
+      "--on-accent-container": "#2f2853",
+      "--brand-structure": "#493b82",
+      "--link": "#006e73",
+      "--focus-indicator": "#006e73",
+      "--disabled-surface": "#e8eaf1",
+      "--disabled-text": "#686b7c",
+      "--disabled-border": "#cdd1dc",
       "--context-fill": "#006e73",
     });
     expect(baseDark).toMatchObject({
-      "--app-background": "#171527",
-      "--accent-primary": "#cfc1fd",
+      "--app-background": "#090b16",
+      "--surface-primary": "#111326",
+      "--surface-alternate": "#171527",
+      "--border-default": "#30354d",
+      "--text-primary": "#fff",
+      "--text-muted": "#b6b7ca",
+      "--accent-primary": "#62f9f8",
+      "--accent-emphasis": "#cfc1fd",
+      "--accent-container": "#352d63",
+      "--on-accent": "#090b16",
+      "--on-accent-container": "#f5f0ff",
+      "--brand-structure": "#cfc1fd",
+      "--link": "#62f9f8",
+      "--focus-indicator": "#62f9f8",
+      "--disabled-surface": "#202338",
+      "--disabled-text": "#989bad",
+      "--disabled-border": "#30344a",
       "--context-fill": "#62f9f8",
+    });
+    expect(baseLight["--usage-fill"]).toBe("var(--brand-structure)");
+    expect({ ...baseLight, ...baseDark }["--usage-fill"]).toBe("var(--brand-structure)");
+    expect(baseLight).toMatchObject({
+      "--success": "#087443", "--working": "#315fc4", "--attention": "#9b5800",
+      "--warning": "#8a5000", "--failure": "#b42318", "--full-access": "#a4293d",
+    });
+    expect(baseDark).toMatchObject({
+      "--success": "#6ce9a6", "--working": "#a9c7ff", "--attention": "#ffc56f",
+      "--warning": "#ffd58a", "--failure": "#ffb4ab", "--full-access": "#ffb0bc",
     });
     for (const dark of [false, true]) {
       const palettes = CURATED_THEMES.filter(({ id }) => id !== "high-contrast").map(({ id }) => {
@@ -153,16 +210,39 @@ describe("curated Palomar themes", () => {
             ? `:root[data-color-mode=dark][data-palomar-theme=${id}]`
             : `:root[data-palomar-theme=${id}]`,
         );
-        return { ...baseLight, ...(dark ? baseDark : {}), ...override };
+        return {
+          ...baseLight,
+          ...(dark ? baseDark : {}),
+          ...(id === "palomar" ? {} : nonPalomarLight),
+          ...(id !== "palomar" && dark ? nonPalomarDark : {}),
+          ...override,
+        };
       });
       expect(new Set(palettes.map((palette) => palette["--working"])).size).toBe(palettes.length);
       expect(new Set(palettes.map((palette) => palette["--success"])).size).toBe(palettes.length);
     }
   });
+
+  it("uses the ink foundation for Palomar browser chrome without changing its stable ID", () => {
+    const meta = document.createElement("meta");
+    meta.name = "theme-color";
+    document.head.append(meta);
+    const lightCleanup = applyAppearance({ ...DEFAULT_APPEARANCE, colorMode: "light", themeId: "palomar" });
+    expect(meta.content).toBe("#f7f8fc");
+    lightCleanup();
+    const darkCleanup = applyAppearance({ ...DEFAULT_APPEARANCE, colorMode: "dark", themeId: "palomar" });
+    expect(meta.content).toBe("#090b16");
+    expect(document.documentElement.dataset.palomarTheme).toBe("palomar");
+    darkCleanup();
+    meta.remove();
+  });
 });
 
 function tokens(body: string): Record<string, string> {
-  return Object.fromEntries([...body.matchAll(/(--[a-z-]+):\s*(#[0-9a-f]{3,8})/gi)].map(([, key, value]) => [key, value]));
+  return Object.fromEntries(
+    [...body.matchAll(/(--[a-z-]+):\s*(#[0-9a-f]{3,8}|var\(--[a-z-]+\))/gi)]
+      .map(([, key, value]) => [key, value]),
+  );
 }
 
 function contrast(a: string, b: string): number {

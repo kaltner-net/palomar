@@ -1578,7 +1578,13 @@ internal class PalomarViewModel(application: Application) : AndroidViewModel(app
         synchronizeSessionPresence()
     }
 
-    fun enterSessions() {
+    fun enterSessions() = enterSessions(forceList = false)
+
+    private fun enterSessions(forceList: Boolean) {
+        if (forceList) {
+            showSessions()
+            return
+        }
         val current = state.value
         val target = rememberedSessionTarget(restorationProvider, restorationSessionId)
         val remembered = rememberedSessionForEntry(
@@ -1611,15 +1617,15 @@ internal class PalomarViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
-    fun openOverviewSessions(hostId: String) {
+    fun openOverviewSessions(hostId: String, forceList: Boolean = false) {
         overviewNavigation.clear()
         when (hostNavigationAction(state.value.activeHostId, state.value.connected, hostId)) {
-            HostNavigationAction.Show -> enterSessions()
+            HostNavigationAction.Show -> enterSessions(forceList)
             HostNavigationAction.Reconnect -> {
-                enterSessions()
+                enterSessions(forceList)
                 reconnect()
             }
-            HostNavigationAction.Switch -> switchHost(hostId)
+            HostNavigationAction.Switch -> if (forceList) switchHost(hostId, Screen.Sessions) else switchHost(hostId)
         }
     }
 
@@ -5492,7 +5498,7 @@ private fun UnifiedOverviewScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Text("ALL SAVED HOSTS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text("ALL SAVED HOSTS", style = MaterialTheme.typography.labelSmall, color = LocalPalomarThemeVariant.current.brandStructure, fontWeight = FontWeight.Bold)
                 Text("Status is aggregated on this device; hosts remain independently paired.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (totals.staleHosts > 0) Text("Aggregate counts include ${totals.staleHosts} stale host snapshot${if (totals.staleHosts == 1) "" else "s"}.", color = LocalPalomarColors.current.warning, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
             }
@@ -5517,7 +5523,7 @@ private fun UnifiedOverviewScreen(
                     host,
                     snapshot,
                     onOpenDashboard = { viewModel.openOverviewHost(host.id) },
-                    onOpenSessions = { viewModel.openOverviewSessions(host.id) },
+                    onOpenSessions = { viewModel.openOverviewSessions(host.id, forceList = true) },
                     onReconnect = { viewModel.reconnectOverviewHost(host.id) },
                     onRename = { renameHost = host; renameValue = host.displayName },
                     onForget = { forgetHost = host },
@@ -5681,7 +5687,7 @@ private fun HostDashboardScreen(
                         item {
                             Card(Modifier.fillMaxWidth()) {
                                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                                    Text("OLDEST ACTIVE TURN", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    Text("OLDEST ACTIVE TURN", style = MaterialTheme.typography.labelSmall, color = LocalPalomarThemeVariant.current.brandStructure, fontWeight = FontWeight.Bold)
                                     Text(sessionDisplayTitle(oldest), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                     Text(
                                         "${liveActivityLabel(oldest)} · ${overviewElapsed(epochMillis(oldest.activeTurnStartedAt))}",
@@ -5769,7 +5775,7 @@ private fun DashboardHealthCard(state: UiState) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("HOST HEALTH", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text("HOST HEALTH", style = MaterialTheme.typography.labelSmall, color = LocalPalomarThemeVariant.current.brandStructure, fontWeight = FontWeight.Bold)
                     Text(state.host.ifBlank { "No endpoint" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
                 Text(
@@ -6387,7 +6393,7 @@ private fun SessionInfoDialog(
         onDismissRequest = onDismiss,
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("SESSION INFO", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text("SESSION INFO", style = MaterialTheme.typography.labelMedium, color = LocalPalomarThemeVariant.current.brandStructure)
                 Text("Context window")
             }
         },
@@ -6482,7 +6488,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.repositorySessionSect
                         .width(3.dp)
                         .height(22.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.primary),
+                        .background(LocalPalomarThemeVariant.current.brandStructure),
                 )
                 Spacer(Modifier.width(9.dp))
                 Text(
@@ -7267,7 +7273,7 @@ private fun ConversationRow(
         ) {
             Text(
                 "PALOMAR",
-                color = MaterialTheme.colorScheme.primary,
+                color = LocalPalomarThemeVariant.current.brandStructure,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.labelSmall,
             )
@@ -7293,7 +7299,7 @@ private fun ConversationRow(
                         if (item.kind == "command") "Command" else "Tool",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = LocalPalomarThemeVariant.current.brandStructure,
                     )
                     Text(
                         item.description,
@@ -7324,7 +7330,7 @@ private fun ConversationRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text("↻", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleMedium)
+                Text("↻", color = LocalPalomarThemeVariant.current.brandStructure, style = MaterialTheme.typography.titleMedium)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text("Context compacted", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
                     Text(compactionDetail(item), style = MaterialTheme.typography.bodySmall)
@@ -8117,7 +8123,7 @@ private fun UiSettingsMenu(
                                 Text(themeId.displayName)
                                 Text(
                                     when (themeId) {
-                                        ThemeId.Palomar -> "Dark violet, lavender, and cyan production palette"
+                                        ThemeId.Palomar -> "Ink and navy foundations with lavender structure and cyan controls"
                                         ThemeId.Harbor -> "Calm ocean blue and blue-green surfaces"
                                         ThemeId.Grove -> "Natural green with warm neutrals"
                                         ThemeId.Ember -> "Warm plum and clay surfaces"
@@ -9359,7 +9365,7 @@ private fun ThemePreview(themeId: ThemeId, selected: Boolean = false) {
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            listOf(palette.surface, palette.accent, palette.accentContainer).forEach { color ->
+            listOf(palette.surface, palette.brandStructure, palette.accent).forEach { color ->
                 Box(Modifier.size(9.dp).background(color, CircleShape))
             }
         }
