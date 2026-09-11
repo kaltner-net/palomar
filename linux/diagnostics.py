@@ -1,4 +1,4 @@
-"""Bounded, sanitized operational diagnostics for Foreman."""
+"""Bounded, sanitized operational diagnostics for Palomar."""
 
 from __future__ import annotations
 
@@ -9,15 +9,15 @@ from typing import Any
 
 
 DIAGNOSTIC_MESSAGES: dict[str, tuple[str, str]] = {
-    "service.started": ("info", "Foreman service started"),
-    "service.stopping": ("info", "Foreman service stopping"),
-    "service.shutdown_timed_out": ("warning", "Foreman shutdown deadline reached"),
+    "service.started": ("info", "Palomar service started"),
+    "service.stopping": ("info", "Palomar service stopping"),
+    "service.shutdown_timed_out": ("warning", "Palomar shutdown deadline reached"),
     "state.timestamp_persist_failed": (
         "warning",
         "Session timestamp persistence failed",
     ),
     "runtime.shared_attached": ("info", "Shared Desktop runtime attached"),
-    "runtime.fallback_started": ("warning", "Foreman fallback runtime started"),
+    "runtime.fallback_started": ("warning", "Palomar fallback runtime started"),
     "runtime.disconnected": ("warning", "Codex runtime disconnected"),
     "runtime.reconnected": ("info", "Codex runtime reconnected"),
     "client.connected": ("info", "Authenticated client connected"),
@@ -33,7 +33,7 @@ DIAGNOSTIC_MESSAGES: dict[str, tuple[str, str]] = {
     "update.succeeded": ("info", "Server update succeeded"),
     "update.recovery_required": ("warning", "Server update requires recovery"),
     "protocol.incompatible": ("warning", "Protocol incompatibility detected"),
-    "listeners.started": ("info", "Foreman listeners started"),
+    "listeners.started": ("info", "Palomar listeners started"),
     "claude.available": ("info", "Optional Claude Code adapter available"),
     "claude.unavailable": ("info", "Optional Claude Code adapter unavailable"),
     "claude.query.started": ("info", "Claude Code query started"),
@@ -61,7 +61,7 @@ REQUEST_CATEGORIES = {
     "unknown",
 }
 
-_SAFE_ID = re.compile(r"^(?:fmc|restart|fmu)_[A-Za-z0-9_-]{1,96}$")
+_SAFE_ID = re.compile(r"^(?:pmc|restart|pmu)_[A-Za-z0-9_-]{1,96}$")
 
 
 def request_category(message_type: Any) -> str:

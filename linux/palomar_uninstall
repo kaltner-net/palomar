@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_dir="$HOME/.config/palomar"
+state_dir="$HOME/.local/state/palomar"
+cache_dir="$HOME/.cache/palomar"
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/palomar"
+install_dir="${PALOMAR_INSTALL_DIR:-$HOME/.local/share/palomar}"
+launcher_file="$HOME/.local/bin/palomar"
+unit_file="$HOME/.config/systemd/user/palomar.service"
+recovery_unit_file="$HOME/.config/systemd/user/palomar-update-recovery.service"
+helper_file="$HOME/.local/libexec/palomar-updater"
+bash_completion="$HOME/.local/share/bash-completion/completions/palomar"
+zsh_completion="$HOME/.local/share/zsh/site-functions/_palomar"
+fish_completion="$HOME/.local/share/fish/vendor_completions.d/palomar.fish"
+purge=0
+confirmed=0
+
+usage() {
+  cat <<'EOF'
+Usage: palomar uninstall [--purge] [--yes]
+
+Removes the Palomar service, CLI, updater, and application payload.
+--purge also removes Palomar configuration, pairing/state data, cache, and runtime data.
+EOF
+}
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --purge) purge=1 ;;
+    --yes) confirmed=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "palomar uninstall: unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+  shift
+done
+
+if [[ -z "$HOME" || "$HOME" == "/" || "${install_dir##*/}" != "palomar" ]]; then
+  echo "palomar uninstall: refusing unsafe installation paths" >&2
+  exit 1
+fi
+
+if [[ "$confirmed" != 1 ]]; then
+  printf 'Remove Palomar%s? [y/N] ' "$([[ "$purge" == 1 ]] && printf ' and all local Palomar data')" >&2
+  read -r answer
+  [[ "$answer" == "y" || "$answer" == "Y" ]] || exit 1
+fi
+
+systemctl --user stop palomar.service >/dev/null 2>&1 || true
+systemctl --user disable palomar.service palomar-update-recovery.service >/dev/null 2>&1 || true
+rm -f -- "$unit_file" "$recovery_unit_file" "$helper_file" "$launcher_file" \
+  "$bash_completion" "$zsh_completion" "$fish_completion"
+rm -rf -- "$install_dir"
+if [[ "$purge" == 1 ]]; then
+  rm -rf -- "$config_dir" "$state_dir" "$cache_dir" "$runtime_dir"
+fi
+systemctl --user daemon-reload >/dev/null 2>&1 || true
+systemctl --user reset-failed palomar.service palomar-update-recovery.service >/dev/null 2>&1 || true
+
+if [[ "$purge" == 1 ]]; then
+  echo "Palomar and its local data were removed."
+else
+  echo "Palomar was removed. Configuration and pairing/state data were retained."
+  echo "Remove ~/.config/palomar, ~/.local/state/palomar, and ~/.cache/palomar manually if no longer needed."
+fi

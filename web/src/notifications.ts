@@ -38,22 +38,22 @@ export type BrowserNotificationState =
 const OUTCOMES: Record<string, { event: NotificationEvent; title: string; detail: string }> = {
   completed: {
     event: "completion",
-    title: "Foreman turn completed",
+    title: "Palomar turn completed",
     detail: "A monitored turn finished successfully.",
   },
   idle: {
     event: "completion",
-    title: "Foreman turn completed",
+    title: "Palomar turn completed",
     detail: "A monitored turn is no longer active.",
   },
   failed: {
     event: "failure",
-    title: "Foreman turn failed",
-    detail: "A monitored turn failed. Open Foreman for details.",
+    title: "Palomar turn failed",
+    detail: "A monitored turn failed. Open Palomar for details.",
   },
   interrupted: {
     event: "interruption",
-    title: "Foreman turn interrupted",
+    title: "Palomar turn interrupted",
     detail: "A monitored turn was interrupted.",
   },
 };
@@ -124,7 +124,7 @@ export class TurnNotificationMonitor {
     this.clearTimer(active);
     this.active.delete(observation.sessionId);
     this.attentionTurns.delete(active.turnKey);
-    const terminalTag = `foreman-turn-${observation.hostId}-${observation.sessionId}`;
+    const terminalTag = `palomar-turn-${observation.hostId}-${observation.sessionId}`;
     if (!shouldNotify(outcome.event, this.preferences, active.observation.repositoryId, new Date(this.now()))) {
       return { notification: null, clearTag: terminalTag };
     }
@@ -157,7 +157,7 @@ export class TurnNotificationMonitor {
       hostId,
       sessionId,
       approvalId,
-      title: "Foreman needs your attention",
+      title: "Palomar needs your attention",
       body: "A monitored session needs approval or input.",
       tag: approvalTag(hostId, approvalId),
       event: "approval",
@@ -218,9 +218,9 @@ export class TurnNotificationMonitor {
       this.emitLongRunning({
         hostId: active.observation.hostId,
         sessionId: active.observation.sessionId,
-        title: "Foreman turn is still running",
+        title: "Palomar turn is still running",
         body: "A monitored turn passed your long-running threshold.",
-        tag: `foreman-turn-${active.observation.hostId}-${active.observation.sessionId}`,
+        tag: `palomar-turn-${active.observation.hostId}-${active.observation.sessionId}`,
         event: "longRunning",
       });
     }, Math.max(0, threshold - this.now()));
@@ -284,7 +284,7 @@ export async function showTurnNotification(notification: TurnNotification): Prom
   };
   await displayBrowserNotification(notification.title, options, () => {
     window.focus();
-    window.dispatchEvent(new CustomEvent("foreman.notification.open", {
+    window.dispatchEvent(new CustomEvent("palomar.notification.open", {
       detail: { hostId: notification.hostId, sessionId: notification.sessionId },
     }));
   });
@@ -294,8 +294,8 @@ export async function showBrowserTestNotification(): Promise<NotificationDeliver
   if (browserNotificationState() !== "granted") {
     throw new Error("Browser notification permission is not granted.");
   }
-  const title = "Foreman notifications are working";
-  const tag = "foreman-notification-test";
+  const title = "Palomar notifications are working";
+  const tag = "palomar-notification-test";
   const options: NotificationOptions = {
     body: "This test bypasses session-event and background-tab checks.",
     tag,
@@ -323,24 +323,24 @@ export function notificationStateDescription(
   if (state === "unsupported") return "This browser does not support notifications.";
   if (state === "denied") return "Notifications are blocked in this browser’s site settings.";
   if (enabled && state === "granted") {
-    return "Allowed. Alerts work while Foreman remains open, including in a background tab.";
+    return "Allowed. Alerts work while Palomar remains open, including in a background tab.";
   }
-  return "Permission has not been granted. Browsers cannot alert after Foreman is fully closed.";
+  return "Permission has not been granted. Browsers cannot alert after Palomar is fully closed.";
 }
 
 function attentionNotification(observation: TurnObservation, turnKey: string): TurnNotification {
   return {
     hostId: observation.hostId,
     sessionId: observation.sessionId,
-    title: "Foreman needs your attention",
+    title: "Palomar needs your attention",
     body: "A monitored session needs approval or input.",
-    tag: `foreman-attention-${turnKey}`,
+    tag: `palomar-attention-${turnKey}`,
     event: "approval",
   };
 }
 
 function approvalTag(hostId: string, approvalId: string): string {
-  return `foreman-approval-${hostId}-${approvalId}`;
+  return `palomar-approval-${hostId}-${approvalId}`;
 }
 
 function timestampMillis(value: number | null | undefined): number | null {

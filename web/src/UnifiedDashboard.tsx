@@ -22,7 +22,7 @@ export function UnifiedDashboard({ hosts, activeHostId, snapshots, onOpenHost, o
     .sort((left, right) => (left.item.startedAt ?? now) - (right.item.startedAt ?? now)), [hosts, now, snapshots]);
   return <main className="unified-dashboard">
     <header className="dashboard-heading">
-      <div><span className="eyebrow">All saved hosts</span><h1>Hosts</h1><p>Health and work across independently paired Foreman hosts.</p></div>
+      <div><span className="eyebrow">All saved hosts</span><h1>Hosts</h1><p>Health and work across independently paired Palomar hosts.</p></div>
       <span className="connection-limit">Up to 4 live connections · {totals.staleHosts} stale</span>
     </header>
     <section className="unified-totals" aria-label="Aggregate totals">
@@ -65,12 +65,12 @@ function UnifiedMetric({ label, value, onClick }: { label: string; value: string
 function HostOverviewCard({ host, active, snapshot, now, onOpen, onReconnect, onEdit, onForget }: { host: StoredHost; active: boolean; snapshot?: HostOverviewSnapshot; now: number; onOpen: () => void; onReconnect: () => void; onEdit: () => void; onForget: () => void }) {
   const live = snapshot?.connection === "connected";
   const connection = snapshot?.connection ?? host.lastKnownStatus;
-  const runtime = snapshot?.runtimeMode === "shared" ? "Shared Desktop" : snapshot?.runtimeMode === "fallback" ? "Foreman-managed Codex runtime" : host.runtimeMode === "SHARED_DESKTOP_LIVE_STATUS_AVAILABLE" ? "Shared Desktop" : host.runtimeMode ? "Foreman-managed Codex runtime" : "Unknown";
+  const runtime = snapshot?.runtimeMode === "shared" ? "Shared Desktop" : snapshot?.runtimeMode === "fallback" ? "Palomar-managed Codex runtime" : host.runtimeMode === "SHARED_DESKTOP_LIVE_STATUS_AVAILABLE" ? "Shared Desktop" : host.runtimeMode ? "Palomar-managed Codex runtime" : "Unknown";
   return <article className={`host-overview-card ${live ? "live" : "stale"}`}>
     <header><div><h3>{host.displayName}</h3><small>{host.host}:{host.webPort}</small></div><span className={`host-connection ${connection}`}>{connection}</span></header>
     {!live && <p className="stale-warning"><strong>Stale snapshot</strong> · Last connected {formatAge(host.lastConnectedAt ?? snapshot?.observedAt, now)}</p>}
     <dl>
-      <div><dt>Versions</dt><dd>Foreman {snapshot?.foremanVersion ?? "—"} · Codex {snapshot?.codexVersion ?? "—"}</dd></div>
+      <div><dt>Versions</dt><dd>Palomar {snapshot?.palomarVersion ?? "—"} · Codex {snapshot?.codexVersion ?? "—"}</dd></div>
       <div><dt>Runtime</dt><dd>{runtime}{snapshot && !snapshot.runtimeConnected ? " · unavailable" : ""}</dd></div>
       <div><dt>Work</dt><dd>{snapshot?.active ?? 0} active · {snapshot?.waiting ?? 0} waiting · {snapshot?.failed ?? 0} failed{!live ? " (stale)" : ""}</dd></div>
       <div><dt>Oldest turn</dt><dd>{snapshot?.oldestTurn ? formatElapsed(snapshot.oldestTurn.startedAt, now) : "—"}</dd></div>

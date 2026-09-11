@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify Foreman's required GitHub release asset set and checksums."""
+"""Verify Palomar's required GitHub release asset set and checksums."""
 
 from __future__ import annotations
 
@@ -22,11 +22,11 @@ def expected_asset_names(tag: str) -> tuple[str, str, str, str, str]:
     if not TAG_PATTERN.fullmatch(tag):
         raise ValueError(f"invalid release tag {tag!r}")
     return (
-        f"foreman-{tag}.apk",
-        f"foreman-linux-{tag}.tar.gz",
-        "SHA256SUMS",
-        "SHA256SUMS.sig",
-        "foreman-release-cert.pem",
+        f"palomar-{tag}.apk",
+        f"palomar-linux-{tag}.tar.gz",
+        "palomar-SHA256SUMS",
+        "palomar-SHA256SUMS.sig",
+        "palomar-release-cert.pem",
     )
 
 
@@ -92,7 +92,7 @@ def verify_directory(directory: Path, tag: str) -> list[str]:
         if not path.is_file() or path.stat().st_size <= 0:
             errors.append(f"release file {name} is empty or is not a regular file")
 
-    checksum_path = directory / "SHA256SUMS"
+    checksum_path = directory / "palomar-SHA256SUMS"
     if not checksum_path.is_file() or checksum_path.stat().st_size <= 0:
         return errors
 
@@ -102,17 +102,17 @@ def verify_directory(directory: Path, tag: str) -> list[str]:
     ):
         match = CHECKSUM_PATTERN.fullmatch(raw_line)
         if not match:
-            errors.append(f"SHA256SUMS line {line_number} is invalid")
+            errors.append(f"palomar-SHA256SUMS line {line_number} is invalid")
             continue
         digest, name = match.groups()
         if name in checksums:
-            errors.append(f"SHA256SUMS contains duplicate entry {name}")
+            errors.append(f"palomar-SHA256SUMS contains duplicate entry {name}")
             continue
         checksums[name] = digest.lower()
 
     payload_names = {
-        f"foreman-{tag}.apk",
-        f"foreman-linux-{tag}.tar.gz",
+        f"palomar-{tag}.apk",
+        f"palomar-linux-{tag}.tar.gz",
     }
     missing_checksums = sorted(payload_names - set(checksums))
     unexpected_checksums = sorted(set(checksums) - payload_names)
@@ -131,9 +131,9 @@ def verify_directory(directory: Path, tag: str) -> list[str]:
 
 
 def verify_release_signature(directory: Path, expected_fingerprint: str) -> list[str]:
-    certificate = directory / "foreman-release-cert.pem"
-    signature = directory / "SHA256SUMS.sig"
-    manifest = directory / "SHA256SUMS"
+    certificate = directory / "palomar-release-cert.pem"
+    signature = directory / "palomar-SHA256SUMS.sig"
+    manifest = directory / "palomar-SHA256SUMS"
     try:
         der = ssl.PEM_cert_to_DER_cert(certificate.read_text(encoding="ascii"))
         if hashlib.sha256(der).hexdigest() != expected_fingerprint:

@@ -56,12 +56,12 @@ function waitFor(predicate, timeout = 3_000) {
 }
 
 async function processBridge() {
-  const directory = await mkdtemp(join(tmpdir(), "foreman-claude-bridge-"));
+  const directory = await mkdtemp(join(tmpdir(), "palomar-claude-bridge-"));
   const child = spawn(process.execPath, [BRIDGE, "--state", join(directory, "state.json")], {
     env: {
       ...process.env,
-      FOREMAN_CLAUDE_SDK_MODULE: FAKE_SDK,
-      FOREMAN_CLAUDE_EXECUTABLE: process.execPath,
+      PALOMAR_CLAUDE_SDK_MODULE: FAKE_SDK,
+      PALOMAR_CLAUDE_EXECUTABLE: process.execPath,
     },
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -91,7 +91,7 @@ test("parses installed Claude versions", () => {
 
 test("missing native Claude is an explicit non-fatal unavailable state", async () => {
   const status = await detectClaudeCode({
-    env: { PATH: "", FOREMAN_CLAUDE_SDK_MODULE: FAKE_SDK },
+    env: { PATH: "", PALOMAR_CLAUDE_SDK_MODULE: FAKE_SDK },
     moduleSpecifier: FAKE_SDK,
   });
   assert.equal(status.installed, false);
@@ -180,7 +180,7 @@ test("history projection stays below the bridge response limit and keeps recent 
 
 test("start, model, permission callback, discovery, interrupt, and minimal mapping", async () => {
   fakeSdk.deletedSessions.length = 0;
-  const directory = await mkdtemp(join(tmpdir(), "foreman-claude-unit-"));
+  const directory = await mkdtemp(join(tmpdir(), "palomar-claude-unit-"));
   const statePath = join(directory, "state.json");
   const events = [];
   const bridge = new ClaudeBridge({
@@ -188,8 +188,8 @@ test("start, model, permission callback, discovery, interrupt, and minimal mappi
     send: (message) => messages.push(message),
     env: {
       ...process.env,
-      FOREMAN_CLAUDE_EXECUTABLE: process.execPath,
-      FOREMAN_CLAUDE_SDK_MODULE: FAKE_SDK,
+      PALOMAR_CLAUDE_EXECUTABLE: process.execPath,
+      PALOMAR_CLAUDE_SDK_MODULE: FAKE_SDK,
     },
     sdkLoader: async () => fakeSdk,
   });

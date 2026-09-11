@@ -14,19 +14,19 @@ import unittest
 
 
 ROOT = Path(__file__).parents[1]
-SCRIPT = ROOT / "scripts/install-foreman.sh"
-API = "https://api.github.com/repos/mkaltner/foreman/releases"
-DOWNLOAD = "https://github.com/mkaltner/foreman/releases/download"
+SCRIPT = ROOT / "scripts/install-palomar.sh"
+API = "https://api.github.com/repos/kaltner-net/palomar/releases"
+DOWNLOAD = "https://github.com/kaltner-net/palomar/releases/download"
 TAG = "v1.2.3"
 
 REQUIRED_FILES = {
     "install.sh",
-    "release.properties",
+    "palomar-release.properties",
     "requirements.txt",
-    "linux/foreman",
-    "linux/foreman.service",
-    "linux/foreman-update-recovery.service",
-    "linux/foreman_service.py",
+    "linux/palomar",
+    "linux/palomar.service",
+    "linux/palomar-update-recovery.service",
+    "linux/palomar_service.py",
     "linux/codex.py",
     "linux/approvals.py",
     "linux/inputs.py",
@@ -38,7 +38,14 @@ REQUIRED_FILES = {
     "linux/release_updates.py",
     "linux/server_update.py",
     "linux/update_cli.py",
-    "linux/foreman_updater.py",
+    "linux/palomar_updater.py",
+    "linux/palomar_uninstall",
+    "linux/completions/palomar.bash",
+    "linux/completions/_palomar",
+    "linux/completions/palomar.fish",
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md",
     "linux/claude_bridge/bridge.mjs",
     "linux/claude_bridge/package.json",
     "linux/claude_bridge/package-lock.json",
@@ -77,7 +84,7 @@ def make_certificate(directory: Path, name: str) -> tuple[Path, Path, str]:
 
 class BootstrapInstallerTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory(prefix="foreman-bootstrap-test-")
+        self.temporary = tempfile.TemporaryDirectory(prefix="palomar-bootstrap-test-")
         self.root = Path(self.temporary.name)
         self.home = self.root / "home"
         self.home.mkdir()
@@ -85,9 +92,9 @@ class BootstrapInstallerTests(unittest.TestCase):
         self.temp_root.mkdir()
         self.fake_bin = self.root / "bin"
         self.fake_bin.mkdir()
-        self.key, self.certificate, self.fingerprint = make_certificate(self.root, "Foreman test")
+        self.key, self.certificate, self.fingerprint = make_certificate(self.root, "Palomar test")
         _, self.other_certificate, _ = make_certificate(self.root, "Untrusted test")
-        self.script = self.root / "install-foreman.sh"
+        self.script = self.root / "install-palomar.sh"
         source = SCRIPT.read_text(encoding="utf-8")
         source = source.replace(
             "80d479d1a8f9f038c6977a1cfb68a2b45c3117492c364620e48babebf1810ad3",
@@ -112,8 +119,8 @@ class BootstrapInstallerTests(unittest.TestCase):
             "def value(name):\n"
             "    return args[args.index(name) + 1]\n"
             "url = args[-1]\n"
-            "entry = json.loads(os.environ['FOREMAN_TEST_CURL_MAP'])[url]\n"
-            "with open(os.environ['FOREMAN_TEST_CURL_LOG'], 'a', encoding='utf-8') as log:\n"
+            "entry = json.loads(os.environ['PALOMAR_TEST_CURL_MAP'])[url]\n"
+            "with open(os.environ['PALOMAR_TEST_CURL_LOG'], 'a', encoding='utf-8') as log:\n"
             "    log.write(url + '\\n')\n"
             "if entry.get('signal'):\n"
             "    os.kill(os.getppid(), signal.SIGTERM)\n"
@@ -151,8 +158,8 @@ class BootstrapInstallerTests(unittest.TestCase):
             path = payload / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(f"fixture {name}\n", encoding="utf-8")
-        (payload / "release.properties").write_text(
-            f"foremanVersion={tag[1:]}\n"
+        (payload / "palomar-release.properties").write_text(
+            f"palomarVersion={tag[1:]}\n"
             "releaseBuild=true\n"
             "androidVersionCode=1\n"
             "protocolVersion=1\n"
@@ -168,13 +175,13 @@ class BootstrapInstallerTests(unittest.TestCase):
             "  echo 'at least one supported provider CLI is required' >&2\n"
             "  exit 2\n"
             "fi\n"
-            "printf '%s|%s\\n' \"${codex_path:+codex}\" \"${claude_path:+claude}\" >> \"$FOREMAN_TEST_INSTALL_LOG\"\n"
-            "mkdir -p \"$HOME/.local/share/foreman\"\n"
-            "touch \"$HOME/.local/share/foreman/installed-by-fixture\"\n",
+            "printf '%s|%s\\n' \"${codex_path:+codex}\" \"${claude_path:+claude}\" >> \"$PALOMAR_TEST_INSTALL_LOG\"\n"
+            "mkdir -p \"$HOME/.local/share/palomar\"\n"
+            "touch \"$HOME/.local/share/palomar/installed-by-fixture\"\n",
             encoding="utf-8",
         )
         (payload / "install.sh").chmod(0o755)
-        archive = fixture_root / f"foreman-linux-{tag}.tar.gz"
+        archive = fixture_root / f"palomar-linux-{tag}.tar.gz"
         if archive_bytes is None:
             with tarfile.open(archive, "w:gz") as bundle:
                 for path in sorted(payload.rglob("*")):
@@ -200,12 +207,12 @@ class BootstrapInstallerTests(unittest.TestCase):
             archive.parent.mkdir(parents=True, exist_ok=True)
             archive.write_bytes(archive_bytes)
         digest = manifest_digest or hashlib.sha256(archive.read_bytes()).hexdigest()
-        manifest = fixture_root / "SHA256SUMS"
+        manifest = fixture_root / "palomar-SHA256SUMS"
         manifest.write_text(
-            f"{'0' * 64}  foreman-{tag}.apk\n{digest}  foreman-linux-{tag}.tar.gz\n",
+            f"{'0' * 64}  palomar-{tag}.apk\n{digest}  palomar-linux-{tag}.tar.gz\n",
             encoding="ascii",
         )
-        signature = fixture_root / "SHA256SUMS.sig"
+        signature = fixture_root / "palomar-SHA256SUMS.sig"
         subprocess.run(
             [
                 "openssl",
@@ -221,11 +228,11 @@ class BootstrapInstallerTests(unittest.TestCase):
         )
         assets = []
         sizes = {
-            f"foreman-{tag}.apk": 10,
-            f"foreman-linux-{tag}.tar.gz": archive.stat().st_size,
-            "SHA256SUMS": manifest.stat().st_size,
-            "SHA256SUMS.sig": signature.stat().st_size,
-            "foreman-release-cert.pem": self.certificate.stat().st_size,
+            f"palomar-{tag}.apk": 10,
+            f"palomar-linux-{tag}.tar.gz": archive.stat().st_size,
+            "palomar-SHA256SUMS": manifest.stat().st_size,
+            "palomar-SHA256SUMS.sig": signature.stat().st_size,
+            "palomar-release-cert.pem": self.certificate.stat().st_size,
         }
         for name, size in sizes.items():
             assets.append(
@@ -263,10 +270,10 @@ class BootstrapInstallerTests(unittest.TestCase):
         metadata_url = f"{API}/tags/{tag}" if explicit else f"{API}?per_page=20"
         mapping: dict[str, dict[str, object]] = {metadata_url: {"path": str(metadata_file)}}
         for name, key in (
-            ("SHA256SUMS", "manifest"),
-            ("SHA256SUMS.sig", "signature"),
-            ("foreman-release-cert.pem", "certificate"),
-            (f"foreman-linux-{tag}.tar.gz", "archive"),
+            ("palomar-SHA256SUMS", "manifest"),
+            ("palomar-SHA256SUMS.sig", "signature"),
+            ("palomar-release-cert.pem", "certificate"),
+            (f"palomar-linux-{tag}.tar.gz", "archive"),
         ):
             mapping[f"{DOWNLOAD}/{tag}/{name}"] = {"path": str(fixture[key])}
         return mapping
@@ -288,9 +295,9 @@ class BootstrapInstallerTests(unittest.TestCase):
             "HOME": str(self.home),
             "TMPDIR": str(self.temp_root),
             "PATH": f"{self.fake_bin}:/usr/bin:/bin",
-            "FOREMAN_TEST_CURL_MAP": json.dumps(mapping),
-            "FOREMAN_TEST_CURL_LOG": str(self.curl_log),
-            "FOREMAN_TEST_INSTALL_LOG": str(self.install_log),
+            "PALOMAR_TEST_CURL_MAP": json.dumps(mapping),
+            "PALOMAR_TEST_CURL_LOG": str(self.curl_log),
+            "PALOMAR_TEST_INSTALL_LOG": str(self.install_log),
         }
 
     def _run(
@@ -319,8 +326,8 @@ class BootstrapInstallerTests(unittest.TestCase):
         incomplete = {**valid, "tag_name": "v7.0.0", "assets": []}
         result = self._run(self._mapping([draft, prerelease, incomplete, valid]))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn(f"Resolved Foreman {TAG} from Official Foreman GitHub releases", result.stdout)
-        self.assertIn("foreman pair", result.stdout)
+        self.assertIn(f"Resolved Palomar {TAG} from Official Palomar GitHub releases", result.stdout)
+        self.assertIn("palomar pair", result.stdout)
         self.assertEqual(self.install_log.read_text(encoding="utf-8"), "codex|\n")
         self.assert_temporary_directory_clean()
 
@@ -330,9 +337,9 @@ class BootstrapInstallerTests(unittest.TestCase):
         mapping = self._mapping([older["release"], newest["release"]], newest)
         result = self._run(mapping)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Resolved Foreman v1.10.0", result.stdout)
+        self.assertIn("Resolved Palomar v1.10.0", result.stdout)
         self.assertIn(
-            f"{DOWNLOAD}/v1.10.0/foreman-linux-v1.10.0.tar.gz",
+            f"{DOWNLOAD}/v1.10.0/palomar-linux-v1.10.0.tar.gz",
             self.curl_log.read_text(encoding="utf-8"),
         )
 
@@ -393,12 +400,12 @@ class BootstrapInstallerTests(unittest.TestCase):
 
     def test_pinned_certificate_mismatch_bad_signature_and_bad_checksum_fail_before_install(self) -> None:
         mismatch = self._mapping([self.fixture["release"]])
-        mismatch[f"{DOWNLOAD}/{TAG}/foreman-release-cert.pem"] = {"path": str(self.other_certificate)}
+        mismatch[f"{DOWNLOAD}/{TAG}/palomar-release-cert.pem"] = {"path": str(self.other_certificate)}
 
         bad_signature_file = self.root / "bad-signature"
         bad_signature_file.write_bytes(b"not a signature")
         bad_signature = self._mapping([self.fixture["release"]])
-        bad_signature[f"{DOWNLOAD}/{TAG}/SHA256SUMS.sig"] = {"path": str(bad_signature_file)}
+        bad_signature[f"{DOWNLOAD}/{TAG}/palomar-SHA256SUMS.sig"] = {"path": str(bad_signature_file)}
 
         checksum_fixture = self._make_release_fixture(TAG, manifest_digest="f" * 64)
         bad_checksum = self._mapping([checksum_fixture["release"]], checksum_fixture)
@@ -448,7 +455,7 @@ class BootstrapInstallerTests(unittest.TestCase):
                 self.assertEqual(first.returncode, 0, first.stderr)
                 self.assertEqual(second.returncode, 0, second.stderr)
                 self.assertEqual(len(self.install_log.read_text(encoding="utf-8").splitlines()), 2)
-                self.assertTrue((self.home / ".local/share/foreman/installed-by-fixture").is_file())
+                self.assertTrue((self.home / ".local/share/palomar/installed-by-fixture").is_file())
         shutil.rmtree(self.home / ".local", ignore_errors=True)
         self.install_log.unlink()
         neither = self._run(mapping, providers=())
@@ -467,7 +474,7 @@ class BootstrapInstallerTests(unittest.TestCase):
         source = SCRIPT.read_text(encoding="utf-8")
         release_properties = dict(
             line.split("=", 1)
-            for line in (ROOT / "release.properties").read_text(encoding="utf-8").splitlines()
+            for line in (ROOT / "palomar-release.properties").read_text(encoding="utf-8").splitlines()
             if line and not line.startswith("#")
         )
         self.assertIn(f'TRUSTED_CERT_SHA256="{release_properties["androidSigningCertificateSha256"]}"', source)

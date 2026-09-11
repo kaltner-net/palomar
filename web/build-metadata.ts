@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export interface ForemanBuildMetadata {
+export interface PalomarBuildMetadata {
   version: string;
   commit: string;
   releaseBuild: boolean;
@@ -14,25 +14,25 @@ export function parseReleaseProperties(contents: string): Record<string, string>
     if (!line || line.startsWith("#")) return;
     const separator = line.indexOf("=");
     if (separator <= 0 || !line.slice(separator + 1).trim()) {
-      throw new Error(`release.properties:${index + 1}: expected key=value`);
+      throw new Error(`palomar-release.properties:${index + 1}: expected key=value`);
     }
     values[line.slice(0, separator).trim()] = line.slice(separator + 1).trim();
   });
   return values;
 }
 
-export function loadForemanBuildMetadata(
+export function loadPalomarBuildMetadata(
   repositoryRoot: string,
   environment: NodeJS.ProcessEnv = process.env,
-): ForemanBuildMetadata {
+): PalomarBuildMetadata {
   const release = parseReleaseProperties(
-    readFileSync(join(repositoryRoot, "release.properties"), "utf8"),
+    readFileSync(join(repositoryRoot, "palomar-release.properties"), "utf8"),
   );
-  const version = release.foremanVersion;
-  if (!version) throw new Error("release.properties: missing foremanVersion");
+  const version = release.palomarVersion;
+  if (!version) throw new Error("palomar-release.properties: missing palomarVersion");
   if (release.releaseBuild !== "true" && release.releaseBuild !== "false") {
-    throw new Error("release.properties: releaseBuild must be true or false");
+    throw new Error("palomar-release.properties: releaseBuild must be true or false");
   }
-  const commit = environment.FOREMAN_BUILD_COMMIT?.trim() || "unknown";
+  const commit = environment.PALOMAR_BUILD_COMMIT?.trim() || "unknown";
   return { version, commit, releaseBuild: release.releaseBuild === "true" };
 }

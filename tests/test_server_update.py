@@ -33,8 +33,8 @@ from server_update import (  # noqa: E402
     signed_checksums,
     verify_certificate_and_signature,
 )
-import foreman_updater  # noqa: E402
-from foreman_updater import prepare_runtime  # noqa: E402
+import palomar_updater  # noqa: E402
+from palomar_updater import prepare_runtime  # noqa: E402
 from state import State  # noqa: E402
 
 
@@ -48,11 +48,11 @@ def canonical(name: str) -> str:
 
 def release_manifest(*, missing: str | None = None, bad_url: bool = False) -> bytes:
     names = [
-        f"foreman-{TAG}.apk",
-        f"foreman-linux-{TAG}.tar.gz",
-        "SHA256SUMS",
-        "SHA256SUMS.sig",
-        "foreman-release-cert.pem",
+        f"palomar-{TAG}.apk",
+        f"palomar-linux-{TAG}.tar.gz",
+        "palomar-SHA256SUMS",
+        "palomar-SHA256SUMS.sig",
+        "palomar-release-cert.pem",
     ]
     return json.dumps({
         "tag_name": TAG,
@@ -62,7 +62,7 @@ def release_manifest(*, missing: str | None = None, bad_url: bool = False) -> by
             {
                 "name": name,
                 "size": 10,
-                "browser_download_url": "https://evil.invalid/payload" if bad_url and name.startswith("foreman-linux") else canonical(name),
+                "browser_download_url": "https://evil.invalid/payload" if bad_url and name.startswith("palomar-linux") else canonical(name),
             }
             for name in names if name != missing
         ],
@@ -77,9 +77,9 @@ class FakeCache:
         release = None if self.version is None else {
             "version": self.version,
             "tag": f"v{self.version}",
-            "title": f"Foreman {self.version}",
+            "title": f"Palomar {self.version}",
             "publishedAt": "2026-08-31T00:00:00Z",
-            "releaseNotesUrl": f"https://github.com/mkaltner/foreman/releases/tag/v{self.version}",
+            "releaseNotesUrl": f"https://github.com/kaltner-net/palomar/releases/tag/v{self.version}",
             "artifactAvailable": True,
         }
         return {"components": {"server": {"supportedRelease": release}}}
@@ -105,7 +105,7 @@ def make_certificate(directory: Path) -> tuple[bytes, bytes, str, Path]:
     key = directory / "key.pem"
     cert = directory / "cert.pem"
     subprocess.run(
-        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=Foreman test", "-keyout", str(key), "-out", str(cert), "-days", "1"],
+        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=Palomar test", "-keyout", str(key), "-out", str(cert), "-days", "1"],
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     der = ssl.PEM_cert_to_DER_cert(cert.read_text(encoding="ascii"))
@@ -121,8 +121,10 @@ def make_archive(directory: Path) -> bytes:
     )
     shutil.copytree(ROOT / "web" / "dist", payload / "web" / "dist")
     shutil.copy2(ROOT / "install.sh", payload / "install.sh")
-    (payload / "release.properties").write_text(
-        "foremanVersion=1.0.3\nreleaseBuild=true\nandroidVersionCode=10\nprotocolVersion=1\n"
+    for name in ("LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"):
+        shutil.copy2(ROOT / name, payload / name)
+    (payload / "palomar-release.properties").write_text(
+        "palomarVersion=1.0.3\nreleaseBuild=true\nandroidVersionCode=10\nprotocolVersion=1\n"
         "androidSigningCertificateSha256=placeholder\n",
         encoding="utf-8",
     )
@@ -137,7 +139,7 @@ class ProvenanceTests(unittest.TestCase):
     def test_release_manifest_requires_exact_assets_and_canonical_urls(self) -> None:
         self.assertEqual(len(release_assets(release_manifest(), TAG)), 5)
         with self.assertRaisesRegex(UpdateFailure, "missing"):
-            release_assets(release_manifest(missing="SHA256SUMS.sig"), TAG)
+            release_assets(release_manifest(missing="palomar-SHA256SUMS.sig"), TAG)
         with self.assertRaisesRegex(UpdateFailure, "untrusted"):
             release_assets(release_manifest(bad_url=True), TAG)
         unexpected = json.loads(release_manifest())
@@ -152,11 +154,11 @@ class ProvenanceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             _, cert_bytes, fingerprint, key = make_certificate(root)
-            manifest = root / "SHA256SUMS"
-            manifest.write_bytes(b"0" * 64 + b"  foreman-v1.0.3.apk\n" + b"1" * 64 + b"  foreman-linux-v1.0.3.tar.gz\n")
+            manifest = root / "palomar-SHA256SUMS"
+            manifest.write_bytes(b"0" * 64 + b"  palomar-v1.0.3.apk\n" + b"1" * 64 + b"  palomar-linux-v1.0.3.tar.gz\n")
             certificate = root / "release.pem"
             certificate.write_bytes(cert_bytes)
-            signature = root / "SHA256SUMS.sig"
+            signature = root / "palomar-SHA256SUMS.sig"
             subprocess.run(["openssl", "dgst", "-sha256", "-sign", str(key), "-out", str(signature), str(manifest)], check=True)
             verify_certificate_and_signature(certificate, signature, manifest, fingerprint)
             manifest.write_bytes(manifest.read_bytes() + b"tampered")
@@ -167,12 +169,12 @@ class ProvenanceTests(unittest.TestCase):
 
     def test_signed_manifest_rejects_missing_duplicate_and_unexpected_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            path = Path(temporary) / "SHA256SUMS"
-            path.write_text(f"{'0' * 64}  foreman-{TAG}.apk\n", encoding="ascii")
+            path = Path(temporary) / "palomar-SHA256SUMS"
+            path.write_text(f"{'0' * 64}  palomar-{TAG}.apk\n", encoding="ascii")
             with self.assertRaises(UpdateFailure):
                 signed_checksums(path, TAG)
             path.write_text(
-                f"{'0' * 64}  foreman-{TAG}.apk\n{'1' * 64}  foreman-linux-{TAG}.tar.gz\n{'2' * 64}  extra\n",
+                f"{'0' * 64}  palomar-{TAG}.apk\n{'1' * 64}  palomar-linux-{TAG}.tar.gz\n{'2' * 64}  extra\n",
                 encoding="ascii",
             )
             with self.assertRaises(UpdateFailure):
@@ -204,13 +206,13 @@ class ManagerTests(unittest.IsolatedAsyncioTestCase):
         del key_bytes
         archive = make_archive(self.root)
         payload_root = self.root / "payload"
-        metadata = payload_root / "release.properties"
+        metadata = payload_root / "palomar-release.properties"
         metadata.write_text(metadata.read_text().replace("placeholder", self.fingerprint), encoding="utf-8")
         # Rebuild after inserting the pinned trust anchor.
         archive = make_archive_with_payload(self.root, payload_root)
         sums = (
-            f"{'0' * 64}  foreman-{TAG}.apk\n"
-            f"{hashlib.sha256(archive).hexdigest()}  foreman-linux-{TAG}.tar.gz\n"
+            f"{'0' * 64}  palomar-{TAG}.apk\n"
+            f"{hashlib.sha256(archive).hexdigest()}  palomar-linux-{TAG}.tar.gz\n"
         ).encode()
         manifest_path = self.root / "sums"
         manifest_path.write_bytes(sums)
@@ -218,10 +220,10 @@ class ManagerTests(unittest.IsolatedAsyncioTestCase):
         subprocess.run(["openssl", "dgst", "-sha256", "-sign", str(key), "-out", str(signature_path), str(manifest_path)], check=True)
         self.values = {
             RELEASE_API_PREFIX + TAG: release_manifest(),
-            canonical(f"foreman-linux-{TAG}.tar.gz"): archive,
-            canonical("SHA256SUMS"): sums,
-            canonical("SHA256SUMS.sig"): signature_path.read_bytes(),
-            canonical("foreman-release-cert.pem"): cert_bytes,
+            canonical(f"palomar-linux-{TAG}.tar.gz"): archive,
+            canonical("palomar-SHA256SUMS"): sums,
+            canonical("palomar-SHA256SUMS.sig"): signature_path.read_bytes(),
+            canonical("palomar-release-cert.pem"): cert_bytes,
         }
         self.blockers: list[dict[str, object]] = []
         self.helper_calls: list[str] = []
@@ -240,9 +242,9 @@ class ManagerTests(unittest.IsolatedAsyncioTestCase):
         return ServerUpdateManager(
             state_directory=self.root / "state",
             install_directory=self.root / "install",
-            launcher_file=self.root / "bin/foreman",
-            unit_file=self.root / "unit/foreman.service",
-            helper_file=self.root / "libexec/foreman-updater",
+            launcher_file=self.root / "bin/palomar",
+            unit_file=self.root / "unit/palomar.service",
+            helper_file=self.root / "libexec/palomar-updater",
             current_version="1.0.2",
             release_build=True,
             protocol_version=1,
@@ -262,7 +264,7 @@ class ManagerTests(unittest.IsolatedAsyncioTestCase):
             await downgrade.start()
         recovering = self.manager()
         recovering.store.write({
-            "id": "fmu_1234567890abcdef", "phase": "recoveryRequired",
+            "id": "pmu_1234567890abcdef", "phase": "recoveryRequired",
             "createdAt": "2026-08-31T00:00:00Z",
         })
         with self.assertRaisesRegex(UpdateFailure, "recover"):
@@ -279,15 +281,15 @@ class ManagerTests(unittest.IsolatedAsyncioTestCase):
         operation = manager.store.read(started["id"])
         self.assertEqual(operation["phase"], "activationScheduled")
         self.assertEqual(self.helper_calls, [started["id"]])
-        self.assertTrue((manager.store.operation_directory(started["id"]) / "staged-install/foreman_service.py").is_file())
+        self.assertTrue((manager.store.operation_directory(started["id"]) / "staged-install/palomar_service.py").is_file())
 
     async def test_missing_corrupt_and_untrusted_inputs_fail_closed(self) -> None:
         cases: list[tuple[str, dict[str, bytes], str]] = []
         missing = dict(self.values)
-        missing[RELEASE_API_PREFIX + TAG] = release_manifest(missing="SHA256SUMS.sig")
+        missing[RELEASE_API_PREFIX + TAG] = release_manifest(missing="palomar-SHA256SUMS.sig")
         cases.append(("missing", missing, "missingAsset"))
         corrupted = dict(self.values)
-        corrupted[canonical(f"foreman-linux-{TAG}.tar.gz")] += b"corrupt"
+        corrupted[canonical(f"palomar-linux-{TAG}.tar.gz")] += b"corrupt"
         cases.append(("checksum", corrupted, "verificationFailed"))
         untrusted = dict(self.values)
         untrusted[RELEASE_API_PREFIX + TAG] = release_manifest(bad_url=True)
@@ -332,12 +334,12 @@ class ManagerTests(unittest.IsolatedAsyncioTestCase):
 
         manager = self.manager()
         manager.authorization_check = authorization
-        started = await manager.start("remote", "device:fmc_revoked")
+        started = await manager.start("remote", "device:pmc_revoked")
         self.assertNotIn("authorizationPrincipal", started)
         self.assertNotIn("requestId", started)
         await manager.task
         operation = manager.store.read(started["id"])
-        self.assertEqual(checked, ["device:fmc_revoked"])
+        self.assertEqual(checked, ["device:pmc_revoked"])
         self.assertEqual(operation["phase"], "failed")
         self.assertEqual(operation["resultCode"], "authorizationRevoked")
         self.assertEqual(self.helper_calls, [])
@@ -418,7 +420,7 @@ class ManagerTests(unittest.IsolatedAsyncioTestCase):
                 return 0
 
         with patch("asyncio.create_subprocess_exec", return_value=Process()) as spawn:
-            self.assertEqual(await manager._systemd_run_helper("fmu_" + "c" * 32), 0)
+            self.assertEqual(await manager._systemd_run_helper("pmu_" + "c" * 32), 0)
         arguments = spawn.call_args.args
         self.assertIn("--property=Restart=on-failure", arguments)
         self.assertIn("--property=RestartSec=1s", arguments)
@@ -471,7 +473,7 @@ class HelperTests(unittest.TestCase):
     def prepare(self, root: Path) -> tuple[OperationStore, str, dict[str, Path]]:
         state = root / "state"
         store = OperationStore(state)
-        operation_id = "fmu_" + "a" * 32
+        operation_id = "pmu_" + "a" * 32
         store.write({
             "id": operation_id, "schema": 1, "phase": "activationScheduled",
             "currentVersion": "1.0.2", "targetVersion": "1.0.3",
@@ -482,15 +484,15 @@ class HelperTests(unittest.TestCase):
         operation_dir = store.operation_directory(operation_id)
         staged = operation_dir / "staged-install"
         staged.mkdir(parents=True)
-        (staged / "release.properties").write_text("protocolVersion=1\n", encoding="utf-8")
+        (staged / "palomar-release.properties").write_text("protocolVersion=1\n", encoding="utf-8")
         (staged / "payload").write_text("new", encoding="utf-8")
         for name in ("staged-launcher", "staged-unit", "staged-helper"):
             (operation_dir / name).write_text("new", encoding="utf-8")
         paths = {
             "install": root / "install",
-            "launcher": root / "bin/foreman",
-            "unit": root / "unit/foreman.service",
-            "helper": root / "libexec/foreman-updater",
+            "launcher": root / "bin/palomar",
+            "unit": root / "unit/palomar.service",
+            "helper": root / "libexec/palomar-updater",
         }
         paths["install"].mkdir()
         (paths["install"] / "payload").write_text("old", encoding="utf-8")
@@ -567,7 +569,7 @@ class HelperTests(unittest.TestCase):
             )
             os.replace(paths["install"], backup / "install")
             arguments = [
-                "foreman-updater", "--resume-latest",
+                "palomar-updater", "--resume-latest",
                 "--state-directory", str(root / "state"),
                 "--install-directory", str(paths["install"]),
                 "--launcher-file", str(paths["launcher"]),
@@ -581,7 +583,7 @@ class HelperTests(unittest.TestCase):
                 patch("server_update._systemctl"),
                 patch("server_update._health", return_value=True),
             ):
-                result = foreman_updater.main()
+                result = palomar_updater.main()
             self.assertEqual(result, 1)
             self.assertEqual(store.read(operation_id)["phase"], "rolledBack")
             self.assertEqual((paths["install"] / "payload").read_text(), "old")
@@ -609,7 +611,7 @@ class HelperTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             store, operation_id, paths = self.prepare(root)
-            store.transition(operation_id, "activationScheduled", authorizationPrincipal="device:fmc_revoked")
+            store.transition(operation_id, "activationScheduled", authorizationPrincipal="device:pmc_revoked")
             (root / "state/state.json").write_text('{"devices":[]}\n', encoding="utf-8")
             with patch("server_update._systemctl") as systemctl:
                 result = run_external_helper(
@@ -628,12 +630,12 @@ class HelperTests(unittest.TestCase):
             store, operation_id, paths = self.prepare(root)
             state = State(root / "state")
             state.path.write_text(
-                '{"devices":[{"id":"fmc_authorized","access":"full","digest":"unused"}]}\n',
+                '{"devices":[{"id":"pmc_authorized","access":"full","digest":"unused"}]}\n',
                 encoding="utf-8",
             )
             store.transition(
                 operation_id, "activationScheduled",
-                authorizationPrincipal="device:fmc_authorized",
+                authorizationPrincipal="device:pmc_authorized",
             )
             original_replace = os.replace
             revocation_started = threading.Event()
@@ -646,7 +648,7 @@ class HelperTests(unittest.TestCase):
                 if Path(source) == paths["install"]:
                     def revoke() -> None:
                         revocation_started.set()
-                        state.revoke_device("fmc_authorized")
+                        state.revoke_device("pmc_authorized")
                         revocation_finished.set()
 
                     revocation = threading.Thread(target=revoke)
@@ -680,7 +682,7 @@ class HelperTests(unittest.TestCase):
             install.mkdir()
             for name in ("server_update.py", "release_updates.py", "state.py"):
                 shutil.copy2(ROOT / "linux" / name, install / name)
-            operation_id = "fmu_" + "b" * 32
+            operation_id = "pmu_" + "b" * 32
             runtime = prepare_runtime(root / "state", operation_id, install)
             shutil.rmtree(install)
             self.assertEqual(prepare_runtime(root / "state", operation_id, install), runtime)
@@ -690,11 +692,11 @@ class HelperTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             store, operation_id, paths = self.prepare(root)
-            config = root / "config/foreman.env"
+            config = root / "config/palomar.env"
             config.parent.mkdir()
             config.write_text("TOKEN=never-log-this\n", encoding="utf-8")
             paired = root / "state/state.json"
-            paired.write_text('{"devices":[{"id":"fmc_keep"}]}\n', encoding="utf-8")
+            paired.write_text('{"devices":[{"id":"pmc_keep"}]}\n', encoding="utf-8")
             expected_config, expected_state = config.read_bytes(), paired.read_bytes()
             with patch("server_update._systemctl"), patch("server_update._health", side_effect=[False, True]):
                 result = run_external_helper(
@@ -722,7 +724,7 @@ class HelperTests(unittest.TestCase):
             self.assertEqual(result, 3)
             operation = store.read(operation_id)
             self.assertEqual(operation["phase"], "recoveryRequired")
-            self.assertEqual(operation["recoveryCommand"], "foreman update --recover")
+            self.assertEqual(operation["recoveryCommand"], "palomar update --recover")
             self.assertTrue((store.operation_directory(operation_id) / "backup/install").is_dir())
             self.assertNotIn(str(root), json.dumps(public_operation(operation)))
 

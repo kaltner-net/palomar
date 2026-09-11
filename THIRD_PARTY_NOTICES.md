@@ -1,6 +1,6 @@
 # Third-party notices
 
-Foreman distributes or links the following declared runtime dependency families.
+Palomar distributes or links the following declared runtime dependency families.
 This list is a release-review aid, not a substitute for the license text and
 notices supplied by each dependency.
 

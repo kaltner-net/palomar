@@ -1,0 +1,13 @@
+[Unit]
+Description=Palomar service
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env python3 %h/.local/share/palomar/palomar_service.py
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=15
+
+[Install]
+WantedBy=default.target

@@ -1,4 +1,4 @@
-"""Local CLI for the shared Foreman update protocol."""
+"""Local CLI for the shared Palomar update protocol."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ async def request(socket_path: Path, message_type: str, payload: dict[str, Any] 
     try:
         reader, writer = await asyncio.wait_for(asyncio.open_unix_connection(socket_path), 3)
     except (OSError, TimeoutError) as error:
-        raise ProtocolFailure("serviceUnavailable", "Foreman is unavailable; start it and try again.") from error
+        raise ProtocolFailure("serviceUnavailable", "Palomar is unavailable; start it and try again.") from error
     try:
         request_id = "cli-" + os.urandom(8).hex()
         writer.write((json.dumps({
@@ -52,10 +52,10 @@ async def request(socket_path: Path, message_type: str, payload: dict[str, Any] 
             details = response.get("payload", {})
             raise ProtocolFailure(str(details.get("code", "requestFailed")), str(details.get("message", "Update request failed.")))
         if response.get("id") != request_id or not isinstance(response.get("payload"), dict):
-            raise ProtocolFailure("invalidResponse", "Foreman returned an invalid update response.")
+            raise ProtocolFailure("invalidResponse", "Palomar returned an invalid update response.")
         return response["payload"]
     except (OSError, TimeoutError, json.JSONDecodeError) as error:
-        raise ProtocolFailure("serviceUnavailable", "Foreman became unavailable during the update request.") from error
+        raise ProtocolFailure("serviceUnavailable", "Palomar became unavailable during the update request.") from error
     finally:
         writer.close()
         try:
@@ -79,11 +79,11 @@ def show_check(check: dict[str, Any]) -> None:
     print(f"Installed: {check.get('currentVersion', 'unknown')}{build_suffix}")
     target = check.get("target")
     print(f"Target: {target.get('version') if isinstance(target, dict) else 'none'}")
-    print(f"Source: {check.get('source', 'Official Foreman releases')}")
+    print(f"Source: {check.get('source', 'Official Palomar releases')}")
     if isinstance(target, dict) and target.get("releaseNotesUrl"):
         print(f"Release notes: {target['releaseNotesUrl']}")
     if check.get("updateAvailable"):
-        print("Restart: foreman.service only")
+        print("Restart: palomar.service only")
         print("Recovery: health-check the target and restore the previous payload automatically on failure")
     blockers = check.get("blockers")
     if isinstance(blockers, list) and blockers:
@@ -98,7 +98,7 @@ def show_operation(operation: dict[str, Any] | None) -> None:
     label = {
         "downloading": "Downloading", "verifying": "Verifying signature",
         "staging": "Staging", "activationScheduled": "Activation scheduled",
-        "activating": "Activating", "restarting": "Restarting Foreman",
+        "activating": "Activating", "restarting": "Restarting Palomar",
         "healthChecking": "Health checking", "rollingBack": "Rolling back",
         "succeeded": "Update complete", "rolledBack": "Previous version restored",
         "recoveryRequired": "Recovery required", "blocked": "Blocked",
@@ -150,7 +150,7 @@ async def wait_for_result(socket_path: Path, operation_id: str, timeout_seconds:
             pass
         await asyncio.sleep(delay)
         delay = min(delay * 1.5, 3)
-    print("Timed out waiting for Foreman to reconnect. Run `foreman update --status`.", file=sys.stderr)
+    print("Timed out waiting for Palomar to reconnect. Run `palomar update --status`.", file=sys.stderr)
     return last, EXIT_UNAVAILABLE
 
 
@@ -179,12 +179,12 @@ async def async_main(args: argparse.Namespace) -> int:
         print(
             "Automatic updates require an installed official release build."
             if check.get("releaseBuild") is False
-            else "Foreman is already current."
+            else "Palomar is already current."
         )
         return 0
     if not args.yes:
         try:
-            answer = input("Stage, activate, restart Foreman, and roll back automatically on failure? [y/N] ")
+            answer = input("Stage, activate, restart Palomar, and roll back automatically on failure? [y/N] ")
         except EOFError:
             print("Confirmation is required; rerun interactively or use --yes after reviewing --check.", file=sys.stderr)
             return 2
@@ -194,30 +194,30 @@ async def async_main(args: argparse.Namespace) -> int:
     started = await request(socket_path, "update.start", {"requestId": "cli_" + os.urandom(12).hex()})
     operation = started.get("operation", started)
     if not isinstance(operation, dict) or not isinstance(operation.get("id"), str):
-        raise ProtocolFailure("invalidResponse", "Foreman did not return an update operation.")
+        raise ProtocolFailure("invalidResponse", "Palomar did not return an update operation.")
     show_operation(operation)
     _, result = await wait_for_result(socket_path, operation["id"])
     return result
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="foreman update")
+    parser = argparse.ArgumentParser(prog="palomar update")
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--check", action="store_true")
     modes.add_argument("--status", action="store_true")
     modes.add_argument("--recover", action="store_true")
     parser.add_argument("--yes", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--state-directory", default=os.environ.get("FOREMAN_STATE_DIRECTORY", "~/.local/state/foreman"), help=argparse.SUPPRESS)
+    parser.add_argument("--state-directory", default=os.environ.get("PALOMAR_STATE_DIRECTORY", "~/.local/state/palomar"), help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.recover:
         home = Path.home()
         try:
             return recover_latest(
                 state_directory=Path(args.state_directory).expanduser(),
-                install_directory=Path(os.environ.get("FOREMAN_INSTALL_DIR", home / ".local/share/foreman")),
-                launcher_file=home / ".local/bin/foreman",
-                unit_file=home / ".config/systemd/user/foreman.service",
-                helper_file=home / ".local/libexec/foreman-updater",
+                install_directory=Path(os.environ.get("PALOMAR_INSTALL_DIR", home / ".local/share/palomar")),
+                launcher_file=home / ".local/bin/palomar",
+                unit_file=home / ".config/systemd/user/palomar.service",
+                helper_file=home / ".local/libexec/palomar-updater",
             )
         except UpdateFailure as error:
             print(error.message, file=sys.stderr)
@@ -228,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
         print(str(error), file=sys.stderr)
         return exit_for_code(error.code)
     except KeyboardInterrupt:
-        print("Update wait interrupted; the durable operation will continue. Run `foreman update --status`.", file=sys.stderr)
+        print("Update wait interrupted; the durable operation will continue. Run `palomar update --status`.", file=sys.stderr)
         return 130
 
 

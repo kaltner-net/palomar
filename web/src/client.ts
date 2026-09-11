@@ -1,5 +1,5 @@
 import {
-  ForemanError,
+  PalomarError,
   MAX_FRAME_BYTES,
   PROTOCOL_VERSION,
   isWireMessage,
@@ -49,13 +49,13 @@ export function parseEndpoint(
   pageProtocol = window.location.protocol,
 ): Endpoint {
   const input = rawHost.trim();
-  if (!input) throw new ForemanError("Host is required", "invalidHost");
+  if (!input) throw new PalomarError("Host is required", "invalidHost");
   if (/[/#?]/.test(input.replace(/^https?:\/\//i, ""))) {
-    throw new ForemanError("Enter a host name or IP address without a path", "invalidHost");
+    throw new PalomarError("Enter a host name or IP address without a path", "invalidHost");
   }
   const port = typeof rawPort === "number" ? rawPort : Number(rawPort);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new ForemanError("Web port must be between 1 and 65535", "invalidHost");
+    throw new PalomarError("Web port must be between 1 and 65535", "invalidHost");
   }
   const explicitScheme = /^https?:\/\//i.test(input);
   const secure = explicitScheme
@@ -65,17 +65,17 @@ export function parseEndpoint(
   try {
     parsed = new URL(explicitScheme ? input : `http://${input}`);
   } catch {
-    throw new ForemanError(
+    throw new PalomarError(
       "Enter a valid host; wrap IPv6 addresses in brackets",
       "invalidHost",
     );
   }
   if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
-    throw new ForemanError("Enter a host name or IP address only", "invalidHost");
+    throw new PalomarError("Enter a host name or IP address only", "invalidHost");
   }
   const normalizedHost = parsed.hostname.replace(/^\[|\]$/g, "");
   const host = normalizedHost.includes(":") ? `[${normalizedHost}]` : normalizedHost;
-  if (!normalizedHost) throw new ForemanError("Host is required", "invalidHost");
+  if (!normalizedHost) throw new PalomarError("Host is required", "invalidHost");
   const authority = `${host}:${port}`;
   return {
     host: normalizedHost,
@@ -98,7 +98,7 @@ export interface ClientHooks {
   onAuthenticationRejected?: (detail: string) => void;
 }
 
-export class ForemanWebClient {
+export class PalomarWebClient {
   private socket: SocketLike | null = null;
   private sequence = 0;
   private generation = 0;
@@ -152,7 +152,7 @@ export class ForemanWebClient {
     payload: Record<string, unknown> = {},
   ): Promise<T> {
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-      throw new ForemanError("Foreman is not connected", "disconnected");
+      throw new PalomarError("Palomar is not connected", "disconnected");
     }
     const id = `web-${++this.sequence}`;
     const message = JSON.stringify({
@@ -162,12 +162,12 @@ export class ForemanWebClient {
       payload,
     });
     if (new TextEncoder().encode(message).byteLength > MAX_FRAME_BYTES) {
-      throw new ForemanError("Message exceeds Foreman's 16 MiB frame limit", "frameTooLarge");
+      throw new PalomarError("Message exceeds Palomar's 16 MiB frame limit", "frameTooLarge");
     }
     return new Promise<T>((resolve, reject) => {
       const timeout = window.setTimeout(() => {
         this.pending.delete(id);
-        reject(new ForemanError("Foreman did not respond in time", "timeout"));
+        reject(new PalomarError("Palomar did not respond in time", "timeout"));
       }, 120_000);
       this.pending.set(id, {
         resolve: (response) => resolve(response.payload as T),
@@ -192,7 +192,7 @@ export class ForemanWebClient {
     const socket = this.socket;
     this.socket = null;
     if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, "Client disconnect");
-    this.rejectPending(new ForemanError("Disconnected", "disconnected"));
+    this.rejectPending(new PalomarError("Disconnected", "disconnected"));
     this.hooks.onState("disconnected");
   }
 
@@ -209,12 +209,12 @@ export class ForemanWebClient {
       await this.onReady?.(reconnected || wasConnected);
     } catch (error) {
       if (!this.reconnectEnabled) throw error;
-      if (error instanceof ForemanError && error.code === "unauthorized") {
+      if (error instanceof PalomarError && error.code === "unauthorized") {
         const detail = "This client token was revoked or is no longer valid. Pair this browser again to reconnect.";
         this.disconnect();
         this.hooks.onState("disconnected", detail);
         this.hooks.onAuthenticationRejected?.(detail);
-        throw new ForemanError(detail, "unauthorized");
+        throw new PalomarError(detail, "unauthorized");
       }
       this.scheduleReconnect(error instanceof Error ? error.message : "Connection failed");
       if (!reconnected && !this.hasConnected) throw error;
@@ -224,7 +224,7 @@ export class ForemanWebClient {
   private async hello(): Promise<void> {
     const hello = await this.request<HelloPayload & Record<string, unknown>>("hello");
     if (hello.protocolVersion !== PROTOCOL_VERSION) {
-      throw new ForemanError("This Foreman service uses an incompatible protocol", "incompatibleProtocol");
+      throw new PalomarError("This Palomar service uses an incompatible protocol", "incompatibleProtocol");
     }
     this.hooks.onHello?.(hello);
   }
@@ -248,7 +248,7 @@ export class ForemanWebClient {
       socket.onerror = () => {
         if (!settled) {
           settled = true;
-          reject(new ForemanError("Cannot connect to Foreman", "unavailable"));
+          reject(new PalomarError("Cannot connect to Palomar", "unavailable"));
         }
       };
       socket.onclose = (event) => {
@@ -257,17 +257,17 @@ export class ForemanWebClient {
         if (event.code === 4003) {
           const detail = "This client token was revoked. Pair this browser again to reconnect.";
           this.reconnectEnabled = false;
-          this.rejectPending(new ForemanError(detail, "unauthorized"));
+          this.rejectPending(new PalomarError(detail, "unauthorized"));
           this.hooks.onState("disconnected", detail);
           this.hooks.onAuthenticationRejected?.(detail);
           return;
         }
-        const detail = settled ? "Connection lost" : "Cannot connect to Foreman";
+        const detail = settled ? "Connection lost" : "Cannot connect to Palomar";
         if (!settled) {
           settled = true;
-          reject(new ForemanError(detail, "unavailable"));
+          reject(new PalomarError(detail, "unavailable"));
         }
-        this.rejectPending(new ForemanError(detail, "disconnected"));
+        this.rejectPending(new PalomarError(detail, "disconnected"));
         if (this.reconnectEnabled) this.scheduleReconnect(detail);
         else this.hooks.onState("disconnected", detail);
       };
@@ -280,11 +280,11 @@ export class ForemanWebClient {
     try {
       message = JSON.parse(raw);
     } catch {
-      this.hooks.onState("disconnected", "Foreman sent malformed JSON");
+      this.hooks.onState("disconnected", "Palomar sent malformed JSON");
       return;
     }
     if (!isWireMessage(message)) {
-      this.hooks.onState("disconnected", "Foreman sent an incompatible message");
+      this.hooks.onState("disconnected", "Palomar sent an incompatible message");
       return;
     }
     const id = message.id;
@@ -296,7 +296,7 @@ export class ForemanWebClient {
         if (message.type === "error") {
           const payload = message.payload as { code?: string; message?: string };
           pending.reject(
-            new ForemanError(payload.message ?? "Request failed", payload.code ?? "requestFailed"),
+            new PalomarError(payload.message ?? "Request failed", payload.code ?? "requestFailed"),
           );
         } else {
           pending.resolve(message);

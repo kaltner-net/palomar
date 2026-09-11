@@ -1,26 +1,26 @@
 # Releases
 
-Foreman releases are tag-triggered and must come from a reviewed, merged release
+Palomar releases are tag-triggered and must come from a reviewed, merged release
 PR. Preparing a candidate branch or opening a draft PR must never create a tag
 or GitHub release.
 
 ## Version sources
 
-`release.properties` is the candidate manifest. `foremanVersion` must match the
+`palomar-release.properties` is the candidate manifest. `palomarVersion` must match the
 v-prefixed release tag, `releaseBuild` must be `true` only on the exact reviewed
 release commit, `androidVersionCode` must be greater than every APK ever
-published for `net.kaltner.foreman`, and `protocolVersion` changes only for an
+published for `net.kaltner.palomar`, and `protocolVersion` changes only for an
 intentional wire-compatibility change. The Linux status version, web package
 version, Android build defaults, and all three protocol constants are checked by:
 
 ```sh
-release_tag="v$(sed -n 's/^foremanVersion=//p' release.properties)"
+release_tag="v$(sed -n 's/^palomarVersion=//p' palomar-release.properties)"
 python3 scripts/verify_release.py --tag "$release_tag"
 ```
 
-The web and Android builds embed `foremanVersion` directly from this manifest
+The web and Android builds embed `palomarVersion` directly from this manifest
 for their offline About views. Android embeds the checked-out short commit by
-default. Set `FOREMAN_BUILD_COMMIT` to the artifact's source commit when
+default. Set `PALOMAR_BUILD_COMMIT` to the artifact's source commit when
 building distributable clients; committed web assets leave it unset so their
 rebuild stays deterministic. About labels clients from `releaseBuild=false`
 manifests as development builds. A release-preparation PR sets the chosen
@@ -29,7 +29,7 @@ version and `releaseBuild=true`; development resumes in a follow-up reviewed PR.
 Settings → About discovers only the stable channel: drafts, GitHub prereleases,
 and SemVer prerelease tags are excluded from ordinary update offers. A component
 release is supported only when its exact nonempty APK or Linux archive,
-`SHA256SUMS`, `SHA256SUMS.sig`, and `foreman-release-cert.pem` are uploaded
+`palomar-SHA256SUMS`, `palomar-SHA256SUMS.sig`, and `palomar-release-cert.pem` are uploaded
 without duplicate names. The checksum manifest is signed by the established
 Android release key and consumers pin its certificate fingerprint; GitHub
 metadata alone is never artifact verification. Automatic GitHub
@@ -47,7 +47,7 @@ recovery models. See `docs/server-updates.md` and
 Do not derive Android version code from a CI run number. Confirm the previous
 APK with `aapt2 dump badging`; Android cannot install a lower code over a higher
 one. The expected signing-certificate SHA-256 digest is public metadata in
-`release.properties` and must match the previous published APK.
+`palomar-release.properties` and must match the previous published APK.
 
 ## Candidate gates
 
@@ -115,9 +115,9 @@ exact `main` commit. A maintainer may then create and push the annotated tag:
 ```sh
 git switch main
 git pull --ff-only
-release_tag="v$(sed -n 's/^foremanVersion=//p' release.properties)"
+release_tag="v$(sed -n 's/^palomarVersion=//p' palomar-release.properties)"
 python3 scripts/verify_release.py --tag "$release_tag"
-git tag -a "$release_tag" -m "Foreman $release_tag"
+git tag -a "$release_tag" -m "Palomar $release_tag"
 git push origin "$release_tag"
 ```
 
@@ -128,7 +128,7 @@ or commit SHA.
 
 After the workflow succeeds, confirm the release page shows all three custom
 assets in addition to GitHub's two source links. Download the custom assets into
-an empty directory, run `sha256sum --check SHA256SUMS`, repeat APK
+an empty directory, run `sha256sum --check palomar-SHA256SUMS`, repeat APK
 signature/version inspection, list/extract the Linux archive, and perform one
 final install smoke test. If any post-publication verification fails, preserve
 the tag and release for audit, mark the release clearly, and publish a new higher

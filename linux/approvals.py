@@ -41,7 +41,7 @@ DECISION_LABELS = {
 
 
 class ApprovalError(ValueError):
-    """A safe error that can be returned to an authenticated Foreman client."""
+    """A safe error that can be returned to an authenticated Palomar client."""
 
 
 def bounded_text(value: Any, limit: int = MAX_TEXT) -> str | None:
@@ -70,7 +70,7 @@ def approval_key(request_id: Any) -> str:
 
 
 def bounded_approval_params(method: str, value: Any) -> dict[str, Any]:
-    """Copy only fields Foreman needs, with bounded collections and strings."""
+    """Copy only fields Palomar needs, with bounded collections and strings."""
     if not isinstance(value, dict):
         return {}
     result: dict[str, Any] = {}
@@ -381,4 +381,4 @@ class PendingApproval:
             if not _permission_subset(requested, granted):
                 raise ApprovalError("granted permissions must be a subset of the request")
             return {"permissions": granted, "scope": scope}, "grant"
-        raise ApprovalError("this request cannot be answered in Foreman")
+        raise ApprovalError("this request cannot be answered in Palomar")

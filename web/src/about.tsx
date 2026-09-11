@@ -1,24 +1,25 @@
 import { useState } from "react";
-import { ForemanLogo } from "./ForemanLogo";
+import { PalomarLogo } from "./PalomarLogo";
 import type { ReleaseUpdateSnapshot } from "./protocol";
 import type { ServerUpdateCheck, ServerUpdateOperation } from "./protocol";
 import { componentUpdateStatus, type ComponentUpdateStatus } from "./update-status";
 import { serverUpdatePhaseLabel, terminalUpdatePhases } from "./server-update";
 
-export const FOREMAN_REPOSITORY_URL = "https://github.com/mkaltner/foreman";
-export const FOREMAN_RELEASES_URL = `${FOREMAN_REPOSITORY_URL}/releases`;
-export const FOREMAN_LICENSE_URL = `${FOREMAN_REPOSITORY_URL}/blob/main/LICENSE`;
-export const FOREMAN_THIRD_PARTY_NOTICES_URL = `${FOREMAN_REPOSITORY_URL}/blob/main/THIRD_PARTY_NOTICES.md`;
+export const PALOMAR_REPOSITORY_URL = "https://github.com/kaltner-net/palomar";
+export const PALOMAR_RELEASES_URL = `${PALOMAR_REPOSITORY_URL}/releases`;
+export const PALOMAR_LICENSE_URL = `${PALOMAR_REPOSITORY_URL}/blob/main/LICENSE`;
+export const PALOMAR_THIRD_PARTY_NOTICES_URL = `${PALOMAR_REPOSITORY_URL}/blob/main/THIRD_PARTY_NOTICES.md`;
+export const KALTNER_WEBSITE_URL = "https://kaltner.net";
 
-export const WEB_CLIENT_VERSION = __FOREMAN_CLIENT_VERSION__;
-export const WEB_CLIENT_COMMIT = __FOREMAN_CLIENT_COMMIT__;
-export const WEB_RELEASE_BUILD = __FOREMAN_RELEASE_BUILD__;
+export const WEB_CLIENT_VERSION = __PALOMAR_CLIENT_VERSION__;
+export const WEB_CLIENT_COMMIT = __PALOMAR_CLIENT_COMMIT__;
+export const WEB_RELEASE_BUILD = __PALOMAR_RELEASE_BUILD__;
 
 const ABOUT_LINKS = [
-  { label: "GitHub repository", href: FOREMAN_REPOSITORY_URL, icon: "github" },
-  { label: "Current releases", href: FOREMAN_RELEASES_URL, icon: "release" },
-  { label: "License", href: FOREMAN_LICENSE_URL, icon: "document" },
-  { label: "Third-party notices", href: FOREMAN_THIRD_PARTY_NOTICES_URL, icon: "shield" },
+  { label: "GitHub repository", href: PALOMAR_REPOSITORY_URL, icon: "github" },
+  { label: "Current releases", href: PALOMAR_RELEASES_URL, icon: "release" },
+  { label: "License", href: PALOMAR_LICENSE_URL, icon: "document" },
+  { label: "Third-party notices", href: PALOMAR_THIRD_PARTY_NOTICES_URL, icon: "shield" },
 ] as const;
 
 export interface AboutSectionProps {
@@ -96,16 +97,16 @@ export function AboutSection({
   return (
     <section className="settings-card about-card" aria-labelledby="about-heading">
       <div className="about-identity">
-        <ForemanLogo large labelled />
+        <PalomarLogo large labelled />
         <div>
-          <h2 id="about-heading">Foreman</h2>
-          <p>Created by Michael Kaltner</p>
+          <h2 id="about-heading">Palomar</h2>
+          <p>Palomar is an open-source project created by <a href={KALTNER_WEBSITE_URL} target="_blank" rel="noreferrer noopener">Michael Kaltner</a>.</p>
         </div>
       </div>
       <div className="about-component-list">
         <section aria-labelledby="server-version-heading">
           <h3 id="server-version-heading">
-            {browserMatchesServer ? "Connected Foreman installation" : "Connected Foreman server"}
+            {browserMatchesServer ? "Connected Palomar installation" : "Connected Palomar server"}
           </h3>
           <p className="about-installed">
             <span>{connected ? "Server" : "Last connected server"}</span>
@@ -118,7 +119,7 @@ export function AboutSection({
           <UpdateStatus status={serverStatus} />
         </section>
         {!browserMatchesServer && <section aria-labelledby="web-version-heading">
-          <h3 id="web-version-heading">This browser’s Foreman web client</h3>
+          <h3 id="web-version-heading">This browser’s Palomar web client</h3>
           <p className="about-installed"><span>Build</span><strong>{clientBuildDescription(WEB_CLIENT_VERSION, WEB_CLIENT_COMMIT, WEB_RELEASE_BUILD)}</strong></p>
           <UpdateStatus status={webStatus} />
         </section>}
@@ -172,7 +173,7 @@ export function AboutSection({
         </dl>
         {updateReview.target && <a href={updateReview.target.releaseNotesUrl} target="_blank" rel="noreferrer noopener">Read release notes for {updateReview.target.tag}</a>}
         {updateReview.blockers.length ? <div className="warning" role="alert"><strong>Update blocked</strong><p>{updateReview.blockers.map((blocker) => `${blocker.count} ${({ workingSession: "working session", waitingSession: "waiting session", pendingApproval: "pending approval", pendingInput: "pending input" } as const)[blocker.category]}${blocker.count === 1 ? "" : "s"}`).join(", ")} must finish first. No transcript content is shown.</p></div> : <p>No working, waiting, approval, or input state currently blocks activation.</p>}
-        <p>Foreman will verify and stage the release, recheck session safety, restart only <code>foreman.service</code>, reconnect this client, and restore the previous payload automatically if health checking fails.</p>
+        <p>Palomar will verify and stage the release, recheck session safety, restart only <code>palomar.service</code>, reconnect this client, and restore the previous payload automatically if health checking fails.</p>
         <div className="dialog-actions">
           <button type="button" className="secondary" onClick={() => setUpdateReview(null)} disabled={updateBusy}>Cancel</button>
           <button type="button" className="primary" disabled={updateBusy || !updateReview.updateAvailable || updateReview.blockers.length > 0} onClick={() => {
@@ -185,7 +186,7 @@ export function AboutSection({
       </section>}
       {updateError && <p className="error-text" role="alert">{updateError}</p>}
       <p className="muted about-scope">Server updates install only signed official stable releases. Android APK installation remains a separate platform action.</p>
-      <nav className="about-links" aria-label="Foreman links">
+      <nav className="about-links" aria-label="Palomar links">
         {ABOUT_LINKS.map(({ label, href, icon }) => <a key={href} href={href} target="_blank" rel="noreferrer noopener">
           <AboutLinkIcon icon={icon} /><span>{label}</span>
         </a>)}

@@ -48,9 +48,9 @@ def main() -> None:
     except ValueError as error:
         raise SystemExit(str(error)) from error
     if actual != args.expected:
-        raise SystemExit("APK signing certificate does not match release.properties")
+        raise SystemExit("APK signing certificate does not match palomar-release.properties")
 
-    print("APK signing certificate matches release.properties")
+    print("APK signing certificate matches palomar-release.properties")
 
 
 if __name__ == "__main__":

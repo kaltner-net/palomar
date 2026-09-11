@@ -38,8 +38,8 @@ class ClaudeCodeTests(unittest.IsolatedAsyncioTestCase):
             bridge_path=bridge,
             env={
                 **os.environ,
-                "FOREMAN_CLAUDE_SDK_MODULE": FAKE_SDK,
-                "FOREMAN_CLAUDE_EXECUTABLE": "node",
+                "PALOMAR_CLAUDE_SDK_MODULE": FAKE_SDK,
+                "PALOMAR_CLAUDE_EXECUTABLE": "node",
             },
             restart_delays=restart_delays,
             query_timeout=query_timeout,

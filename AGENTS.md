@@ -1,10 +1,10 @@
-# Foreman agent guidelines
+# Palomar agent guidelines
 
 ## Definition of done
 
 - Follow a user-facing change through every affected surface instead of stopping at the first component. Check web and Android, settings, creation flows, lists, session views, status indicators, empty states, and reconnect/relaunch behavior as applicable.
 - Test the lifecycle implied by the requirement. Navigation-only verification is insufficient for behavior described as remembered, retained, backgrounded, reconnected, or restored.
-- Verify the running artifact, not only the source build. For a local web deployment, confirm the installed asset hash is the one served on port 8766 and that `foreman.service` is active.
+- Verify the running artifact, not only the source build. For a local web deployment, confirm the installed asset hash is the one served on port 8766 and that `palomar.service` is active.
 - Do not report a PR ready while relevant CI or review feedback is unresolved. When fixing a Greptile comment, reply with the concrete fix and resolve the thread after verification.
 
 ## UX state retention
@@ -34,8 +34,8 @@
 
 - Run focused tests while iterating, then the relevant full checks before handoff. Web changes normally require tests, typecheck, and build; Android changes normally require unit tests and lint/compile checks.
 - Do not assemble an Android APK for routine verification unless explicitly requested; the user normally builds through Android Studio. When an APK is requested, provide it with a mobile-clickable file link.
-- Building `web/dist` does not deploy it. Copy the built assets into the installed Foreman web payload and verify the served bundle when the user asks to stand up or deploy a branch locally.
-- Avoid unnecessary service restarts, but confirm the service is running after deployment so the user is not left to run `foreman start` manually.
+- Building `web/dist` does not deploy it. Copy the built assets into the installed Palomar web payload and verify the served bundle when the user asks to stand up or deploy a branch locally.
+- Avoid unnecessary service restarts, but confirm the service is running after deployment so the user is not left to run `palomar start` manually.
 
 ## Command and diagnostic hygiene
 

@@ -1,12 +1,12 @@
-# Foreman user guide
+# Palomar user guide
 
-Foreman presents the same host and session behavior through responsive web and
+Palomar presents the same host and session behavior through responsive web and
 native Android clients. Layout differs by platform, but provider rules,
 session state, approvals, input, and update semantics stay aligned.
 
 ## Hosts and pairing
 
-Run `foreman pair` on a Linux host to create a six-digit, single-use code that
+Run `palomar pair` on a Linux host to create a six-digit, single-use code that
 expires after ten minutes. Enter the host name or IP address, code, and a device
 label in Android or the web pairing screen. Run the command again for every
 additional client or host.
@@ -58,9 +58,9 @@ work. Codex also supports steering an active turn. Codex prompts and steers can
 include up to four JPEG, PNG, or WebP images. Claude image input is not yet
 supported.
 
-External Claude sessions are discoverable and resumable, but Foreman cannot
+External Claude sessions are discoverable and resumable, but Palomar cannot
 live-attach to the already-running external CLI process. Resuming brings the
-session under Foreman management with the same session identity.
+session under Palomar management with the same session identity.
 
 ## Live activity, approvals, and input
 
@@ -72,12 +72,12 @@ failed, denied, interrupted, unknown, approval, and input items remain visible
 in both modes.
 
 Codex approvals appear inline and expose only choices advertised by the active
-runtime. Foreman supports command, file-change, permission, and policy choices,
+runtime. Palomar supports command, file-change, permission, and policy choices,
 plus bounded choice, text, boolean, confirmation, and supported MCP input. A
-resolution from Foreman or Codex Desktop clears the pending request across
+resolution from Palomar or Codex Desktop clears the pending request across
 connected clients when Codex confirms it.
 
-Claude uses its native permission modes. Foreman does not translate Claude
+Claude uses its native permission modes. Palomar does not translate Claude
 permission callbacks into Codex approvals or silently approve unsupported
 requests.
 
@@ -86,35 +86,35 @@ requests.
 Provider account-usage panels show every limit exposed by the installed CLI.
 The compact dock names the limit with the least remaining capacity and notes
 when more limits are available; opening it shows each independent window and
-reset time. A cached marker means Foreman is retaining the last valid snapshot
+reset time. A cached marker means Palomar is retaining the last valid snapshot
 while it reconnects or waits for a fresher provider response.
 Session context panels show model, access, turn and compaction counts, token
 consumption, and remaining context when the provider supplies those values.
 
 Web and Android support System, Light, and Dark color modes with curated
-Foreman, Harbor, Grove, Ember, Dune, Slate, and High Contrast themes. Appearance
+Palomar, Harbor, Grove, Ember, Dune, Slate, and High Contrast themes. Appearance
 and organizer preferences are local to each client and scoped where necessary
 by host.
 
 ## Notifications and presence
 
 Android can monitor Codex and managed Claude lifecycle events in the
-background. Supported browsers can notify for Codex events while Foreman stays
+background. Supported browsers can notify for Codex events while Palomar stays
 open in a background tab. Notification preferences cover approvals/input,
 failures, completions, interruptions, long-running work, quiet hours, and
 repository overrides.
 
-Foreman reports the visibly focused provider/session pair over its authenticated
+Palomar reports the visibly focused provider/session pair over its authenticated
 connection. Other paired clients suppress only redundant alerts for that exact
 session; viewing a different session does not suppress delivery. Android uses
 one foreground-service notification for monitoring and folds attention and
-outcomes into that entry rather than stacking duplicate Foreman notifications.
+outcomes into that entry rather than stacking duplicate Palomar notifications.
 Background Android monitoring is intentionally limited to the active host.
 
 ## Android
 
 Download and sideload the signed APK from the matching
-[GitHub release](https://github.com/mkaltner/foreman/releases). Android uses port
+[GitHub release](https://github.com/kaltner-net/palomar/releases). Android uses port
 `8765` when no port is provided and protects the persistent token with Android
 Keystore.
 
@@ -125,7 +125,7 @@ when available. Android Back, Home, and Sessions provide explicit routes back
 from a conversation.
 
 **Settings → About** compares the installed APK with complete official stable
-releases. Foreman downloads the exact APK, verifies the signed checksum and
+releases. Palomar downloads the exact APK, verifies the signed checksum and
 package signer, and then hands it to Android's system installer. Android always
 requires explicit installation confirmation. See the
 [Android APK update model](android-apk-updates.md).
@@ -136,9 +136,9 @@ APK.
 
 ## Web
 
-The web client is bundled with the Linux installation. `foreman web` prints its
+The web client is bundled with the Linux installation. `palomar web` prints its
 configured URL, normally `http://HOST:8766`; it does not start another process.
-The same `foreman start`, `stop`, and `restart` commands control both web and
+The same `palomar start`, `stop`, and `restart` commands control both web and
 Android listeners.
 
 The web client supports durable host/session URLs, browser Back and Forward,
@@ -152,12 +152,12 @@ place the web listener behind a trusted same-origin HTTPS reverse proxy. A
 minimal Caddy configuration is:
 
 ```caddyfile
-foreman.example.com {
+palomar.example.com {
     reverse_proxy 127.0.0.1:8766
 }
 ```
 
-Add the proxy's exact HTTPS origin to `FOREMAN_WEB_ORIGINS` when it differs from
+Add the proxy's exact HTTPS origin to `PALOMAR_WEB_ORIGINS` when it differs from
 the listener origin. The client certificate must be trusted by the browser.
 
 ## Service and updates
@@ -165,41 +165,41 @@ the listener origin. The client certificate must be trusted by the browser.
 The common service commands are:
 
 ```sh
-foreman start
-foreman stop
-foreman restart
-foreman status
-foreman logs
+palomar start
+palomar stop
+palomar restart
+palomar status
+palomar logs
 ```
 
 On a headless host, enable systemd user lingering as described in the
-[installation guide](install.md) so Foreman survives the final logout.
+[installation guide](install.md) so Palomar survives the final logout.
 
 Check and install stable server updates with:
 
 ```sh
-foreman update --check
-foreman update
-foreman update --status
+palomar update --check
+palomar update
+palomar update --status
 ```
 
 Web and Android expose the same server-update review in **Settings → About**.
 Activation requires full access, refuses to interrupt active or waiting work
 and pending approval/input, verifies official signed artifacts, restarts only
-`foreman.service`, health-checks the replacement, and restores the previous
+`palomar.service`, health-checks the replacement, and restores the previous
 payload when activation fails. See [recoverable server updates](server-updates.md).
 
 ## Known limitations
 
 - Direct TCP and HTTP transports are authenticated but not encrypted.
 - Android distribution currently requires sideloading.
-- Browser notifications require Foreman to remain open in a tab.
+- Browser notifications require Palomar to remain open in a tab.
 - Desktop live co-presence depends on shared Codex socket attachment; fallback
   mode remains fully usable but is not live-attached to Codex Desktop.
 - External Claude sessions are resumable but not live-attachable or
-  interruptible until Foreman resumes them.
+  interruptible until Palomar resumes them.
 - Claude Remote Control, Claude images, Claude transcript search, and Claude
-  approval responses from Foreman clients are not supported.
+  approval responses from Palomar clients are not supported.
 - Arbitrary JSON Schema, nested dynamic forms, URL elicitation, and OpenAI
   extended forms are not supported.
 - Multi-host snapshots and recent dashboard activity are bounded client-local

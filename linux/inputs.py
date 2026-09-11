@@ -230,7 +230,7 @@ def _normalize_mcp_field(
 def _normalize_mcp(params: dict[str, Any]) -> tuple[list[dict[str, Any]], str | None]:
     mode = params.get("mode")
     if mode != "form":
-        return [], f"MCP elicitation mode {mode!r} is not supported by Foreman."
+        return [], f"MCP elicitation mode {mode!r} is not supported by Palomar."
     schema = params.get("requestedSchema")
     if not isinstance(schema, dict) or schema.get("type") != "object":
         return [], "MCP elicitation requires a flat object schema."
@@ -403,7 +403,7 @@ class PendingInput:
         if action != "accept":
             raise ApprovalError("input action is unavailable")
         if not self.supported:
-            raise ApprovalError("this input schema is not supported in Foreman")
+            raise ApprovalError("this input schema is not supported in Palomar")
         values = response.get("values")
         if not isinstance(values, dict):
             raise ApprovalError("input values must be an object")

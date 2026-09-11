@@ -1,4 +1,4 @@
-"""Signed, durable, externally activated Foreman server updates."""
+"""Signed, durable, externally activated Palomar server updates."""
 
 from __future__ import annotations
 
@@ -26,10 +26,10 @@ from release_updates import GITHUB_RELEASE_URL_PREFIX, SemVer
 
 
 UPDATE_SCHEMA = 1
-SOURCE = "Official Foreman GitHub releases"
-SOURCE_URL = "https://github.com/mkaltner/foreman/releases"
-RELEASE_API_PREFIX = "https://api.github.com/repos/mkaltner/foreman/releases/tags/"
-DOWNLOAD_PREFIX = "https://github.com/mkaltner/foreman/releases/download/"
+SOURCE = "Official Palomar GitHub releases"
+SOURCE_URL = "https://github.com/kaltner-net/palomar/releases"
+RELEASE_API_PREFIX = "https://api.github.com/repos/kaltner-net/palomar/releases/tags/"
+DOWNLOAD_PREFIX = "https://github.com/kaltner-net/palomar/releases/download/"
 FINAL_DOWNLOAD_HOSTS = {
     "github.com",
     "objects.githubusercontent.com",
@@ -55,18 +55,18 @@ ACTIVATION_PHASES = {
     "healthChecking",
     "rollingBack",
 }
-OPERATION_ID = re.compile(r"^fmu_[A-Za-z0-9_-]{16,80}$")
+OPERATION_ID = re.compile(r"^pmu_[A-Za-z0-9_-]{16,80}$")
 REQUEST_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
 CERT_DIGEST = re.compile(r"^[0-9a-f]{64}$")
 CHECKSUM_LINE = re.compile(r"^([0-9a-fA-F]{64}) [ *]([^/]+)$")
 
 REQUIRED_ARCHIVE_FILES = {
     "install.sh",
-    "release.properties",
-    "linux/foreman",
-    "linux/foreman.service",
-    "linux/foreman-update-recovery.service",
-    "linux/foreman_service.py",
+    "palomar-release.properties",
+    "linux/palomar",
+    "linux/palomar.service",
+    "linux/palomar-update-recovery.service",
+    "linux/palomar_service.py",
     "linux/codex.py",
     "linux/approvals.py",
     "linux/inputs.py",
@@ -78,11 +78,18 @@ REQUIRED_ARCHIVE_FILES = {
     "linux/release_updates.py",
     "linux/server_update.py",
     "linux/update_cli.py",
-    "linux/foreman_updater.py",
+    "linux/palomar_updater.py",
+    "linux/palomar_uninstall",
+    "linux/completions/palomar.bash",
+    "linux/completions/_palomar",
+    "linux/completions/palomar.fish",
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md",
     "web/dist/index.html",
 }
 INSTALL_MODULES = (
-    "foreman_service.py",
+    "palomar_service.py",
     "codex.py",
     "approvals.py",
     "inputs.py",
@@ -94,6 +101,7 @@ INSTALL_MODULES = (
     "release_updates.py",
     "server_update.py",
     "update_cli.py",
+    "palomar_uninstall",
 )
 
 
@@ -236,7 +244,7 @@ class OperationStore:
         )
 
     def _prune(self) -> None:
-        records = sorted(self.records.glob("fmu_*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
+        records = sorted(self.records.glob("pmu_*.json"), key=lambda item: item.stat().st_mtime, reverse=True)
         for stale in records[20:]:
             try:
                 operation_id = stale.stem
@@ -252,7 +260,7 @@ class UrlFetcher:
             url,
             headers={
                 "Accept": "application/vnd.github+json" if url.startswith(RELEASE_API_PREFIX) else "application/octet-stream",
-                "User-Agent": "Foreman-server-updater",
+                "User-Agent": "Palomar-server-updater",
                 "X-GitHub-Api-Version": "2022-11-28",
             },
         )
@@ -287,11 +295,11 @@ def release_assets(body: bytes, tag: str) -> dict[str, tuple[str, int]]:
     ):
         raise UpdateFailure("untrustedSource", "The release metadata is not an installable stable release.")
     expected = {
-        f"foreman-{tag}.apk",
-        f"foreman-linux-{tag}.tar.gz",
-        "SHA256SUMS",
-        "SHA256SUMS.sig",
-        "foreman-release-cert.pem",
+        f"palomar-{tag}.apk",
+        f"palomar-linux-{tag}.tar.gz",
+        "palomar-SHA256SUMS",
+        "palomar-SHA256SUMS.sig",
+        "palomar-release-cert.pem",
     }
     raw_assets = release.get("assets")
     if not isinstance(raw_assets, list) or len(raw_assets) > 50:
@@ -311,9 +319,9 @@ def release_assets(body: bytes, tag: str) -> dict[str, tuple[str, int]]:
         found[name] = (url, size)
     if set(found) != expected:
         raise UpdateFailure("missingAsset", "The release is missing required verified assets.")
-    if found[f"foreman-linux-{tag}.tar.gz"][1] > MAX_ARCHIVE_BYTES:
+    if found[f"palomar-linux-{tag}.tar.gz"][1] > MAX_ARCHIVE_BYTES:
         raise UpdateFailure("downloadTooLarge", "The Linux release archive exceeds the allowed size.")
-    for name in ("SHA256SUMS", "SHA256SUMS.sig", "foreman-release-cert.pem"):
+    for name in ("palomar-SHA256SUMS", "palomar-SHA256SUMS.sig", "palomar-release-cert.pem"):
         if found[name][1] > MAX_SMALL_ASSET_BYTES:
             raise UpdateFailure("downloadTooLarge", "A release verification asset exceeds the allowed size.")
     return found
@@ -351,7 +359,7 @@ def verify_certificate_and_signature(
         if verified.returncode != 0:
             raise UpdateFailure("verificationFailed", "The release manifest signature is invalid.")
     except FileNotFoundError as error:
-        raise UpdateFailure("verificationUnavailable", "OpenSSL is required to verify Foreman releases.") from error
+        raise UpdateFailure("verificationUnavailable", "OpenSSL is required to verify Palomar releases.") from error
     except subprocess.TimeoutExpired as error:
         raise UpdateFailure("verificationFailed", "Release signature verification timed out.") from error
     finally:
@@ -366,7 +374,7 @@ def signed_checksums(manifest: Path, tag: str) -> dict[str, str]:
         lines = manifest.read_text(encoding="ascii").splitlines()
     except (OSError, UnicodeError) as error:
         raise UpdateFailure("verificationFailed", "The signed checksum manifest is invalid.") from error
-    expected = {f"foreman-{tag}.apk", f"foreman-linux-{tag}.tar.gz"}
+    expected = {f"palomar-{tag}.apk", f"palomar-linux-{tag}.tar.gz"}
     checksums: dict[str, str] = {}
     for line in lines:
         match = CHECKSUM_LINE.fullmatch(line)
@@ -422,7 +430,7 @@ def safe_extract(archive: Path, destination: Path) -> None:
                         raise UpdateFailure("verificationFailed", "The release archive exceeds the extraction limit.")
             missing = sorted(REQUIRED_ARCHIVE_FILES - names)
             if missing:
-                raise UpdateFailure("missingAsset", "The Linux archive is missing required Foreman files.")
+                raise UpdateFailure("missingAsset", "The Linux archive is missing required Palomar files.")
             # Every member is validated above; avoid version-dependent tarfile
             # extraction-filter availability on supported Python 3.10+ hosts.
             bundle.extractall(destination, members=members)
@@ -433,9 +441,9 @@ def safe_extract(archive: Path, destination: Path) -> None:
 
 
 def build_install_layout(extracted: Path, staged_install: Path, target_version: str, protocol_version: int, trust: str) -> None:
-    metadata = properties(extracted / "release.properties")
+    metadata = properties(extracted / "palomar-release.properties")
     if (
-        metadata.get("foremanVersion") != target_version
+        metadata.get("palomarVersion") != target_version
         or metadata.get("releaseBuild") != "true"
         or metadata.get("protocolVersion") != str(protocol_version)
         or metadata.get("androidSigningCertificateSha256") != trust
@@ -447,13 +455,13 @@ def build_install_layout(extracted: Path, staged_install: Path, target_version: 
     for directory in ("vendor", "claude_bridge"):
         shutil.copytree(extracted / "linux" / directory, staged_install / directory)
     shutil.copytree(extracted / "web" / "dist", staged_install / "web")
-    shutil.copy2(extracted / "release.properties", staged_install / "release.properties")
+    shutil.copy2(extracted / "palomar-release.properties", staged_install / "palomar-release.properties")
     subprocess.run(
         ["python3", "-m", "compileall", "-q", str(staged_install)],
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60,
     )
     subprocess.run(
-        ["python3", str(staged_install / "foreman_service.py"), "--help"],
+        ["python3", str(staged_install / "palomar_service.py"), "--help"],
         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=20,
     )
 
@@ -535,7 +543,7 @@ class ServerUpdateManager:
         if latest and latest.get("phase") == "recoveryRequired":
             raise UpdateFailure(
                 "updateRecoveryRequired",
-                "Recover the previous update with `foreman update --recover` before starting another update.",
+                "Recover the previous update with `palomar update --recover` before starting another update.",
             )
         if latest and latest.get("phase") not in TERMINAL_PHASES:
             raise UpdateFailure("updateConcurrent", "Another update operation is already running.")
@@ -562,7 +570,7 @@ class ServerUpdateManager:
             if not check.get("updateAvailable") or not isinstance(target, dict):
                 raise UpdateFailure(
                     "alreadyCurrent" if self.release_build else "developmentBuild",
-                    "Foreman is already current." if self.release_build else "Development builds cannot use automatic server updates.",
+                    "Palomar is already current." if self.release_build else "Development builds cannot use automatic server updates.",
                 )
             if self.external_helper_required and (
                 not self.helper_file.is_file()
@@ -572,13 +580,13 @@ class ServerUpdateManager:
             ):
                 raise UpdateFailure(
                     "updateUnavailable",
-                    "The installed external updater or a required verification tool is unavailable. Reinstall Foreman from a verified release archive.",
+                    "The installed external updater or a required verification tool is unavailable. Reinstall Palomar from a verified release archive.",
                 )
             with self.store.lock():
                 existing = self._existing_operation(request_id)
                 if existing is not None:
                     return public_operation(existing) or {}
-                operation_id = "fmu_" + os.urandom(18).hex()
+                operation_id = "pmu_" + os.urandom(18).hex()
                 operation = self.store.write({
                     "schema": UPDATE_SCHEMA,
                     "id": operation_id,
@@ -595,7 +603,7 @@ class ServerUpdateManager:
                     "releaseNotesUrl": target["releaseNotesUrl"],
                     "progress": 5,
                     "createdAt": utc_now(self.clock),
-                    "message": "Downloading the verified Foreman release.",
+                    "message": "Downloading the verified Palomar release.",
                 })
             await self._publish(operation)
             self.task = asyncio.create_task(self._prepare(operation_id))
@@ -624,10 +632,10 @@ class ServerUpdateManager:
             )
             assets = release_assets(manifest_body, tag)
             wanted = {
-                f"foreman-linux-{tag}.tar.gz": MAX_ARCHIVE_BYTES,
-                "SHA256SUMS": MAX_SMALL_ASSET_BYTES,
-                "SHA256SUMS.sig": MAX_SMALL_ASSET_BYTES,
-                "foreman-release-cert.pem": MAX_SMALL_ASSET_BYTES,
+                f"palomar-linux-{tag}.tar.gz": MAX_ARCHIVE_BYTES,
+                "palomar-SHA256SUMS": MAX_SMALL_ASSET_BYTES,
+                "palomar-SHA256SUMS.sig": MAX_SMALL_ASSET_BYTES,
+                "palomar-release-cert.pem": MAX_SMALL_ASSET_BYTES,
             }
             for index, (name, maximum) in enumerate(wanted.items(), 1):
                 body = await asyncio.to_thread(self.fetcher.fetch, assets[name][0], maximum)
@@ -638,13 +646,13 @@ class ServerUpdateManager:
             await self._transition(operation_id, "verifying", progress=50, message="Verifying release provenance and checksums.")
             await asyncio.to_thread(
                 verify_certificate_and_signature,
-                downloads / "foreman-release-cert.pem",
-                downloads / "SHA256SUMS.sig",
-                downloads / "SHA256SUMS",
+                downloads / "palomar-release-cert.pem",
+                downloads / "palomar-SHA256SUMS.sig",
+                downloads / "palomar-SHA256SUMS",
                 self.trust_fingerprint,
             )
-            checksums = signed_checksums(downloads / "SHA256SUMS", tag)
-            archive = downloads / f"foreman-linux-{tag}.tar.gz"
+            checksums = signed_checksums(downloads / "palomar-SHA256SUMS", tag)
+            archive = downloads / f"palomar-linux-{tag}.tar.gz"
             if sha256_file(archive) != checksums[archive.name]:
                 raise UpdateFailure("verificationFailed", "The Linux release archive checksum does not match.")
             await self._transition(operation_id, "staging", progress=65, message="Building and validating the replacement payload.")
@@ -658,9 +666,9 @@ class ServerUpdateManager:
                 self.protocol_version,
                 self.trust_fingerprint,
             )
-            shutil.copy2(extracted / "linux" / "foreman", operation_dir / "staged-launcher")
-            shutil.copy2(extracted / "linux" / "foreman.service", operation_dir / "staged-unit")
-            shutil.copy2(extracted / "linux" / "foreman_updater.py", operation_dir / "staged-helper")
+            shutil.copy2(extracted / "linux" / "palomar", operation_dir / "staged-launcher")
+            shutil.copy2(extracted / "linux" / "palomar.service", operation_dir / "staged-unit")
+            shutil.copy2(extracted / "linux" / "palomar_updater.py", operation_dir / "staged-helper")
             os.chmod(operation_dir / "staged-launcher", 0o755)
             os.chmod(operation_dir / "staged-helper", 0o755)
 
@@ -762,7 +770,7 @@ class ServerUpdateManager:
             "--property=Restart=on-failure",
             "--property=RestartSec=1s",
             "--property=RestartPreventExitStatus=1 2 3 4",
-            f"--unit=foreman-update-{operation_id}",
+            f"--unit=palomar-update-{operation_id}",
             str(self.helper_file),
             "--operation", operation_id,
             "--state-directory", str(self.store.root.parent),
@@ -792,7 +800,7 @@ def _systemctl(*arguments: str) -> None:
         timeout=30,
     )
     if result.returncode != 0:
-        raise UpdateFailure("serviceControlFailed", "The Foreman service could not be restarted.")
+        raise UpdateFailure("serviceControlFailed", "The Palomar service could not be restarted.")
 
 
 def _health(port: int, version: str, protocol_version: int, timeout_seconds: int = 45) -> bool:
@@ -808,7 +816,7 @@ def _health(port: int, version: str, protocol_version: int, timeout_seconds: int
             value = json.loads(body)
             if (
                 response.status == 200
-                and value.get("foremanVersion") == version
+                and value.get("palomarVersion") == version
                 and value.get("protocolVersion") == protocol_version
             ):
                 return True
@@ -860,9 +868,9 @@ def _rollback_external_update(
                 return 2
             store.transition(
                 operation_id, "rollingBack", progress=94,
-                message="The update failed; restoring the previous Foreman payload.",
+                message="The update failed; restoring the previous Palomar payload.",
             )
-            _systemctl("stop", "foreman.service")
+            _systemctl("stop", "palomar.service")
             if (backup / "install").is_dir():
                 if install_directory.exists():
                     shutil.rmtree(failed_install, ignore_errors=True)
@@ -872,7 +880,7 @@ def _rollback_external_update(
                 shutil.copytree(backup / "install", restore_install)
                 os.replace(restore_install, install_directory)
             elif not install_directory.is_dir():
-                raise UpdateFailure("rollbackPayloadMissing", "The previous Foreman payload is unavailable.")
+                raise UpdateFailure("rollbackPayloadMissing", "The previous Palomar payload is unavailable.")
 
             prepared = operation.get("activationPrepared") is True
             for destination, saved, existed_key in (
@@ -892,13 +900,13 @@ def _rollback_external_update(
                 except FileNotFoundError:
                     pass
             _systemctl("daemon-reload")
-            _systemctl("restart", "foreman.service")
+            _systemctl("restart", "palomar.service")
             protocol_version = int(operation["protocolVersion"])
             if not _health(health_port, operation["currentVersion"], protocol_version):
                 raise UpdateFailure("rollbackHealthFailed", "The restored service did not pass its health check.")
             store.transition(
                 operation_id, "rolledBack", progress=100, resultCode="rollbackSucceeded",
-                message="The update failed and the previous Foreman release was restored successfully.",
+                message="The update failed and the previous Palomar release was restored successfully.",
             )
             shutil.rmtree(operation_dir, ignore_errors=True)
             return 1
@@ -906,7 +914,7 @@ def _rollback_external_update(
         store.transition(
             operation_id, "recoveryRequired", progress=100, resultCode="rollbackFailed",
             message="Automatic rollback failed. Run the local recovery command before deleting update data.",
-            recoveryCommand="foreman update --recover",
+            recoveryCommand="palomar update --recover",
         )
         return 3
 
@@ -945,7 +953,7 @@ def run_external_helper(
             operation = store.read(operation_id)
             if operation is None or operation.get("phase") != "activationScheduled":
                 return 2
-            store.transition(operation_id, "activating", progress=84, message="Activating the staged Foreman payload.")
+            store.transition(operation_id, "activating", progress=84, message="Activating the staged Palomar payload.")
             backup.mkdir(parents=True, mode=0o700)
             existence: dict[str, bool] = {}
             for destination, saved in (
@@ -958,7 +966,7 @@ def run_external_helper(
                     shutil.copy2(destination, saved)
             store.transition(
                 operation_id, "activating", progress=84,
-                message="Activating the staged Foreman payload.",
+                message="Activating the staged Palomar payload.",
                 activationPrepared=True,
                 launcherExisted=existence["launcherExisted"],
                 unitExisted=existence["unitExisted"],
@@ -981,15 +989,15 @@ def run_external_helper(
             _replace_file(operation_dir / "staged-launcher", launcher_file)
             _replace_file(operation_dir / "staged-unit", unit_file)
             _replace_file(operation_dir / "staged-helper", helper_file)
-            store.transition(operation_id, "restarting", progress=88, message="Restarting Foreman with the staged payload.")
+            store.transition(operation_id, "restarting", progress=88, message="Restarting Palomar with the staged payload.")
             _systemctl("daemon-reload")
-            _systemctl("restart", "foreman.service")
-            store.transition(operation_id, "healthChecking", progress=92, message="Checking the restarted Foreman version and protocol.")
+            _systemctl("restart", "palomar.service")
+            store.transition(operation_id, "healthChecking", progress=92, message="Checking the restarted Palomar version and protocol.")
             if not _health(health_port, operation["targetVersion"], int(operation["protocolVersion"])):
                 raise UpdateFailure("healthCheckFailed", "The updated service did not pass its health check.")
             store.transition(
                 operation_id, "succeeded", progress=100, resultCode="updated",
-                message=f"Foreman {operation['targetVersion']} is installed and healthy.",
+                message=f"Palomar {operation['targetVersion']} is installed and healthy.",
             )
             shutil.rmtree(operation_dir, ignore_errors=True)
             return 0
@@ -1033,7 +1041,7 @@ def recover_latest(
     if not (backup / "install").exists():
         raise UpdateFailure("recoveryUnavailable", "The retained recovery payload is unavailable.")
     with store.lock(blocking=False):
-        _systemctl("stop", "foreman.service")
+        _systemctl("stop", "palomar.service")
         if install_directory.exists():
             failed = operation_dir / "failed-recovery-install"
             if failed.exists():
@@ -1051,7 +1059,7 @@ def recover_latest(
             if saved.exists():
                 shutil.copy2(saved, destination)
         _systemctl("daemon-reload")
-        _systemctl("restart", "foreman.service")
+        _systemctl("restart", "palomar.service")
         try:
             protocol_version = int(operation.get("protocolVersion", 0))
             health_port = int(operation.get("healthPort", 8766))
@@ -1066,16 +1074,16 @@ def recover_latest(
             store.transition(
                 operation["id"], "recoveryRequired", progress=100,
                 resultCode="manualRecoveryHealthFailed",
-                message="The previous payload was restored but did not pass its health check. Inspect `systemctl --user status foreman.service` before retrying recovery.",
-                recoveryCommand="foreman update --recover",
+                message="The previous payload was restored but did not pass its health check. Inspect `systemctl --user status palomar.service` before retrying recovery.",
+                recoveryCommand="palomar update --recover",
             )
             raise UpdateFailure(
                 "recoveryHealthFailed",
-                "The restored Foreman service did not pass its health check. Inspect `systemctl --user status foreman.service`.",
+                "The restored Palomar service did not pass its health check. Inspect `systemctl --user status palomar.service`.",
             )
         store.transition(
             operation["id"], "rolledBack", progress=100, resultCode="manualRecoverySucceeded",
-            message="The retained previous Foreman payload was restored. Check service status.",
+            message="The retained previous Palomar payload was restored. Check service status.",
         )
         shutil.rmtree(operation_dir, ignore_errors=True)
     return 0

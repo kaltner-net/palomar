@@ -12,11 +12,11 @@ const phases = new Set<ServerUpdatePhase>([
   "rolledBack", "recoveryRequired", "blocked", "failed", "interrupted",
 ]);
 const blockerCategories = new Set(["workingSession", "waitingSession", "pendingApproval", "pendingInput"]);
-const officialSource = "https://github.com/mkaltner/foreman/releases";
-const notesPrefix = "https://github.com/mkaltner/foreman/releases/tag/v";
-const officialSourceLabel = "Official Foreman GitHub releases";
+const officialSource = "https://github.com/kaltner-net/palomar/releases";
+const notesPrefix = "https://github.com/kaltner-net/palomar/releases/tag/v";
+const officialSourceLabel = "Official Palomar GitHub releases";
 const stableVersion = /^\d+\.\d+\.\d+$/;
-const operationId = /^fmu_[A-Za-z0-9_-]{16,80}$/;
+const operationId = /^pmu_[A-Za-z0-9_-]{16,80}$/;
 
 export const terminalUpdatePhases = new Set<ServerUpdatePhase>([
   "succeeded", "rolledBack", "recoveryRequired", "blocked", "failed", "interrupted",
@@ -51,7 +51,7 @@ export function normalizeServerUpdateOperation(value: unknown): ServerUpdateOper
     || (raw.completedAt !== undefined && !text(raw.completedAt, 40))
     || (raw.resultCode !== undefined && !text(raw.resultCode, 80))
     || (raw.message !== undefined && !text(raw.message, 500))
-    || (raw.recoveryCommand !== undefined && raw.recoveryCommand !== "foreman update --recover")
+    || (raw.recoveryCommand !== undefined && raw.recoveryCommand !== "palomar update --recover")
   ) return null;
   return {
     id, phase, currentVersion, targetVersion, source, sourceUrl, releaseNotesUrl,
@@ -59,7 +59,7 @@ export function normalizeServerUpdateOperation(value: unknown): ServerUpdateOper
     ...(text(raw.completedAt, 40) ? { completedAt: raw.completedAt } : {}),
     ...(text(raw.resultCode, 80) ? { resultCode: raw.resultCode } : {}),
     ...(text(raw.message, 500) ? { message: raw.message } : {}),
-    ...(raw.recoveryCommand === "foreman update --recover" ? { recoveryCommand: raw.recoveryCommand } : {}),
+    ...(raw.recoveryCommand === "palomar update --recover" ? { recoveryCommand: raw.recoveryCommand } : {}),
   };
 }
 
@@ -108,14 +108,14 @@ export function serverUpdatePhaseLabel(phase: ServerUpdatePhase): string {
   return ({
     downloading: "Downloading", verifying: "Verifying signature",
     staging: "Staging", activationScheduled: "Activation scheduled", activating: "Activating",
-    restarting: "Restarting Foreman", healthChecking: "Health checking",
+    restarting: "Restarting Palomar", healthChecking: "Health checking",
     rollingBack: "Rolling back", succeeded: "Update complete", rolledBack: "Previous version restored",
     recoveryRequired: "Recovery required", blocked: "Blocked by active work",
     failed: "Update failed", interrupted: "Update interrupted",
   } as Record<ServerUpdatePhase, string>)[phase];
 }
 
-const operationKey = "foreman.server-update-operation.v1";
+const operationKey = "palomar.server-update-operation.v1";
 
 export function loadServerUpdateOperationId(hostId: string, storage: Storage = localStorage): string | null {
   const value = storage.getItem(`${operationKey}.${hostId}`);
@@ -123,7 +123,7 @@ export function loadServerUpdateOperationId(hostId: string, storage: Storage = l
 }
 
 export function saveServerUpdateOperationId(hostId: string, operationId: string, storage: Storage = localStorage): void {
-  if (/^fmu_[A-Za-z0-9_-]{16,80}$/.test(operationId)) storage.setItem(`${operationKey}.${hostId}`, operationId);
+  if (/^pmu_[A-Za-z0-9_-]{16,80}$/.test(operationId)) storage.setItem(`${operationKey}.${hostId}`, operationId);
 }
 
 export function forgetServerUpdateOperationId(hostId: string, storage: Storage = localStorage): void {

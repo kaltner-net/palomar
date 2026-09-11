@@ -64,14 +64,14 @@ jobs:
             echo "Android signing secrets are not configured; see docs/releasing.md" >&2
             exit 1
           fi
-          keystore_path="$RUNNER_TEMP/foreman-release.jks"
+          keystore_path="$RUNNER_TEMP/palomar-release.jks"
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
           chmod 600 "$keystore_path"
           {
-            echo "FOREMAN_ANDROID_KEYSTORE=$keystore_path"
-            echo "FOREMAN_ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
-            echo "FOREMAN_ANDROID_KEY_ALIAS=$KEY_ALIAS"
-            echo "FOREMAN_ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+            echo "PALOMAR_ANDROID_KEYSTORE=$keystore_path"
+            echo "PALOMAR_ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "PALOMAR_ANDROID_KEY_ALIAS=$KEY_ALIAS"
+            echo "PALOMAR_ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
           } >> "$GITHUB_ENV"
       - name: Test Linux service
         run: |
@@ -105,16 +105,16 @@ jobs:
           mkdir -p dist
           apk="android/app/build/outputs/apk/release/app-release.apk"
           [[ -f "$apk" ]] || fail "Signed release APK was not produced at $apk"
-          cp "$apk" "dist/foreman-${RELEASE_TAG}.apk"
+          cp "$apk" "dist/palomar-${RELEASE_TAG}.apk"
           tar --exclude='__pycache__' --exclude='*.py[co]' \
             --exclude='linux/claude_bridge/bridge.test.mjs' \
             --exclude='linux/claude_bridge/test_fake_sdk.mjs' \
             --exclude='linux/claude_bridge/node_modules/.bin' \
-            -czf "dist/foreman-linux-${RELEASE_TAG}.tar.gz" \
-            install.sh release.properties requirements.txt linux web/dist \
-            scripts/vendor_python_dependencies.sh docs README.md LICENSE THIRD_PARTY_NOTICES.md
-          (cd dist && sha256sum foreman-* > SHA256SUMS)
-          bash scripts/sign_release_manifest.sh dist/SHA256SUMS dist
+            -czf "dist/palomar-linux-${RELEASE_TAG}.tar.gz" \
+            install.sh palomar-release.properties requirements.txt linux web/dist \
+            scripts/vendor_python_dependencies.sh docs README.md LICENSE NOTICE THIRD_PARTY_NOTICES.md
+          (cd dist && sha256sum palomar-* > palomar-SHA256SUMS)
+          bash scripts/sign_release_manifest.sh dist/palomar-SHA256SUMS dist
           bash scripts/verify_release_payload.sh "$RELEASE_TAG" dist
       - name: Create draft GitHub release
         env:
@@ -128,7 +128,7 @@ jobs:
             "$RELEASE_TAG"
             --draft
             --verify-tag
-            --title "Foreman $RELEASE_TAG"
+            --title "Palomar $RELEASE_TAG"
           )
           notes_file="docs/releases/${RELEASE_TAG#v}.md"
           if [[ -f "$notes_file" ]]; then
@@ -145,7 +145,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload "$RELEASE_TAG" dist/*
-          manifest="$RUNNER_TEMP/foreman-release-manifest.json"
+          manifest="$RUNNER_TEMP/palomar-release-manifest.json"
           release_api_url="$(gh release view "$RELEASE_TAG" --json apiUrl --jq .apiUrl)"
           gh api "${release_api_url#https://api.github.com/}" > "$manifest"
           python3 scripts/verify_release_assets.py --tag "$RELEASE_TAG" --manifest "$manifest"
@@ -162,7 +162,7 @@ jobs:
             publish_args+=(--latest)
           fi
           gh release edit "${publish_args[@]}"
-          published="$RUNNER_TEMP/foreman-published-release.json"
+          published="$RUNNER_TEMP/palomar-published-release.json"
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$published"
           python3 scripts/verify_release_assets.py --tag "$RELEASE_TAG" --manifest "$published"
           python3 - "$published" <<'PY'

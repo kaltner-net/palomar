@@ -5,7 +5,7 @@ import type { ApprovalRequest, ServiceStatus, SessionSummary } from "./protocol"
 
 const now = 1_720_000_000_000;
 const status: ServiceStatus = {
-  foremanVersion: "0.1.0-alpha.3",
+  palomarVersion: "0.1.0-alpha.3",
   connected: true,
   uptimeSeconds: 1234,
   codex: {
@@ -22,7 +22,7 @@ const status: ServiceStatus = {
 const sessions: SessionSummary[] = [
   {
     id: "active",
-    repository: "/projects/foreman",
+    repository: "/projects/palomar",
     title: "Build dashboard",
     status: "working",
     activeTurnId: "turn-1",
@@ -35,7 +35,7 @@ const sessions: SessionSummary[] = [
   },
   {
     id: "waiting",
-    repository: "/projects/foreman",
+    repository: "/projects/palomar",
     title: "Deploy release",
     status: "waiting",
     activeTurnId: "turn-2",
@@ -67,13 +67,13 @@ describe("monitoring dashboard", () => {
     render(<Dashboard sessions={sessions} serviceStatus={status} connection="connected" disabled={false} onOpen={vi.fn()} onInterrupt={vi.fn()} onRefresh={vi.fn()} />);
     expect(screen.getByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "Operational summary" })).toHaveTextContent("Work at a glance");
-    expect(screen.getByText("Foreman-managed Codex runtime")).toBeInTheDocument();
+    expect(screen.getByText("Palomar-managed Codex runtime")).toBeInTheDocument();
     expect(screen.queryByText("SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Needs attention" })).toBeInTheDocument();
     expect(screen.getByText("Waiting for approval")).toBeInTheDocument();
     expect(screen.getByText("Tests failed safely")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Active work" })).toBeInTheDocument();
-    expect(screen.getAllByText("foreman").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("palomar").length).toBeGreaterThan(0);
   });
 
   it("renders concrete approval attention once and opens the exact approval", () => {
@@ -106,7 +106,7 @@ describe("monitoring dashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(screen.queryByText("Run checks")).not.toBeInTheDocument();
     expect(open).not.toHaveBeenCalled();
-    expect(localStorage.getItem("foreman.dashboard.v1")).toContain("failed");
+    expect(localStorage.getItem("palomar.dashboard.v1")).toContain("failed");
   });
 
   it("uses one shared interval for multiple elapsed turn clocks", () => {
@@ -169,7 +169,7 @@ describe("monitoring dashboard", () => {
   it("shows freshness, client counts, route details, and runtime disclosure", () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
-    render(<Dashboard sessions={[sessions[0]]} repositories={[{ id: "foreman", name: "foreman", path: "foreman", branch: "main", dirty: false }]} serviceStatus={{ ...status, activeTcpConnections: 1, codex: { ...status.codex, mode: "shared", lastEvent: new Date(now - 3000).toISOString(), lastSuccessfulRequest: new Date(now - 8000).toISOString(), attachedAt: new Date(now - 60_000).toISOString(), loadedThreadCount: 4, subscribedThreadCount: 2, ownedByForeman: false, appServerPid: 123 } }} connection="connected" disabled={false} onOpen={vi.fn()} onInterrupt={vi.fn()} onRefresh={vi.fn()} />);
+    render(<Dashboard sessions={[sessions[0]]} repositories={[{ id: "palomar", name: "palomar", path: "palomar", branch: "main", dirty: false }]} serviceStatus={{ ...status, activeTcpConnections: 1, codex: { ...status.codex, mode: "shared", lastEvent: new Date(now - 3000).toISOString(), lastSuccessfulRequest: new Date(now - 8000).toISOString(), attachedAt: new Date(now - 60_000).toISOString(), loadedThreadCount: 4, subscribedThreadCount: 2, ownedByPalomar: false, appServerPid: 123 } }} connection="connected" disabled={false} onOpen={vi.fn()} onInterrupt={vi.fn()} onRefresh={vi.fn()} />);
     expect(screen.getByText("Last runtime event: 3s ago")).toBeInTheDocument();
     expect(screen.getByText("3s ago")).toBeInTheDocument();
     expect(screen.getByText("2 browser · 1 Android")).toBeInTheDocument();
@@ -186,7 +186,7 @@ describe("monitoring dashboard", () => {
     render(<Dashboard sessions={[
       sessions[0],
       { ...sessions[0], id: "completed", status: "completed", activeTurnId: null, activeTurnStartedAt: null, terminalAt: now / 1000 - 60 },
-    ]} repositories={[{ id: "foreman", name: "foreman", path: "foreman", branch: "main", dirty: false }]} serviceStatus={status} connection="connected" disabled={false} onOpen={vi.fn()} onInterrupt={vi.fn()} onRefresh={vi.fn()} />);
+    ]} repositories={[{ id: "palomar", name: "palomar", path: "palomar", branch: "main", dirty: false }]} serviceStatus={status} connection="connected" disabled={false} onOpen={vi.fn()} onInterrupt={vi.fn()} onRefresh={vi.fn()} />);
     expect(screen.getByText("Session event")).toBeInTheDocument();
     expect(screen.getByText(/Current: Running tests/)).toBeInTheDocument();
     expect(screen.getByText("Last completion: 1m 00s ago")).toBeInTheDocument();
@@ -195,7 +195,7 @@ describe("monitoring dashboard", () => {
   it("disables remote restart when any session is active", () => {
     render(<Dashboard sessions={[sessions[0]]} serviceStatus={{ ...status, remoteRestartEnabled: true }} connection="connected" disabled={false} onOpen={vi.fn()} onInterrupt={vi.fn()} onRefresh={vi.fn()} onFetchDiagnostics={vi.fn().mockResolvedValue([])} onRestart={vi.fn()} />);
 
-    expect(screen.getByRole("button", { name: "Restart Foreman" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Restart Palomar" })).toBeDisabled();
     expect(screen.getByText("Restart is unavailable while sessions are active or waiting for attention.")).toBeInTheDocument();
   });
 

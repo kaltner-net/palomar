@@ -35,14 +35,14 @@ import { mergeHostSnapshot, projectHostSnapshot, sessionIdentityKey, type HostOv
 import { SessionSearchControls, SessionSearchResults } from "./SessionDiscovery";
 import { formatAge, formatDuration, recordRecentActivity, type RecentActivityEntry } from "./dashboard";
 import {
-  ForemanWebClient,
+  PalomarWebClient,
   inferPagePort,
   parseEndpoint,
   type ConnectionState,
 } from "./client";
 import { clipboardImageFiles, processImages, type ProcessedImage } from "./images";
 import { CopyFeedbackButton } from "./CopyFeedbackButton";
-import { ForemanLogo } from "./ForemanLogo";
+import { PalomarLogo } from "./PalomarLogo";
 import {
   accountUsageWindows,
   mergeAccountUsage,
@@ -373,7 +373,7 @@ function App() {
   const connectedRef = useRef(false);
   const activeHostIdRef = useRef<string | null>(initialHostId);
   const viewRef = useRef<View>(initialRoute.view);
-  const clientRef = useRef<ForemanWebClient | null>(null);
+  const clientRef = useRef<PalomarWebClient | null>(null);
   const dashboardSubscriptions = useRef(new Set<string>());
   const pendingDashboardEvents = useRef(new Map<string, SessionEvent[]>());
   const dashboardFrame = useRef<number | null>(null);
@@ -397,7 +397,7 @@ function App() {
       setHostSnapshots((previous) => {
         const cached = previous.get(snapshot.hostId);
         const safeSnapshot = cached && (
-          snapshot.connection !== "connected" || snapshot.foremanVersion === null
+          snapshot.connection !== "connected" || snapshot.palomarVersion === null
         ) ? { ...cached, connection: snapshot.connection } : snapshot;
         const next = mergeHostSnapshot(previous, safeSnapshot);
         saveHostSnapshots(next);
@@ -639,10 +639,10 @@ function App() {
         notificationOpenRef.current(event.data.hostId, event.data.sessionId);
       }
     };
-    window.addEventListener("foreman.notification.open", openFromNotification);
+    window.addEventListener("palomar.notification.open", openFromNotification);
     navigator.serviceWorker?.addEventListener("message", serviceWorkerMessage);
     return () => {
-      window.removeEventListener("foreman.notification.open", openFromNotification);
+      window.removeEventListener("palomar.notification.open", openFromNotification);
       navigator.serviceWorker?.removeEventListener("message", serviceWorkerMessage);
     };
   }, []);
@@ -688,8 +688,8 @@ function App() {
       const hostId = activeHostIdRef.current;
       if (snapshot && hostId) {
         const info: CachedReleaseUpdateInfo = {
-          serverVersion: status.foremanVersion ?? null,
-          serverReleaseBuild: typeof status.foremanReleaseBuild === "boolean" ? status.foremanReleaseBuild : null,
+          serverVersion: status.palomarVersion ?? null,
+          serverReleaseBuild: typeof status.palomarReleaseBuild === "boolean" ? status.palomarReleaseBuild : null,
           snapshot,
         };
         saveReleaseUpdateInfo(hostId, info);
@@ -1137,7 +1137,7 @@ function App() {
 
   const client = useMemo(
     () =>
-      new ForemanWebClient({
+      new PalomarWebClient({
         onEvent,
         onState: (state, detail) => {
           setConnection(state);
@@ -1334,8 +1334,8 @@ function App() {
       const validatedReleaseUpdates = normalizeReleaseUpdates(statusResult.releaseUpdates);
       if (validatedReleaseUpdates) {
         const info: CachedReleaseUpdateInfo = {
-          serverVersion: statusResult.foremanVersion ?? null,
-          serverReleaseBuild: typeof statusResult.foremanReleaseBuild === "boolean" ? statusResult.foremanReleaseBuild : null,
+          serverVersion: statusResult.palomarVersion ?? null,
+          serverReleaseBuild: typeof statusResult.palomarReleaseBuild === "boolean" ? statusResult.palomarReleaseBuild : null,
           snapshot: validatedReleaseUpdates,
         };
         saveReleaseUpdateInfo(hostId, info);
@@ -1452,7 +1452,7 @@ function App() {
         const endpoint = parseEndpoint(host.host, host.webPort);
         await client.start(endpoint, host.deviceToken, (reconnected) => refreshState(host.id, reconnected));
       } catch (caught) {
-        const message = caught instanceof Error ? caught.message : "Cannot connect to Foreman";
+        const message = caught instanceof Error ? caught.message : "Cannot connect to Palomar";
         setError(message);
         if (/token|authenticate|unauthorized|incompatible/i.test(message)) client.disconnect();
       }
@@ -1795,7 +1795,7 @@ function App() {
   const pairHost = async (settings: PairingSettings, pairingKey: string) => {
     setBusy(true);
     setError("");
-    const pairingClient = new ForemanWebClient({ onEvent: () => undefined, onState: () => undefined });
+    const pairingClient = new PalomarWebClient({ onEvent: () => undefined, onState: () => undefined });
     try {
       const endpoint = parseEndpoint(settings.host, settings.webPort);
       const token = await pairingClient.pair(endpoint, pairingKey, settings.deviceName);
@@ -2006,8 +2006,8 @@ function App() {
     <div className={appShellClassName(view)}>
       <header className="topbar">
         <button className="brand" onClick={() => showDashboard()} aria-label="Dashboard">
-          <ForemanLogo />
-          <span>Foreman</span>
+          <PalomarLogo />
+          <span>Palomar</span>
         </button>
         <HostSelector
           hosts={hostRegistry.hosts}
@@ -2051,8 +2051,8 @@ function App() {
           hosts={hostRegistry.hosts}
           appearance={appearance}
           hello={hello}
-          serverVersion={serviceStatus?.foremanVersion ?? releaseUpdateInfo?.serverVersion ?? null}
-          serverReleaseBuild={serviceStatus?.foremanReleaseBuild ?? releaseUpdateInfo?.serverReleaseBuild ?? null}
+          serverVersion={serviceStatus?.palomarVersion ?? releaseUpdateInfo?.serverVersion ?? null}
+          serverReleaseBuild={serviceStatus?.palomarReleaseBuild ?? releaseUpdateInfo?.serverReleaseBuild ?? null}
           releaseUpdates={normalizeReleaseUpdates(serviceStatus?.releaseUpdates) ?? releaseUpdateInfo?.snapshot ?? null}
           updateOperation={serverUpdateOperation}
           connected={connected}
@@ -2104,11 +2104,11 @@ function App() {
             const snapshot = normalizeReleaseUpdates(
               await client.request<Record<string, unknown>>("release.check"),
             );
-            if (!snapshot) throw new Error("Foreman returned invalid release information");
+            if (!snapshot) throw new Error("Palomar returned invalid release information");
             if (activeHostIdRef.current !== requestHostId) return;
             const info: CachedReleaseUpdateInfo = {
-              serverVersion: serviceStatus?.foremanVersion ?? releaseUpdateInfo?.serverVersion ?? null,
-              serverReleaseBuild: serviceStatus?.foremanReleaseBuild ?? releaseUpdateInfo?.serverReleaseBuild ?? null,
+              serverVersion: serviceStatus?.palomarVersion ?? releaseUpdateInfo?.serverVersion ?? null,
+              serverReleaseBuild: serviceStatus?.palomarReleaseBuild ?? releaseUpdateInfo?.serverReleaseBuild ?? null,
               snapshot,
             };
             saveReleaseUpdateInfo(requestHostId, info);
@@ -2122,7 +2122,7 @@ function App() {
             const requestHostId = activeHost.id;
             const check = normalizeServerUpdateCheck(await client.request<Record<string, unknown>>("update.check"));
             if (activeHostIdRef.current !== requestHostId) throw new Error("The active host changed; review the update again.");
-            if (!check) throw new Error("Foreman returned invalid server update information");
+            if (!check) throw new Error("Palomar returned invalid server update information");
             if (check.operation) {
               setServerUpdateOperation(check.operation);
               saveServerUpdateOperationId(requestHostId, check.operation.id);
@@ -2136,7 +2136,7 @@ function App() {
             });
             if (activeHostIdRef.current !== requestHostId) throw new Error("The active host changed; read update status on the initiating host.");
             const operation = normalizeServerUpdateOperation(response.operation);
-            if (!operation) throw new Error("Foreman returned an invalid update operation");
+            if (!operation) throw new Error("Palomar returned an invalid update operation");
             saveServerUpdateOperationId(requestHostId, operation.id);
             setServerUpdateOperation(operation);
             return operation;
@@ -2304,7 +2304,7 @@ function App() {
               />
             ) : (
               <div className="empty-detail">
-                <ForemanLogo large />
+                <PalomarLogo large />
                 <h2>{busy ? "Loading session…" : "Select a session"}</h2>
                 <p>Open an existing session or start a new one.</p>
               </div>
@@ -2405,8 +2405,8 @@ export function SetupView({
     <main className={onCancel ? "setup-page embedded" : "setup-page"}>
       <section className="setup-card">
         <div className="setup-heading">
-          <ForemanLogo large />
-          <div><h1>Connect to Foreman</h1><p>Your local Codex companion.</p></div>
+          <PalomarLogo large />
+          <div><h1>Connect to Palomar</h1><p>Your local Codex companion.</p></div>
           {onCancel && <button className="setup-close" onClick={onCancel} aria-label="Close">×</button>}
         </div>
         {error && <div className="form-error" role="alert">{error}</div>}
@@ -2432,7 +2432,7 @@ export function SetupView({
           <label>Device name<input value={deviceName} onChange={(event) => setDeviceName(event.target.value)} autoComplete="name" required /></label>
           <button className="primary full" disabled={busy}>{busy ? "Connecting…" : "Connect"}</button>
         </form>
-        <p className="security-note">Use Foreman only on a trusted LAN or secure overlay. The persistent token is stored in this browser and is less protected than Android Keystore storage.</p>
+        <p className="security-note">Use Palomar only on a trusted LAN or secure overlay. The persistent token is stored in this browser and is less protected than Android Keystore storage.</p>
       </section>
     </main>
   );
@@ -3023,8 +3023,8 @@ export function ConversationView({
       >
         {!providerUsable && <div className="provider-limitation warning" role="status"><strong>{providerDisplayName(provider)} is unavailable on this host.</strong><p>This session remains visible, but provider-backed actions are unavailable until the provider runtime returns.</p></div>}
         {readOnly && <div className="archived-read-only" role="note"><div><strong>Archived · Read only</strong><p>This transcript is being viewed without resuming or changing the Codex thread.</p></div>{providerUsable && session.capabilities?.includes("session.restore") && onRestore && <button className="primary" onClick={onRestore}>Restore</button>}</div>}
-        {provider === "claude-code" && session.source === "external" && <div className="provider-limitation" role="note"><strong>Resumable · Not live-attached</strong><p>Open history here, then resume in Foreman to prompt, stream, or interrupt. Foreman cannot attach to the external running process.</p></div>}
-        {provider === "claude-code" && session.status === "waiting" && <div className="provider-limitation warning" role="status"><strong>Permission required in Claude session.</strong><p>Foreman web approval support is not yet available.</p></div>}
+        {provider === "claude-code" && session.source === "external" && <div className="provider-limitation" role="note"><strong>Resumable · Not live-attached</strong><p>Open history here, then resume in Palomar to prompt, stream, or interrupt. Palomar cannot attach to the external running process.</p></div>}
+        {provider === "claude-code" && session.status === "waiting" && <div className="provider-limitation warning" role="status"><strong>Permission required in Claude session.</strong><p>Palomar web approval support is not yet available.</p></div>}
         {!session.messages?.length && !approvals.length && !inputs.length && <div className="empty-conversation"><h2>{readOnly ? "No transcript content" : "Ready when you are"}</h2><p>{readOnly ? "This archived session has no projected messages." : provider === "claude-code" ? "Send a prompt using the Claude model and permission mode below." : "Choose a route below and send the first prompt."}</p></div>}
         {displayBlocks.map((block) => {
           if (block.collapsedActivity) {
@@ -3054,9 +3054,9 @@ export function ConversationView({
           {provider === "codex" && <label className="attach-button" title="Attach images">+<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={(event) => void addFiles(event)} disabled={processing || submitting || images.length >= 4} /></label>}
           <textarea value={draft} onChange={(event) => onDraftChange(event.target.value)} onPaste={provider === "codex" ? pasteImages : undefined} placeholder={provider === "claude-code" ? hasActiveTurn ? "Claude is working…" : "Message Claude Code…" : active ? "Steer the active turn…" : "Message Codex…"} disabled={provider === "claude-code" && hasActiveTurn} rows={1} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }} />
           {hasActiveTurn && <button type="button" className="interrupt" disabled={!connected || submitting || updatingRoute} onClick={() => void onRequest(provider === "claude-code" ? "provider.turn.interrupt" : "turn.interrupt", { ...(provider === "claude-code" ? { provider } : {}), sessionId: session.id, ...(provider === "codex" ? { turnId: session.activeTurnId } : {}) }).catch((caught) => onError(String(caught)))}>Stop</button>}
-          <button className="send-button" disabled={!canSubmit}>{submitting ? "…" : provider === "claude-code" && session.source === "external" ? "Resume in Foreman" : active ? "Steer" : "Send"}</button>
+          <button className="send-button" disabled={!canSubmit}>{submitting ? "…" : provider === "claude-code" && session.source === "external" ? "Resume in Palomar" : active ? "Steer" : "Send"}</button>
         </div>
-        {!connected && <p className="composer-note">Your draft is preserved while Foreman reconnects.</p>}
+        {!connected && <p className="composer-note">Your draft is preserved while Palomar reconnects.</p>}
       </form>}
       {openingWorkspaceFile && <div className="file-opening" role="status">Opening {openingWorkspaceFile}…</div>}
       {workspaceFile && <WorkspaceFileDialog file={workspaceFile} onOpenWorkspaceFile={openWorkspaceFile} onClose={() => setWorkspaceFile(null)} />}
@@ -3298,7 +3298,7 @@ const ConversationItemView = memo(function ConversationItemView({ item, highligh
   }
   return (
     <article id={`message-${item.id}`} className={`message ${item.kind} ${highlighted ? "search-highlight" : ""}`}>
-      <div className="message-label">{item.kind === "user" ? "You" : "Foreman"}</div>
+      <div className="message-label">{item.kind === "user" ? "You" : "Palomar"}</div>
       {item.kind === "assistant" ? <Markdown text={item.text ?? ""} onOpenWorkspaceFile={onOpenWorkspaceFile} /> : <LinkedUserText text={item.text ?? ""} />}
       {!!item.images?.length && <div className="message-images">{item.images.map((image, index) => <img key={index} src={`data:${image.mimeType};base64,${image.data}`} alt={`Attachment ${index + 1}`} />)}</div>}
       {!!item.imageCount && !item.images?.length && <span className="image-indicator">▧ {item.imageCount} image{item.imageCount === 1 ? "" : "s"}</span>}
@@ -3487,7 +3487,7 @@ export function NewSessionDialog({ repositories, repositoryRoot, providers = [{ 
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><form className="modal" onSubmit={(event) => { event.preventDefault(); if (location && !unavailable && (provider === "codex" || prompt.trim())) void submit(); }}>
     <div className="modal-heading"><div>{showProviderIdentity && selectedProviderInfo && <span className="eyebrow">{selectedProviderInfo.displayName}</span>}<h2>New session</h2></div><button type="button" onClick={onClose} aria-label="Close">×</button></div>
     {providerCatalogLoaded && taskProviders.length > 1 && <label>Provider<select value={provider} onChange={(event) => setProviderChoice(event.target.value as ProviderId)}>{taskProviders.map((entry) => <option key={entry.id} value={entry.id}>{entry.displayName}</option>)}</select></label>}
-    {!providerCatalogLoaded && <div className="new-session-empty" role="status"><strong>Loading providers…</strong><p>Foreman is checking the enabled providers for this host.</p></div>}
+    {!providerCatalogLoaded && <div className="new-session-empty" role="status"><strong>Loading providers…</strong><p>Palomar is checking the enabled providers for this host.</p></div>}
     {catalogEmpty && <div className="new-session-empty" role="status"><strong>No provider is available for tasks.</strong><p>Install Codex or Claude Code on this host, or enable an installed provider in Settings → Providers.</p></div>}
     {hasRepositories ? <label>Workspace<select value={selected} onChange={(event) => setSelected(event.target.value)} required><option value=".">Workspace root · {rootRepository ? "repository" : "no repository"}</option>{selectableRepositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.path}{repository.dirty ? " · modified" : ""}</option>)}</select></label> : <div className="new-session-empty" role="status"><strong>No Git repositories yet</strong><p>Start in the configured workspace folder instead. You can initialize Git later if you need version control.</p>{repositoryRoot && <code title={repositoryRoot}>{repositoryRoot}</code>}</div>}
     {provider === "claude-code" && !unavailable && <label>Initial prompt<textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="What should Claude work on?" required /></label>}
@@ -3655,7 +3655,7 @@ function SettingsView({
     <section className="settings-card"><h2>Appearance</h2><label>Color mode<select aria-label="Color mode" value={appearance.colorMode} onChange={(event) => onAppearance({ ...appearance, colorMode: event.target.value as Appearance["colorMode"] })}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><div><span className="field-label" id="theme-selector-label">Theme</span><div className="theme-grid" role="group" aria-labelledby="theme-selector-label">{CURATED_THEMES.map((theme) => { const selected = appearance.themeId === theme.id; return <button key={theme.id} type="button" className={`theme-option ${selected ? "selected" : ""}`} aria-pressed={selected} onClick={() => onAppearance({ ...appearance, themeId: theme.id })}><span className="theme-preview" aria-hidden="true">{theme.preview.map((color) => <i key={color} style={{ backgroundColor: color }} />)}</span><span><strong>{theme.name}{selected && <span className="selection-cue"> ✓</span>}</strong><small>{theme.description}</small></span></button>; })}</div></div><label>Activity detail<select value={appearance.activityDetail} onChange={(event) => onAppearance({ ...appearance, activityDetail: event.target.value as ActivityDetail })}><option value="focused">Focused</option><option value="full">Full</option></select><small>Focused groups completed commands and tools, including non-zero exits. Live, blocked, interrupted, execution-error, approval, and input items stay visible.</small></label><label className="check-row"><input type="checkbox" checked={appearance.groupSessionsByRepository} onChange={(event) => onAppearance({ ...appearance, groupSessionsByRepository: event.target.checked })} /><span><strong>Group sessions by repository</strong><small>Keep groups alphabetical and show active sessions first within each group.</small></span></label></section>
     <section className="settings-card notification-preferences">
       <h2>Notifications</h2>
-      <div className="notification-setting"><div><strong>Browser permission: {notificationState}</strong><p>{notificationStateDescription(notificationState, notificationState === "granted")}</p><p>Alerts are evaluated locally. Foreman must stay open in a tab; browsers cannot run this monitor after the site is fully closed.</p>{notificationTestResult && <p className="notification-test-result" role="status">{notificationTestResult}</p>}</div><div className="notification-actions"><button className="secondary" disabled={permissionUnavailable || notificationState === "granted"} onClick={() => void onNotificationPermission()}>{notificationState === "granted" ? "Allowed" : notificationState === "denied" ? "Blocked" : "Allow"}</button>{notificationState === "granted" && <button className="secondary" disabled={testingNotification} onClick={() => { setTestingNotification(true); setNotificationTestResult(""); void onNotificationTest().then((method) => setNotificationTestResult(`Browser accepted the test via ${method === "page" ? "the page" : "the service worker"}. If no system alert appeared, check OS notification settings and Do Not Disturb.`)).catch((caught) => setNotificationTestResult(caught instanceof Error ? `Test failed: ${caught.message}` : "Test failed: the browser rejected the notification.")).finally(() => setTestingNotification(false)); }}>{testingNotification ? "Sending…" : "Send test"}</button>}</div></div>
+      <div className="notification-setting"><div><strong>Browser permission: {notificationState}</strong><p>{notificationStateDescription(notificationState, notificationState === "granted")}</p><p>Alerts are evaluated locally. Palomar must stay open in a tab; browsers cannot run this monitor after the site is fully closed.</p>{notificationTestResult && <p className="notification-test-result" role="status">{notificationTestResult}</p>}</div><div className="notification-actions"><button className="secondary" disabled={permissionUnavailable || notificationState === "granted"} onClick={() => void onNotificationPermission()}>{notificationState === "granted" ? "Allowed" : notificationState === "denied" ? "Blocked" : "Allow"}</button>{notificationState === "granted" && <button className="secondary" disabled={testingNotification} onClick={() => { setTestingNotification(true); setNotificationTestResult(""); void onNotificationTest().then((method) => setNotificationTestResult(`Browser accepted the test via ${method === "page" ? "the page" : "the service worker"}. If no system alert appeared, check OS notification settings and Do Not Disturb.`)).catch((caught) => setNotificationTestResult(caught instanceof Error ? `Test failed: ${caught.message}` : "Test failed: the browser rejected the notification.")).finally(() => setTestingNotification(false)); }}>{testingNotification ? "Sending…" : "Send test"}</button>}</div></div>
       <label className="check-row"><input type="checkbox" checked={hostNotificationOverride} onChange={(event) => onHostNotificationOverride(event.target.checked)} /><span><strong>Override for {host.displayName}</strong><small>{hostNotificationOverride ? "This host uses its own local settings." : "This host inherits the global browser defaults."}</small></span></label>
       <div className="notification-toggle-grid">{eventToggles.map(([key, label]) => <label className="check-row single-line" key={key}><input type="checkbox" checked={notificationPreferences[key] as boolean} onChange={(event) => update(key, event.target.checked)} /><span>{label}</span></label>)}</div>
       <label>Long-running threshold (minutes)<input type="number" min="1" max="1440" value={notificationPreferences.longRunningMinutes} disabled={!notificationPreferences.notifyLongRunning} onChange={(event) => update("longRunningMinutes", Math.max(1, Math.min(1440, Number(event.target.value) || 1)))} /></label>
@@ -3664,7 +3664,7 @@ function SettingsView({
       <label className="check-row"><input type="checkbox" checked={notificationPreferences.criticalBypassQuietHours} onChange={(event) => update("criticalBypassQuietHours", event.target.checked)} /><span><strong>Allow critical alerts during quiet hours</strong><small>Only approval/input and failure alerts bypass quiet hours.</small></span></label>
       <div className="repository-overrides"><h3>Repository and workspace overrides</h3><p className="muted">Each event inherits the settings above until explicitly set to on or off. Identities are canonical workspace paths and stay in this browser.</p>{repositoryOptions.length === 0 && <p className="muted">No known repositories or workspaces yet.</p>}{repositoryOptions.map((repository) => <details key={repository.id}><summary>{repository.label}</summary><small title={repository.id}>{repository.id}</small><div className="override-grid">{overrideKeys.map(([key, label]) => { const value = notificationPreferences.repositoryOverrides[repository.id]?.[key]; return <label key={key}>{label}<select value={value === undefined ? "inherit" : String(value)} onChange={(event) => onNotificationPreferences(setRepositoryOverride(notificationPreferences, repository.id, { [key]: event.target.value === "inherit" ? undefined : event.target.value === "true" }))}><option value="inherit">Inherit</option><option value="true">On</option><option value="false">Off</option></select></label>; })}</div></details>)}</div>
     </section>
-    <section className="settings-card"><h2>Active connection</h2><dl><div><dt>Host</dt><dd>{host.host}:{host.webPort}</dd></div><div><dt>Local host ID</dt><dd>{host.id}</dd></div>{providers.map((provider) => <div key={provider.id}><dt>{provider.displayName}</dt><dd>{providerConfigurationStatus(provider)}</dd></div>)}{providers.some((provider) => provider.id === "codex" && providerEnabled(provider)) && <div><dt>Codex runtime</dt><dd>{hello?.codexRuntime === "SHARED_DESKTOP_LIVE_STATUS_AVAILABLE" ? "Shared Desktop runtime attached" : hello?.codexConnected ? "Foreman-managed runtime" : "Unavailable"}</dd></div>}</dl><p className="muted">Each persistent device token stays in browser-local storage and is never placed in the URL. Browser storage is less protected than Android Keystore.</p></section>
+    <section className="settings-card"><h2>Active connection</h2><dl><div><dt>Host</dt><dd>{host.host}:{host.webPort}</dd></div><div><dt>Local host ID</dt><dd>{host.id}</dd></div>{providers.map((provider) => <div key={provider.id}><dt>{provider.displayName}</dt><dd>{providerConfigurationStatus(provider)}</dd></div>)}{providers.some((provider) => provider.id === "codex" && providerEnabled(provider)) && <div><dt>Codex runtime</dt><dd>{hello?.codexRuntime === "SHARED_DESKTOP_LIVE_STATUS_AVAILABLE" ? "Shared Desktop runtime attached" : hello?.codexConnected ? "Palomar-managed runtime" : "Unavailable"}</dd></div>}</dl><p className="muted">Each persistent device token stays in browser-local storage and is never placed in the URL. Browser storage is less protected than Android Keystore.</p></section>
     <AboutSection
       key={host.id}
       serverVersion={serverVersion}
@@ -3738,11 +3738,11 @@ function safeLink(href?: string): string | null {
 }
 
 function setupError(caught: unknown): string {
-  const message = caught instanceof Error ? caught.message : "Cannot connect to Foreman";
-  if (/pairing key is invalid or expired/i.test(message)) return "Pairing code is invalid or expired. Run foreman pair again.";
+  const message = caught instanceof Error ? caught.message : "Cannot connect to Palomar";
+  if (/pairing key is invalid or expired/i.test(message)) return "Pairing code is invalid or expired. Run palomar pair again.";
   if (/unauthorized|token/i.test(message)) return "Authentication failed. Pair this browser again.";
-  if (/incompatible/i.test(message)) return "This browser and Foreman service use incompatible protocols.";
-  if (/fallback/i.test(message)) return "Foreman is using the Foreman-managed Codex runtime.";
+  if (/incompatible/i.test(message)) return "This browser and Palomar service use incompatible protocols.";
+  if (/fallback/i.test(message)) return "Palomar is using the Palomar-managed Codex runtime.";
   return message;
 }
 

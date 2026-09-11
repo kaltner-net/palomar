@@ -14,7 +14,7 @@ describe("unified dashboard", () => {
   it("shows five hosts, marks cached data stale, and navigates attention with compound identity", () => {
     const hosts = ["one", "two", "three", "four", "five"].map(host);
     const snapshot: HostOverviewSnapshot = {
-      hostId: "two", observedAt: 2000, connection: "disconnected", foremanVersion: "1", codexVersion: "2",
+      hostId: "two", observedAt: 2000, connection: "disconnected", palomarVersion: "1", codexVersion: "2",
       runtimeMode: "fallback", runtimeConnected: true, active: 1, waiting: 1, failed: 0,
       oldestTurn: { hostId: "two", sessionId: "same", title: "Collision", startedAt: 100 },
       latestCompletion: null, latestActivity: 500,
@@ -25,7 +25,7 @@ describe("unified dashboard", () => {
     render(<UnifiedDashboard hosts={hosts} activeHostId="one" snapshots={new Map([["two", snapshot]])} onOpenHost={vi.fn()} onOpenSession={open} onReconnect={reconnect} onEdit={vi.fn()} onForget={vi.fn()} />);
     expect(screen.getAllByText(/Stale snapshot/)).toHaveLength(5);
     expect(screen.getByText("0/5")).toBeInTheDocument();
-    expect(screen.getByText("Foreman-managed Codex runtime")).toBeInTheDocument();
+    expect(screen.getByText("Palomar-managed Codex runtime")).toBeInTheDocument();
     expect(document.querySelector(".unified-attention-list .provider-badge")).toHaveTextContent("Codex");
     expect(screen.queryByText("Fallback")).not.toBeInTheDocument();
     const attentionOpen = screen.getAllByRole("button", { name: "Open" }).at(-1)!;
@@ -37,7 +37,7 @@ describe("unified dashboard", () => {
 
   it("opens a live attention item on its exact host and session", () => {
     const live: HostOverviewSnapshot = {
-      hostId: "one", observedAt: Date.now(), connection: "connected", foremanVersion: "1", codexVersion: "2",
+      hostId: "one", observedAt: Date.now(), connection: "connected", palomarVersion: "1", codexVersion: "2",
       runtimeMode: "shared", runtimeConnected: true, active: 0, waiting: 1, failed: 0,
       oldestTurn: null, latestCompletion: null, latestActivity: Date.now(),
       attention: [{ hostId: "one", sessionId: "same", sessionTitle: "Needs input", repository: "/repo", type: "input", startedAt: Date.now() }],

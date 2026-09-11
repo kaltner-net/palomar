@@ -102,9 +102,9 @@ async function sdkMetadata(moduleSpecifier) {
 export async function detectClaudeCode({
   env = process.env,
   runVersion = execFile,
-  moduleSpecifier = env.FOREMAN_CLAUDE_SDK_MODULE || "@anthropic-ai/claude-agent-sdk",
+  moduleSpecifier = env.PALOMAR_CLAUDE_SDK_MODULE || "@anthropic-ai/claude-agent-sdk",
 } = {}) {
-  const executable = await executableOnPath(env.FOREMAN_CLAUDE_EXECUTABLE || "claude", env);
+  const executable = await executableOnPath(env.PALOMAR_CLAUDE_EXECUTABLE || "claude", env);
   let cliVersion = null;
   let cliError = null;
   if (executable) {
@@ -132,9 +132,9 @@ export async function detectClaudeCode({
     models: SUPPORTED_MODELS.map((model) => ({ ...model })),
     modelSelection: true,
     limitation: available
-      ? "External sessions are discoverable and resumable, but Foreman cannot live-attach, stream, approve, or interrupt an external Claude process."
+      ? "External sessions are discoverable and resumable, but Palomar cannot live-attach, stream, approve, or interrupt an external Claude process."
       : process.platform !== "linux"
-        ? "The Foreman Claude Code adapter is Linux-only."
+        ? "The Palomar Claude Code adapter is Linux-only."
         : !nodeSupported
           ? "Node.js 20 or newer is required for optional Claude Code support."
         : !installed
@@ -551,7 +551,7 @@ export class ClaudeBridge {
     this.mapping = new MappingStore(statePath);
     this.send = send || (() => {});
     this.env = env;
-    this.sdkLoader = sdkLoader || (() => import(env.FOREMAN_CLAUDE_SDK_MODULE || "@anthropic-ai/claude-agent-sdk"));
+    this.sdkLoader = sdkLoader || (() => import(env.PALOMAR_CLAUDE_SDK_MODULE || "@anthropic-ai/claude-agent-sdk"));
     this.sdk = null;
     this.runs = new Map();
     this.activeSessions = new Map();
@@ -681,7 +681,7 @@ export class ClaudeBridge {
     const permissionMode = params?.permissionMode ?? "default";
     if (!PERMISSION_MODE_SET.has(permissionMode)) throw new Error("Unsupported permission mode");
     const model = params?.model == null ? undefined : opaque(params.model, "model");
-    if (resume && this.activeSessions.has(resume)) throw new Error("Session already has an active Foreman query");
+    if (resume && this.activeSessions.has(resume)) throw new Error("Session already has an active Palomar query");
     const status = await this.status();
     if (!status.available) throw new Error(status.limitation);
     const sdk = await this.loadSdk();
@@ -720,7 +720,7 @@ export class ClaudeBridge {
       includePartialMessages: true,
       persistSession: true,
       permissionMode: run.permissionMode,
-      env: { ...this.env, CLAUDE_AGENT_SDK_CLIENT_APP: "foreman/1.2.1" },
+      env: { ...this.env, CLAUDE_AGENT_SDK_CLIENT_APP: "palomar/2.0.0" },
       canUseTool: (name, toolInput, context) => this.requestApproval(run, name, toolInput, context),
     };
     if (run.model) options.model = run.model;
@@ -733,7 +733,7 @@ export class ClaudeBridge {
         if (message?.type === "system" && message.subtype === "init") {
           const sessionId = opaque(message.session_id, "sessionId");
           if (run.sessionId && run.sessionId !== sessionId) throw new Error("Claude resumed an unexpected session");
-          if (!run.sessionId && this.activeSessions.has(sessionId)) throw new Error("Session already has an active Foreman query");
+          if (!run.sessionId && this.activeSessions.has(sessionId)) throw new Error("Session already has an active Palomar query");
           run.sessionId = sessionId;
           this.activeSessions.set(sessionId, run);
           await this.mapping.remember(sessionId, run.cwd);
@@ -874,7 +874,7 @@ export class ClaudeBridge {
     this.pendingApprovals.delete(requestId);
     const result = params.decision === "allow"
       ? { behavior: "allow", updatedInput: pending.input }
-      : { behavior: "deny", message: "Denied by Foreman test harness" };
+      : { behavior: "deny", message: "Denied by Palomar test harness" };
     pending.resolve(result);
     this.emit({
       kind: params.decision === "allow" ? "permission.allowed" : "permission.denied",
@@ -897,7 +897,7 @@ export class ClaudeBridge {
   async interrupt(params) {
     const sessionId = opaque(params?.sessionId, "sessionId");
     const run = this.activeSessions.get(sessionId);
-    if (!run) throw new Error("Session is not active in the Foreman Claude adapter");
+    if (!run) throw new Error("Session is not active in the Palomar Claude adapter");
     run.interruptRequested = true;
     await run.query.interrupt();
     return { sessionId, interrupted: true };

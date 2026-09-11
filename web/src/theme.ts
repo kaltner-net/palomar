@@ -1,7 +1,7 @@
 import type { Appearance } from "./storage";
 
 const THEME_CHROME_COLORS: Record<Appearance["themeId"], { light: string; dark: string }> = {
-  foreman: { light: "#6b3fb5", dark: "#1d1926" },
+  palomar: { light: "#f7f5fc", dark: "#171527" },
   harbor: { light: "#006b75", dark: "#142226" },
   grove: { light: "#356a3f", dark: "#19231a" },
   ember: { light: "#8a3d61", dark: "#25191e" },
@@ -22,7 +22,7 @@ export function applyAppearance(appearance: Appearance): () => void {
   const apply = () => {
     const mode = resolvedTheme(appearance.colorMode, media.matches);
     document.documentElement.dataset.colorMode = mode;
-    document.documentElement.dataset.foremanTheme = appearance.themeId;
+    document.documentElement.dataset.palomarTheme = appearance.themeId;
     document.documentElement.style.colorScheme = mode;
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
       ?.setAttribute("content", THEME_CHROME_COLORS[appearance.themeId][mode]);

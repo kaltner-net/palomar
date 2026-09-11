@@ -1,19 +1,19 @@
 # Security overview
 
-Foreman is a self-hosted control surface for coding agents running with access
+Palomar is a self-hosted control surface for coding agents running with access
 to your development host. Its security model combines authenticated clients,
 bounded protocol operations, provider-native authorization, and signed release
 artifacts. It does not turn an untrusted network into a safe deployment.
 
 ## Deployment boundary
 
-Foreman authenticates Android and web clients but does not terminate TLS. Run
+Palomar authenticates Android and web clients but does not terminate TLS. Run
 it only on a trusted LAN or private overlay such as Tailscale or WireGuard, or
 place the web listener behind a trusted HTTPS reverse proxy. Do not expose ports
 `8765` or `8766` directly to the public internet.
 
 When a reverse proxy changes the page origin, configure its exact HTTPS origin
-in `FOREMAN_WEB_ORIGINS`. Foreman does not enable permissive wildcard CORS.
+in `PALOMAR_WEB_ORIGINS`. Palomar does not enable permissive wildcard CORS.
 
 ## Pairing and client tokens
 
@@ -35,12 +35,12 @@ that client's access without changing sessions or repositories.
 ## Authorization and provider access
 
 A paired client can control every enabled provider available on its host. Treat
-the device, token, and network path as sensitive. Foreman does not expose a
+the device, token, and network path as sensitive. Palomar does not expose a
 general shell or Git-write API; it sends bounded provider operations and
 validated answers to currently pending approvals or input requests.
 
 Codex still executes tools and modifies files according to its selected access
-profile. Claude executes tools according to its native permission mode. Foreman
+profile. Claude executes tools according to its native permission mode. Palomar
 does not translate unsupported Claude permission callbacks into Codex-style
 approvals and never silently approves them.
 
@@ -58,7 +58,7 @@ another client visibly focuses the exact same session.
 
 ## Release and update trust
 
-Release discovery alone never authorizes installation. Foreman stable releases
+Release discovery alone never authorizes installation. Palomar stable releases
 publish a Linux archive, Android APK, signed checksum manifest, detached
 signature, and release certificate. Update paths pin the production signing
 identity and verify the relevant archive or package before activation.

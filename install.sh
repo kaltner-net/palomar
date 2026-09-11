@@ -2,18 +2,21 @@
 set -euo pipefail
 
 project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-config_dir="$HOME/.config/foreman"
-state_dir="$HOME/.local/state/foreman"
-install_dir="$HOME/.local/share/foreman"
+config_dir="$HOME/.config/palomar"
+state_dir="$HOME/.local/state/palomar"
+install_dir="$HOME/.local/share/palomar"
 install_parent="$HOME/.local/share"
 bin_dir="$HOME/.local/bin"
 libexec_dir="$HOME/.local/libexec"
 unit_dir="$HOME/.config/systemd/user"
-config_file="$config_dir/foreman.env"
-launcher_file="$bin_dir/foreman"
-unit_file="$unit_dir/foreman.service"
-recovery_unit_file="$unit_dir/foreman-update-recovery.service"
-helper_file="$libexec_dir/foreman-updater"
+bash_completion_dir="$HOME/.local/share/bash-completion/completions"
+zsh_completion_dir="$HOME/.local/share/zsh/site-functions"
+fish_completion_dir="$HOME/.local/share/fish/vendor_completions.d"
+config_file="$config_dir/palomar.env"
+launcher_file="$bin_dir/palomar"
+unit_file="$unit_dir/palomar.service"
+recovery_unit_file="$unit_dir/palomar-update-recovery.service"
+helper_file="$libexec_dir/palomar-updater"
 pinned_version="$(sed -n 's/^websockets==//p' "$project_dir/requirements.txt")"
 staging_dir=""
 backup_dir=""
@@ -87,32 +90,32 @@ cleanup() {
   status=$?
   set +e
   if [[ "$rollback_required" == 1 && -n "$backup_dir" && -d "$backup_dir/install" ]]; then
-    systemctl --user stop foreman.service >/dev/null 2>&1
+    systemctl --user stop palomar.service >/dev/null 2>&1
     rm -rf -- "$install_dir"
     mv -- "$backup_dir/install" "$install_dir"
     if [[ "$had_launcher" == 1 ]]; then
-      install -m 755 "$backup_dir/foreman" "$launcher_file"
+      install -m 755 "$backup_dir/palomar" "$launcher_file"
     else
       rm -f -- "$launcher_file"
     fi
     if [[ "$had_unit" == 1 ]]; then
-      install -m 644 "$backup_dir/foreman.service" "$unit_file"
+      install -m 644 "$backup_dir/palomar.service" "$unit_file"
     else
       rm -f -- "$unit_file"
     fi
     if [[ "$had_recovery_unit" == 1 ]]; then
-      install -m 644 "$backup_dir/foreman-update-recovery.service" "$recovery_unit_file"
+      install -m 644 "$backup_dir/palomar-update-recovery.service" "$recovery_unit_file"
     else
-      systemctl --user disable foreman-update-recovery.service >/dev/null 2>&1
+      systemctl --user disable palomar-update-recovery.service >/dev/null 2>&1
       rm -f -- "$recovery_unit_file"
     fi
     if [[ "$had_helper" == 1 ]]; then
-      install -m 755 "$backup_dir/foreman-updater" "$helper_file"
+      install -m 755 "$backup_dir/palomar-updater" "$helper_file"
     else
       rm -f -- "$helper_file"
     fi
     systemctl --user daemon-reload >/dev/null 2>&1
-    systemctl --user restart foreman.service >/dev/null 2>&1
+    systemctl --user restart palomar.service >/dev/null 2>&1
   fi
   if [[ -n "$staging_dir" && -d "$staging_dir" ]]; then
     rm -rf -- "$staging_dir"
@@ -129,11 +132,11 @@ command -v python3 >/dev/null || {
   exit 1
 }
 command -v openssl >/dev/null || {
-  echo "openssl is required for signed Foreman updates" >&2
+  echo "openssl is required for signed Palomar updates" >&2
   exit 1
 }
 command -v systemd-run >/dev/null || {
-  echo "systemd-run is required for recoverable Foreman updates" >&2
+  echo "systemd-run is required for recoverable Palomar updates" >&2
   exit 1
 }
 python3 -c 'import sys; raise SystemExit(sys.version_info < (3, 10))' || {
@@ -156,10 +159,10 @@ compgen -G "$project_dir/web/dist/assets/*" >/dev/null || {
   echo "requirements.txt must pin websockets with ==" >&2
   exit 1
 }
-codex_executable="$(resolve_executable codex "$(configured_value FOREMAN_CODEX_EXECUTABLE)")"
-claude_executable="$(resolve_executable claude "$(configured_value FOREMAN_CLAUDE_EXECUTABLE)")"
+codex_executable="$(resolve_executable codex "$(configured_value PALOMAR_CODEX_EXECUTABLE)")"
+claude_executable="$(resolve_executable claude "$(configured_value PALOMAR_CLAUDE_EXECUTABLE)")"
 if [[ -z "$codex_executable" && -z "$claude_executable" ]]; then
-  echo "Foreman requires at least one supported provider CLI: Codex (codex) or Claude Code (claude)." >&2
+  echo "Palomar requires at least one supported provider CLI: Codex (codex) or Claude Code (claude)." >&2
   echo "Install either CLI and ensure its executable is on PATH, then rerun ./install.sh." >&2
   exit 1
 fi
@@ -184,7 +187,7 @@ PY
     echo "Claude bridge package.json must pin @anthropic-ai/claude-agent-sdk" >&2
     exit 1
   }
-  node_executable="$(resolve_executable node "$(configured_value FOREMAN_NODE_EXECUTABLE)")"
+  node_executable="$(resolve_executable node "$(configured_value PALOMAR_NODE_EXECUTABLE)")"
   if [[ -n "$node_executable" ]]; then
     node_major="$($node_executable --version 2>/dev/null | sed -n 's/^v\{0,1\}\([0-9][0-9]*\).*/\1/p')"
     if [[ -z "$node_major" || "$node_major" -lt 20 ]]; then
@@ -209,7 +212,7 @@ PY
   fi
   if [[ "$claude_runtime_ready" == 0 && "$claude_needs_sdk_install" == 0 ]]; then
     if [[ -z "$codex_executable" ]]; then
-      echo "Claude Code is the only detected provider, but its Foreman runtime is incomplete." >&2
+      echo "Claude Code is the only detected provider, but its Palomar runtime is incomplete." >&2
       if [[ -z "$node_executable" ]]; then
         echo "Install Node.js 20 or newer and ensure node is on PATH." >&2
       else
@@ -224,8 +227,9 @@ fi
 install -d -m 700 "$config_dir" "$state_dir"
 install -d -m 755 "$install_parent" "$bin_dir" "$libexec_dir" "$unit_dir"
 
-staging_dir="$(mktemp -d "$install_parent/.foreman-install.XXXXXX")"
-install -m 755 "$project_dir/linux/foreman_service.py" "$staging_dir/foreman_service.py"
+staging_dir="$(mktemp -d "$install_parent/.palomar-install.XXXXXX")"
+install -m 755 "$project_dir/linux/palomar_service.py" "$staging_dir/palomar_service.py"
+install -m 755 "$project_dir/linux/palomar_uninstall" "$staging_dir/palomar_uninstall"
 install -m 644 "$project_dir/linux/codex.py" "$staging_dir/codex.py"
 install -m 644 "$project_dir/linux/approvals.py" "$staging_dir/approvals.py"
 install -m 644 "$project_dir/linux/inputs.py" "$staging_dir/inputs.py"
@@ -289,7 +293,7 @@ fi
 if [[ -n "$claude_executable" && "$claude_runtime_ready" == 0 ]]; then
   rm -rf -- "$staging_dir/claude_bridge/node_modules"
 fi
-install -m 644 "$project_dir/release.properties" "$staging_dir/release.properties"
+install -m 644 "$project_dir/palomar-release.properties" "$staging_dir/palomar-release.properties"
 cp -a "$project_dir/linux/vendor" "$staging_dir/vendor"
 cp -a "$project_dir/web/dist" "$staging_dir/web"
 if [[ -d "$install_dir/venv" ]]; then
@@ -297,7 +301,7 @@ if [[ -d "$install_dir/venv" ]]; then
 fi
 
 python3 -m compileall -q \
-  "$staging_dir/foreman_service.py" \
+  "$staging_dir/palomar_service.py" \
   "$staging_dir/codex.py" \
   "$staging_dir/approvals.py" \
   "$staging_dir/inputs.py" \
@@ -310,74 +314,74 @@ python3 -m compileall -q \
   "$staging_dir/server_update.py" \
   "$staging_dir/update_cli.py" \
   "$staging_dir/vendor"
-FOREMAN_STAGING_DIR="$staging_dir" \
-FOREMAN_WEBSOCKETS_VERSION="$pinned_version" \
+PALOMAR_STAGING_DIR="$staging_dir" \
+PALOMAR_WEBSOCKETS_VERSION="$pinned_version" \
 python3 -c '
 import os, pathlib, sys
-root = pathlib.Path(os.environ["FOREMAN_STAGING_DIR"])
+root = pathlib.Path(os.environ["PALOMAR_STAGING_DIR"])
 sys.path.insert(0, str(root))
 import codex
 import websockets
-assert websockets.__version__ == os.environ["FOREMAN_WEBSOCKETS_VERSION"]
+assert websockets.__version__ == os.environ["PALOMAR_WEBSOCKETS_VERSION"]
 assert pathlib.Path(websockets.__file__).is_relative_to(root / "vendor")
 from websockets.asyncio.client import unix_connect
 from websockets.asyncio.server import unix_serve
 '
-python3 "$staging_dir/foreman_service.py" --help >/dev/null
+python3 "$staging_dir/palomar_service.py" --help >/dev/null
 
 if [[ ! -e "$config_file" ]]; then
   {
-    printf 'FOREMAN_HOST=0.0.0.0\n'
-    printf 'FOREMAN_PORT=8765\n'
-    printf 'FOREMAN_WEB_HOST=0.0.0.0\n'
-    printf 'FOREMAN_WEB_PORT=8766\n'
-    printf 'FOREMAN_REMOTE_RESTART=0\n'
-    printf 'FOREMAN_REPOSITORY_ROOT=%s\n' "$HOME/projects"
+    printf 'PALOMAR_HOST=0.0.0.0\n'
+    printf 'PALOMAR_PORT=8765\n'
+    printf 'PALOMAR_WEB_HOST=0.0.0.0\n'
+    printf 'PALOMAR_WEB_PORT=8766\n'
+    printf 'PALOMAR_REMOTE_RESTART=0\n'
+    printf 'PALOMAR_REPOSITORY_ROOT=%s\n' "$HOME/projects"
     if [[ -n "$codex_executable" ]]; then
-      printf 'FOREMAN_CODEX_EXECUTABLE=%s\n' "$codex_executable"
+      printf 'PALOMAR_CODEX_EXECUTABLE=%s\n' "$codex_executable"
     fi
     if [[ -n "$claude_executable" ]]; then
-      printf 'FOREMAN_CLAUDE_EXECUTABLE=%s\n' "$claude_executable"
+      printf 'PALOMAR_CLAUDE_EXECUTABLE=%s\n' "$claude_executable"
     fi
     if [[ -n "$node_executable" ]]; then
-      printf 'FOREMAN_NODE_EXECUTABLE=%s\n' "$node_executable"
+      printf 'PALOMAR_NODE_EXECUTABLE=%s\n' "$node_executable"
     fi
   } >"$config_file"
   chmod 600 "$config_file"
 fi
 
-backup_dir="$(mktemp -d "$install_parent/.foreman-backup.XXXXXX")"
+backup_dir="$(mktemp -d "$install_parent/.palomar-backup.XXXXXX")"
 if [[ -d "$install_dir" ]]; then
   mv -- "$install_dir" "$backup_dir/install"
 else
   mkdir "$backup_dir/install"
 fi
 if [[ -e "$launcher_file" ]]; then
-  cp -a "$launcher_file" "$backup_dir/foreman"
+  cp -a "$launcher_file" "$backup_dir/palomar"
   had_launcher=1
 fi
 if [[ -e "$unit_file" ]]; then
-  cp -a "$unit_file" "$backup_dir/foreman.service"
+  cp -a "$unit_file" "$backup_dir/palomar.service"
   had_unit=1
 fi
 if [[ -e "$recovery_unit_file" ]]; then
-  cp -a "$recovery_unit_file" "$backup_dir/foreman-update-recovery.service"
+  cp -a "$recovery_unit_file" "$backup_dir/palomar-update-recovery.service"
   had_recovery_unit=1
 fi
 if [[ -e "$helper_file" ]]; then
-  cp -a "$helper_file" "$backup_dir/foreman-updater"
+  cp -a "$helper_file" "$backup_dir/palomar-updater"
   had_helper=1
 fi
 mv -- "$staging_dir" "$install_dir"
 staging_dir=""
 rollback_required=1
-install -m 755 "$project_dir/linux/foreman" "$launcher_file"
-install -m 644 "$project_dir/linux/foreman.service" "$unit_file"
-install -m 644 "$project_dir/linux/foreman-update-recovery.service" "$recovery_unit_file"
-install -m 755 "$project_dir/linux/foreman_updater.py" "$helper_file"
+install -m 755 "$project_dir/linux/palomar" "$launcher_file"
+install -m 644 "$project_dir/linux/palomar.service" "$unit_file"
+install -m 644 "$project_dir/linux/palomar-update-recovery.service" "$recovery_unit_file"
+install -m 755 "$project_dir/linux/palomar_updater.py" "$helper_file"
 
 python3 -m compileall -q \
-  "$install_dir/foreman_service.py" \
+  "$install_dir/palomar_service.py" \
   "$install_dir/codex.py" \
   "$install_dir/approvals.py" \
   "$install_dir/inputs.py" \
@@ -388,22 +392,27 @@ python3 -m compileall -q \
   "$install_dir/server_update.py" \
   "$install_dir/update_cli.py" \
   "$install_dir/vendor"
-python3 "$install_dir/foreman_service.py" --help >/dev/null
+python3 "$install_dir/palomar_service.py" --help >/dev/null
 systemctl --user daemon-reload
-systemctl --user enable foreman.service
-systemctl --user enable foreman-update-recovery.service
-systemctl --user restart foreman.service
+systemctl --user enable palomar.service
+systemctl --user enable palomar-update-recovery.service
+systemctl --user restart palomar.service
 sleep 2
-systemctl --user is-active --quiet foreman.service
+systemctl --user is-active --quiet palomar.service
 rollback_required=0
+
+install -d -m 755 "$bash_completion_dir" "$zsh_completion_dir" "$fish_completion_dir"
+install -m 644 "$project_dir/linux/completions/palomar.bash" "$bash_completion_dir/palomar"
+install -m 644 "$project_dir/linux/completions/_palomar" "$zsh_completion_dir/_palomar"
+install -m 644 "$project_dir/linux/completions/palomar.fish" "$fish_completion_dir/palomar.fish"
 
 rm -rf -- "$install_dir/venv"
 rm -rf -- "$backup_dir"
 backup_dir=""
 
 echo
-echo "Foreman is installed and running."
+echo "Palomar is installed and running."
 if [[ ":$PATH:" != *":$bin_dir:"* ]]; then
   echo "Add $bin_dir to PATH, then run:"
 fi
-echo "foreman pair"
+echo "palomar pair"

@@ -1,44 +1,47 @@
-# Foreman — self-hosted coding-agent control plane
+# Palomar — self-hosted coding-agent control plane
 
 <p align="center">
-  <img src="android/app/src/main/res/drawable-nodpi/foreman_logo.png" alt="Foreman logo" width="128">
+  <img src="docs/brand/palomar-hero-wide.svg" alt="Palomar — Persistent coding agents. Under your control." width="800">
   <br>
-  <strong>Self-hosted control plane for Codex and Claude Code on persistent Linux hosts.</strong>
+  <strong>Monitor / Steer / Approve / Anywhere</strong>
 </p>
 
-Foreman is designed for persistent Linux coding hosts: an always-on VM, server,
+Palomar is designed for persistent Linux coding hosts: an always-on VM, server,
 homelab machine, or remote development box where Codex and Claude Code run. The
 host is the durable execution environment; native Android and responsive web
 clients are remote control surfaces for monitoring, steering, interrupting,
 approving, resuming, and organizing its sessions.
 
+**Persistent coding agents. Under your control.** Palomar is self-hosted,
+authenticated, persistent, and on your network.
+
 Pair either client with one or more hosts and connect directly over a trusted
-LAN or private overlay such as Tailscale or WireGuard. No Foreman-hosted
+LAN or private overlay such as Tailscale or WireGuard. No Palomar-hosted
 account, relay, or central backend is required.
 
-Each host runs a small Foreman service that connects to the local Codex
+Each host runs a small Palomar service that connects to the local Codex
 app-server and to Claude Code through a bounded bridge built on the official
-Claude Agent SDK. Provider sessions remain authoritative; Foreman supplies the
+Claude Agent SDK. Provider sessions remain authoritative; Palomar supplies the
 remote control plane around them.
 
-> A Foreman host needs an authenticated Codex or Claude Code CLI. Claude Code
+> A Palomar host needs an authenticated Codex or Claude Code CLI. Claude Code
 > additionally requires Node.js 20 or newer and the pinned Agent SDK.
 
 See the [documentation](docs/README.md), [product roadmap](ROADMAP.md), and
-[latest release](https://github.com/mkaltner/foreman/releases/latest).
+[latest release](https://github.com/kaltner-net/palomar/releases/latest).
 
-## Why Foreman?
+## Why Palomar?
 
-Foreman supports a host-first workflow in which the controlling device never
+Palomar supports a host-first workflow in which the controlling device never
 becomes the coding-agent execution environment:
 
 - **Persistent execution:** source trees, working directories, provider
   authentication, and provider session state stay on the Linux host. Work can
   continue when an Android or browser client disconnects.
 - **Direct multi-host access:** pair Android and browser clients with multiple
-  Linux hosts without routing session traffic through a hosted Foreman relay.
+  Linux hosts without routing session traffic through a hosted Palomar relay.
 - **Provider-native behavior:** Codex and Claude Code sessions remain
-  authoritative. Foreman exposes only the models, permissions, and live
+  authoritative. Palomar exposes only the models, permissions, and live
   operations supported by the active provider.
 - **Remote supervision:** follow live work and use provider-supported prompts,
   steering, interrupts, approvals, structured input, resume, search, archive,
@@ -50,7 +53,7 @@ becomes the coding-agent execution environment:
 
 [Codex Remote Control](https://learn.chatgpt.com/docs/remote-connections) and
 [Claude Code Remote Control](https://support.claude.com/en/articles/14554000-claude-code-power-user-tips)
-are the first-party paths for their respective ecosystems. Foreman instead
+are the first-party paths for their respective ecosystems. Palomar instead
 provides one independently hosted Android/web control plane for both providers
 and multiple Linux machines, reached over infrastructure you manage. It does
 not use either provider's Remote Control transport.
@@ -72,12 +75,12 @@ codex --version
 claude --version
 ```
 
-Foreman does not install or authenticate either provider.
+Palomar does not install or authenticate either provider.
 
-### 2. Install the latest stable Foreman release
+### 2. Install the latest stable Palomar release
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/mkaltner/foreman/main/scripts/install-foreman.sh | sh
+curl -fsSL https://raw.githubusercontent.com/kaltner-net/palomar/main/scripts/install-palomar.sh | sh
 ```
 
 The rootless bootstrapper verifies the pinned release identity, signed checksum
@@ -91,16 +94,16 @@ Verify the service, print its browser URL, and create a single-use pairing code
 valid for ten minutes:
 
 ```sh
-foreman status
-foreman web
-foreman pair
+palomar status
+palomar web
+palomar pair
 ```
 
 Open the printed URL and enter the code. When opening it from another device,
 replace `localhost` with the Linux host's trusted-LAN or private-overlay name or
 address. The bundled web client normally listens on port `8766`.
 
-Foreman runs as an enabled systemd user service. On a headless or SSH-managed
+Palomar runs as an enabled systemd user service. On a headless or SSH-managed
 host, enable lingering so the user service starts at boot and survives the last
 logout. Enabling the unit alone does not keep the user service manager alive.
 
@@ -110,27 +113,27 @@ loginctl show-user "$USER" -p Linger
 ```
 
 The second command should report `Linger=yes`. This one-time host setting may
-require administrator privileges; the Foreman installer itself never invokes
+require administrator privileges; the Palomar installer itself never invokes
 `sudo`.
 
 ### 4. Add Android
 
 Download the signed Android APK from the
-[latest release](https://github.com/mkaltner/foreman/releases/latest), sideload
-it, and create a new `foreman pair` code for the phone. Each code pairs exactly
+[latest release](https://github.com/kaltner-net/palomar/releases/latest), sideload
+it, and create a new `palomar pair` code for the phone. Each code pairs exactly
 one client. Android connects directly to the host on port `8765` by default.
 
 ## How it works
 
 ```text
 Android ── authenticated JSONL/TCP :8765 ─┐
-                                          ├─ Foreman service on Linux host ─┬─ Codex app-server
+                                          ├─ Palomar service on Linux host ─┬─ Codex app-server
 Browser ── HTTP + authenticated WS :8766 ─┘                                 └─ Claude Agent SDK bridge
 ```
 
-Both clients use the same protocol and provider-aware session model. Foreman
-serves the web application and Android transport from one `foreman.service`;
-there is no separate web server, hosted relay, or Foreman cloud service to
+Both clients use the same protocol and provider-aware session model. Palomar
+serves the web application and Android transport from one `palomar.service`;
+there is no separate web server, hosted relay, or Palomar cloud service to
 manage. See the
 [architecture](docs/architecture.md), [protocol](docs/protocol.md), and
 [user guide](docs/user-guide.md) for details.
@@ -138,7 +141,7 @@ manage. See the
 ## Security
 
 > [!CAUTION]
-> Foreman authenticates its clients but does not terminate TLS. Keep it on a
+> Palomar authenticates its clients but does not terminate TLS. Keep it on a
 > trusted LAN or private overlay such as Tailscale or WireGuard, or place the
 > web listener behind a trusted HTTPS reverse proxy. Never expose its ports
 > directly to the public internet.
@@ -155,15 +158,16 @@ models.
 
 ## Project status
 
-Foreman is stable on protocol v1. The 1.x compatibility contract preserves
-documented wire behavior and user state across supported upgrades. Android is
-currently distributed by sideloading, and some provider capabilities differ;
-the clients expose only operations supported by the active provider and host.
+Palomar 2.0.0 is a clean-break product identity. It does not migrate or reuse
+pre-2.0 commands, services, packages, application data, or client storage.
+Android is currently distributed by sideloading, and some provider capabilities
+differ; the clients expose only operations supported by the active provider and
+host.
 
-- [Latest release](https://github.com/mkaltner/foreman/releases/latest)
+- [Latest release](https://github.com/kaltner-net/palomar/releases/latest)
 - [Compatibility policy](docs/compatibility.md)
 - [Known limitations](docs/user-guide.md#known-limitations)
-- [Issue tracker](https://github.com/mkaltner/foreman/issues)
+- [Issue tracker](https://github.com/kaltner-net/palomar/issues)
 - [Product roadmap](ROADMAP.md)
 
 ## Documentation
@@ -174,12 +178,15 @@ release engineering, and historical acceptance records.
 
 - [Documentation](docs/README.md)
 - [License](LICENSE)
+- [Copyright notice](NOTICE)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## License
 
-Foreman's original source code and first-party binaries are available under
+Palomar's original source code and first-party binaries are available under
 the [Apache License 2.0](LICENSE). Bundled third-party components remain subject
 to their own licenses and terms; see
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Copyright 2026 Michael
-Kaltner.
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Palomar is an open-source project created by [Michael Kaltner](https://kaltner.net).
+Copyright 2026 Michael Kaltner.

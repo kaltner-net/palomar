@@ -1,0 +1,21 @@
+#compdef palomar
+
+_palomar() {
+  local -a commands
+  commands=(
+    'install:install or repair from a source checkout'
+    'start:start the user service'
+    'stop:stop the user service'
+    'restart:restart the user service'
+    'status:show user-service status'
+    'logs:follow the user-service journal'
+    'pair:create a single-use pairing code'
+    'web:print the local web URL'
+    'claude-status:show Claude Code adapter status'
+    'update:check or install a signed server update'
+    'uninstall:remove Palomar from this user account'
+  )
+  _describe 'command' commands
+}
+
+_palomar "$@"

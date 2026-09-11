@@ -9,13 +9,13 @@ import {
 } from "./server-update";
 
 const operation = {
-  id: "fmu_1234567890abcdef",
+  id: "pmu_1234567890abcdef",
   phase: "healthChecking",
   currentVersion: "1.0.2",
   targetVersion: "1.0.3",
-  source: "Official Foreman GitHub releases",
-  sourceUrl: "https://github.com/mkaltner/foreman/releases",
-  releaseNotesUrl: "https://github.com/mkaltner/foreman/releases/tag/v1.0.3",
+  source: "Official Palomar GitHub releases",
+  sourceUrl: "https://github.com/kaltner-net/palomar/releases",
+  releaseNotesUrl: "https://github.com/kaltner-net/palomar/releases/tag/v1.0.3",
   progress: 92,
   createdAt: "2026-08-31T00:00:00Z",
   updatedAt: "2026-08-31T00:00:01Z",
@@ -28,7 +28,7 @@ describe("server update protocol projection", () => {
     expect(normalizeServerUpdateOperation({ ...operation, phase: "runShell" })).toBeNull();
     expect(normalizeServerUpdateOperation({ ...operation, sourceUrl: "https://evil.invalid" })).toBeNull();
     expect(normalizeServerUpdateOperation({ ...operation, recoveryCommand: "rm -rf /" })).toBeNull();
-    expect(normalizeServerUpdateOperation({ ...operation, id: "fmu_too-short" })).toBeNull();
+    expect(normalizeServerUpdateOperation({ ...operation, id: "pmu_too-short" })).toBeNull();
     expect(serverUpdatePhaseLabel("rollingBack")).toBe("Rolling back");
   });
 
@@ -36,15 +36,15 @@ describe("server update protocol projection", () => {
     const check = normalizeServerUpdateCheck({
       currentVersion: "1.0.2",
       releaseBuild: true,
-      source: "Official Foreman GitHub releases",
-      sourceUrl: "https://github.com/mkaltner/foreman/releases",
+      source: "Official Palomar GitHub releases",
+      sourceUrl: "https://github.com/kaltner-net/palomar/releases",
       updateAvailable: true,
       target: {
         version: "1.0.3",
         tag: "v1.0.3",
-        title: "Foreman 1.0.3",
+        title: "Palomar 1.0.3",
         publishedAt: "2026-08-31T00:00:00Z",
-        releaseNotesUrl: "https://github.com/mkaltner/foreman/releases/tag/v1.0.3",
+        releaseNotesUrl: "https://github.com/kaltner-net/palomar/releases/tag/v1.0.3",
         artifactAvailable: true,
       },
       blockers: [{ category: "pendingInput", count: 1 }],
@@ -58,11 +58,11 @@ describe("server update protocol projection", () => {
   it("keeps operation restoration isolated by host", () => {
     localStorage.clear();
     saveServerUpdateOperationId("host-a", operation.id);
-    saveServerUpdateOperationId("host-b", "fmu_bbbbbbbbbbbbbbbb");
+    saveServerUpdateOperationId("host-b", "pmu_bbbbbbbbbbbbbbbb");
     expect(loadServerUpdateOperationId("host-a")).toBe(operation.id);
-    expect(loadServerUpdateOperationId("host-b")).toBe("fmu_bbbbbbbbbbbbbbbb");
+    expect(loadServerUpdateOperationId("host-b")).toBe("pmu_bbbbbbbbbbbbbbbb");
     forgetServerUpdateOperationId("host-a");
     expect(loadServerUpdateOperationId("host-a")).toBeNull();
-    expect(loadServerUpdateOperationId("host-b")).toBe("fmu_bbbbbbbbbbbbbbbb");
+    expect(loadServerUpdateOperationId("host-b")).toBe("pmu_bbbbbbbbbbbbbbbb");
   });
 });

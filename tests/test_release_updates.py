@@ -42,16 +42,16 @@ def release(
     uploaded = [] if assets is None else list(assets)
     if assets is None:
         if server:
-            uploaded.append(asset(f"foreman-linux-v{version}.tar.gz"))
+            uploaded.append(asset(f"palomar-linux-v{version}.tar.gz"))
         if android:
-            uploaded.append(asset(f"foreman-v{version}.apk"))
+            uploaded.append(asset(f"palomar-v{version}.apk"))
         if checksums:
-            uploaded.append(asset("SHA256SUMS"))
-            uploaded.append(asset("SHA256SUMS.sig"))
-            uploaded.append(asset("foreman-release-cert.pem"))
+            uploaded.append(asset("palomar-SHA256SUMS"))
+            uploaded.append(asset("palomar-SHA256SUMS.sig"))
+            uploaded.append(asset("palomar-release-cert.pem"))
     return {
         "tag_name": f"v{version}",
-        "name": f"Foreman {version}",
+        "name": f"Palomar {version}",
         "draft": draft,
         "prerelease": prerelease,
         "published_at": "2026-08-29T04:47:19Z",
@@ -128,9 +128,9 @@ class ReleaseSelectionTest(unittest.TestCase):
 
     def test_zero_byte_and_duplicate_assets_are_incomplete(self) -> None:
         for uploaded in (
-            [asset("foreman-v1.0.0.apk", 0), asset("SHA256SUMS")],
-            [asset("foreman-v1.0.0.apk"), asset("foreman-v1.0.0.apk"), asset("SHA256SUMS")],
-            [asset("foreman-v1.0.0.apk"), asset("SHA256SUMS"), asset("SHA256SUMS", 0)],
+            [asset("palomar-v1.0.0.apk", 0), asset("palomar-SHA256SUMS")],
+            [asset("palomar-v1.0.0.apk"), asset("palomar-v1.0.0.apk"), asset("palomar-SHA256SUMS")],
+            [asset("palomar-v1.0.0.apk"), asset("palomar-SHA256SUMS"), asset("palomar-SHA256SUMS", 0)],
         ):
             with self.subTest(uploaded=uploaded):
                 projected = parse_release_response(response(release("1.0.0", assets=uploaded)))
@@ -159,11 +159,11 @@ class ReleaseSelectionTest(unittest.TestCase):
         projected = parse_release_response(response(release("1.0.0")))
         self.assertEqual(
             projected["server"]["supportedRelease"]["releaseNotesUrl"],
-            "https://github.com/mkaltner/foreman/releases/tag/v1.0.0",
+            "https://github.com/kaltner-net/palomar/releases/tag/v1.0.0",
         )
         self.assertEqual(
             GITHUB_RELEASES_ENDPOINT,
-            "https://api.github.com/repos/mkaltner/foreman/releases?per_page=20",
+            "https://api.github.com/repos/kaltner-net/palomar/releases?per_page=20",
         )
 
 

@@ -1,6 +1,6 @@
 # Development workflow
 
-This page contains source-checkout procedures for Foreman contributors and
+This page contains source-checkout procedures for Palomar contributors and
 maintainers. Normal Linux installation uses the signed release payload and
 does not require Node, Gradle, Android Studio, or a Python package installation.
 

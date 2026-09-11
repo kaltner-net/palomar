@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ForemanWebClient, inferPagePort, parseEndpoint } from "./client";
+import { PalomarWebClient, inferPagePort, parseEndpoint } from "./client";
 
 class MockSocket {
   readyState: number = WebSocket.CONNECTING;
@@ -24,9 +24,9 @@ class MockSocket {
     if (this.hold.has(request.type)) return;
     const payload =
       request.type === "hello"
-        ? { server: "Foreman", protocolVersion: 1, codexRuntime: "SHARED_DESKTOP_LIVE_STATUS_AVAILABLE", codexConnected: true, capabilities: {} }
+        ? { server: "Palomar", protocolVersion: 1, codexRuntime: "SHARED_DESKTOP_LIVE_STATUS_AVAILABLE", codexConnected: true, capabilities: {} }
         : request.type === "pair"
-          ? { deviceToken: "fmt_browser" }
+          ? { deviceToken: "pmt_browser" }
           : request.type === "authenticate"
             ? { authenticated: true }
             : { accepted: true };
@@ -59,7 +59,7 @@ class MockSocket {
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("web client pairing, authentication, and reconnect", () => {
-  it("infers the Foreman web port from the page URL", () => {
+  it("infers the Palomar web port from the page URL", () => {
     expect(inferPagePort("8766", "http:")).toBe(8766);
     expect(inferPagePort("9443", "https:")).toBe(9443);
     expect(inferPagePort("", "http:")).toBe(80);
@@ -82,7 +82,7 @@ describe("web client pairing, authentication, and reconnect", () => {
   it("pairs, authenticates with the persistent token, and reports hello capabilities", async () => {
     const sockets: MockSocket[] = [];
     const onHello = vi.fn();
-    const client = new ForemanWebClient(
+    const client = new PalomarWebClient(
       { onEvent: vi.fn(), onState: vi.fn(), onHello },
       () => {
         const socket = new MockSocket();
@@ -91,8 +91,8 @@ describe("web client pairing, authentication, and reconnect", () => {
       },
     );
     const endpoint = parseEndpoint("codex.local", 8766, "http:");
-    await expect(client.pair(endpoint, "123456", "Browser")).resolves.toBe("fmt_browser");
-    await client.start(endpoint, "fmt_browser", async () => undefined);
+    await expect(client.pair(endpoint, "123456", "Browser")).resolves.toBe("pmt_browser");
+    await client.start(endpoint, "pmt_browser", async () => undefined);
     expect(sockets.flatMap((socket) => socket.sent.map((message) => message.type))).toEqual([
       "hello",
       "pair",
@@ -107,7 +107,7 @@ describe("web client pairing, authentication, and reconnect", () => {
     const sockets: MockSocket[] = [];
     const timers: Array<() => void> = [];
     let readyCount = 0;
-    const client = new ForemanWebClient(
+    const client = new PalomarWebClient(
       { onEvent: vi.fn(), onState: vi.fn() },
       () => {
         const socket = new MockSocket();
@@ -120,7 +120,7 @@ describe("web client pairing, authentication, and reconnect", () => {
       },
     );
     const endpoint = parseEndpoint("codex.local", 8766, "http:");
-    await client.start(endpoint, "fmt_browser", async () => {
+    await client.start(endpoint, "pmt_browser", async () => {
       readyCount += 1;
     });
     sockets[0].hold.add("turn.prompt");
@@ -142,7 +142,7 @@ describe("web client pairing, authentication, and reconnect", () => {
     const sockets: MockSocket[] = [];
     const urls: string[] = [];
     const onEvent = vi.fn();
-    const client = new ForemanWebClient(
+    const client = new PalomarWebClient(
       { onEvent, onState: vi.fn() },
       (url) => {
         urls.push(url);
@@ -151,9 +151,9 @@ describe("web client pairing, authentication, and reconnect", () => {
         return socket;
       },
     );
-    await client.start(parseEndpoint("home.local", 8766, "http:"), "fmt_home", async () => undefined);
+    await client.start(parseEndpoint("home.local", 8766, "http:"), "pmt_home", async () => undefined);
     const oldSocket = sockets[0];
-    await client.start(parseEndpoint("work.local", 9766, "http:"), "fmt_work", async () => undefined);
+    await client.start(parseEndpoint("work.local", 9766, "http:"), "pmt_work", async () => undefined);
 
     oldSocket.onmessage?.(new MessageEvent("message", {
       data: JSON.stringify({ version: 1, type: "session.event", payload: { sessionId: "wrong-host" } }),
@@ -162,7 +162,7 @@ describe("web client pairing, authentication, and reconnect", () => {
     expect(urls).toEqual(["ws://home.local:8766/ws", "ws://work.local:9766/ws"]);
     expect(onEvent).not.toHaveBeenCalled();
     expect(sockets[1].sent.find((message) => message.type === "authenticate")?.payload)
-      .toEqual({ deviceToken: "fmt_work" });
+      .toEqual({ deviceToken: "pmt_work" });
     client.disconnect();
   });
 
@@ -171,7 +171,7 @@ describe("web client pairing, authentication, and reconnect", () => {
     const timers: Array<() => void> = [];
     const rejected = vi.fn();
     const onState = vi.fn();
-    const client = new ForemanWebClient(
+    const client = new PalomarWebClient(
       { onEvent: vi.fn(), onState, onAuthenticationRejected: rejected },
       () => {
         const socket = new MockSocket();
@@ -183,7 +183,7 @@ describe("web client pairing, authentication, and reconnect", () => {
         return timers.length;
       },
     );
-    await client.start(parseEndpoint("codex.local", 8766, "http:"), "fmt_browser", async () => undefined);
+    await client.start(parseEndpoint("codex.local", 8766, "http:"), "pmt_browser", async () => undefined);
 
     sockets[0].revoke();
 
@@ -196,7 +196,7 @@ describe("web client pairing, authentication, and reconnect", () => {
     const rejected = vi.fn();
     const onState = vi.fn();
     const timers: Array<() => void> = [];
-    const client = new ForemanWebClient(
+    const client = new PalomarWebClient(
       { onEvent: vi.fn(), onState, onAuthenticationRejected: rejected },
       () => {
         const socket = new MockSocket();
@@ -211,7 +211,7 @@ describe("web client pairing, authentication, and reconnect", () => {
 
     await expect(client.start(
       parseEndpoint("codex.local", 8766, "http:"),
-      "fmt_revoked",
+      "pmt_revoked",
       async () => undefined,
     )).rejects.toMatchObject({ code: "unauthorized" });
 

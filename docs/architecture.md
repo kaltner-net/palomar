@@ -1,10 +1,10 @@
 # Architecture
 
-Foreman has one Linux service and thin Android and browser clients:
+Palomar has one Linux service and thin Android and browser clients:
 
 ```text
-Android Foreman ── authenticated JSONL/TCP :8765 ── Linux Foreman
-Browser Foreman ── static HTTP + authenticated WS :8766 ─┘
+Android Palomar ── authenticated JSONL/TCP :8765 ── Linux Palomar
+Browser Palomar ── static HTTP + authenticated WS :8766 ─┘
                                                     │
                                                     ├─ WebSocket/Unix socket
                                                     │          │
@@ -25,7 +25,7 @@ becomes resumable, and no query is replayed.
 
 The Linux process treats Codex's Desktop control socket as attach-only. It never
 unlinks, replaces, or launches a process on that path. When attachment is
-unavailable it may own a child only on Foreman's separate fallback socket and
+unavailable it may own a child only on Palomar's separate fallback socket and
 classifies that mode as `SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE`. It switches
 directly on message type, normalizes only user-visible thread items, and pushes
 live events to subscribed connections. On reconnect it asks Codex for current
@@ -38,13 +38,13 @@ listener; there is no application REST API, browser backend, database, cookie,
 or server-side rendering layer.
 
 Release identity is separate from protocol compatibility. The candidate manifest
-in `release.properties` aligns the Linux status version, Android version
+in `palomar-release.properties` aligns the Linux status version, Android version
 name/code, web package version, and unchanged protocol version. A prerelease can
 advance without changing protocol v1; a protocol change requires an intentional
 coordinated client/service update and compatibility documentation.
-Web and Android builds read `foremanVersion` from that manifest. Android embeds
+Web and Android builds read `palomarVersion` from that manifest. Android embeds
 the checked-out commit by default, while reproducible artifact builders can set
-`FOREMAN_BUILD_COMMIT` for either client. Their About views therefore retain the
+`PALOMAR_BUILD_COMMIT` for either client. Their About views therefore retain the
 client build identity without a server connection and label the connected
 server version separately. Committed web assets omit the commit unless the
 builder supplies it so rebuilding those assets remains deterministic.
@@ -64,8 +64,8 @@ it stale.
 The stable channel excludes drafts, GitHub prereleases, SemVer prerelease tags,
 and malformed releases. For each component, the newest published stable release
 is distinct from the newest complete supported release. Server support requires
-one nonempty `foreman-linux-v<version>.tar.gz` plus one nonempty `SHA256SUMS`;
-Android support requires one nonempty `foreman-v<version>.apk` plus the checksum
+one nonempty `palomar-linux-v<version>.tar.gz` plus one nonempty `palomar-SHA256SUMS`;
+Android support requires one nonempty `palomar-v<version>.apk` plus the checksum
 file. Duplicate, zero-byte, absent, or over-limit assets do not qualify, and
 GitHub's automatic source archives are never component artifacts. Web and
 Android retain a small validated host-scoped projection for offline About views;
@@ -75,7 +75,7 @@ independent confirmation and recovery state.
 
 Linux files:
 
-- `foreman_service.py`: listener, request switch, repository discovery;
+- `palomar_service.py`: listener, request switch, repository discovery;
 - `codex.py`: app-server lifecycle, calls, and event normalization;
 - `approvals.py`: bounded in-memory approval projection, correlation, and validation;
 - `inputs.py`: verified structured-input normalization and response validation;
@@ -85,8 +85,8 @@ Linux files:
 - `claude_code.py` and `claude_bridge/bridge.mjs`: optional Linux-only Claude SDK lifecycle boundary;
 - `session_identity.py`: the small explicit `provider + hostId + sessionId` identity value;
 - `state.py`: one-time pairing, opaque client IDs, and hashed device tokens;
-- `foreman`, `install.sh`, and `foreman.service`: operation and installation;
-- `foreman_updater.py` and `foreman-update-recovery.service`: external
+- `palomar`, `install.sh`, and `palomar.service`: operation and installation;
+- `palomar_updater.py` and `palomar-update-recovery.service`: external
   activation/rollback ownership and boot-time recovery of durable update phases.
 
 The React/TypeScript SPA under `web/` and the Compose app under `android/` reload
@@ -140,14 +140,14 @@ activity.
 
 ### Multi-host overview connections
 
-The unified overview is a client-side projection. No Foreman service knows
+The unified overview is a client-side projection. No Palomar service knows
 about another host, and every provider-aware projected session uses the compound
 `hostId + provider + sessionId` identity. Small host snapshots (counts, health, versions,
 runtime mode, timestamps, and attention metadata) are cached locally;
 transcripts and tokens are not copied into the overview cache. A disconnected
 snapshot is always labeled stale.
 
-The web client permits at most four simultaneous Foreman WebSockets: the
+The web client permits at most four simultaneous Palomar WebSockets: the
 selected host plus up to three overview sockets. With more than four saved
 hosts, the three background slots rotate every 60 seconds. A host rotated out
 keeps its last snapshot as stale until it is checked again. Browser suspension
@@ -172,15 +172,15 @@ client identities, and removes a pair on blur/background, navigation,
 disconnect, or token revocation. Web and Android notification monitors suppress
 only events matching one of those focused pairs.
 Claude alerts derive only from authoritative provider-tagged lifecycle for a
-monitored Foreman-managed query. Merely resumable external sessions do not
+monitored Palomar-managed query. Merely resumable external sessions do not
 notify. Opening a notification or a combined attention row selects the saved
 host and provider before opening its session.
 
-Pending approvals and inputs live only in the Codex adapter. Each has an opaque Foreman ID,
+Pending approvals and inputs live only in the Codex adapter. Each has an opaque Palomar ID,
 the exact upstream JSON-RPC ID and connection, and one small lock. The adapter
 registers before broadcasting, validates one response, sends it on the original
 connection, and waits for `serverRequest/resolved`. Disconnect or turn cleanup
-expires the mapping without replay. There is no approval/input history or Foreman
+expires the mapping without replay. There is no approval/input history or Palomar
 permission policy.
 
 Android uses one Compose activity, one connection/protocol file, a small image
@@ -197,13 +197,13 @@ terminal; it is not an always-running poller or push client.
 Only pairing keys and safe client authentication metadata (opaque IDs, token
 SHA-256 digests, labels, client types, and pairing times) are persisted by Linux.
 The authenticated client projection never returns a token or digest. Codex stores
-transcripts; Git supplies repository state. Foreman never offers arbitrary
+transcripts; Git supplies repository state. Palomar never offers arbitrary
 commands or Git writes.
 
-The optional, authenticated Foreman restart is disabled by default, has no
+The optional, authenticated Palomar restart is disabled by default, has no
 command or unit-name parameter, flushes a
 scheduled acknowledgement, and enqueues a user-systemd restart of only
-`foreman.service`. Client reconnect is the completion signal. Desktop Codex,
+`palomar.service`. Client reconnect is the completion signal. Desktop Codex,
 raw journals, arbitrary shell, reboot, configuration, and files remain outside
 this surface. The one additional bounded mutation is the full-access server
 update protocol defined in [server-updates.md](server-updates.md). It accepts no
@@ -219,7 +219,7 @@ unit before restarting it.
 Listener/client closure and Codex detachment run concurrently under a bounded
 application shutdown deadline shorter than the systemd unit's stop timeout.
 Reaching that deadline records only a fixed sanitized diagnostic and lets
-systemd finish the process teardown; Foreman still never signals Desktop's
+systemd finish the process teardown; Palomar still never signals Desktop's
 runtime.
 
 Server updates use the same installation boundaries but add signed provenance,
@@ -235,7 +235,7 @@ one bounded app-private operation, verifies checksum, package identity, APK
 signer, `versionName`, and a strictly higher `versionCode`, then grants Android's
 system installer read access to only that verified file. Per-app unknown-source
 permission is explained and requested only at installer handoff. Android owns
-explicit installation confirmation; Foreman has no silent-install path. The
+explicit installation confirmation; Palomar has no silent-install path. The
 durable operation survives activity recreation and package replacement while
 saved hosts and preferences remain outside the APK. The normative trust,
 storage, permission, cleanup, and lifecycle decision is in

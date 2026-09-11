@@ -83,7 +83,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
         python = fake_bin / "python3"
         python.write_text(
             "#!/bin/sh\n"
-            "printf '%s\\n' \"$*\" >> \"$FOREMAN_PYTHON_LOG\"\n"
+            "printf '%s\\n' \"$*\" >> \"$PALOMAR_PYTHON_LOG\"\n"
             "if [ \"${1:-}\" = -m ]; then\n"
             "  case \"${2:-}\" in venv|pip|ensurepip) exit 97;; esac\n"
             "fi\n"
@@ -99,7 +99,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             unavailable = fake_bin / name
             unavailable.write_text(
                 "#!/bin/sh\n"
-                "printf '%s\\n' \"$0 $*\" >> \"$FOREMAN_FORBIDDEN_TOOL_LOG\"\n"
+                "printf '%s\\n' \"$0 $*\" >> \"$PALOMAR_FORBIDDEN_TOOL_LOG\"\n"
                 "exit 97\n",
                 encoding="utf-8",
             )
@@ -107,10 +107,10 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
         systemctl = fake_bin / "systemctl"
         systemctl.write_text(
             "#!/bin/sh\n"
-            "printf '%s\\n' \"$*\" >> \"$FOREMAN_SYSTEMCTL_LOG\"\n"
+            "printf '%s\\n' \"$*\" >> \"$PALOMAR_SYSTEMCTL_LOG\"\n"
             "for argument in \"$@\"; do\n"
             "  if [ \"$argument\" = is-active ]; then\n"
-            "    [ \"$FOREMAN_SYSTEMCTL_ACTIVE\" = 1 ]\n"
+            "    [ \"$PALOMAR_SYSTEMCTL_ACTIVE\" = 1 ]\n"
             "    exit\n"
             "  fi\n"
             "done\n"
@@ -152,7 +152,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             npm = fake_bin / "npm"
             npm.write_text(
                 "#!/bin/sh\n"
-                "printf '%s\\n' \"$*\" >> \"$FOREMAN_NPM_LOG\"\n"
+                "printf '%s\\n' \"$*\" >> \"$PALOMAR_NPM_LOG\"\n"
                 "mkdir -p node_modules/@anthropic-ai/claude-agent-sdk\n"
                 "printf '%s\\n' '{\"name\":\"@anthropic-ai/claude-agent-sdk\",\"version\":\"0.3.220\"}' > node_modules/@anthropic-ai/claude-agent-sdk/package.json\n"
                 "exit 0\n",
@@ -160,33 +160,33 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             )
             npm.chmod(0o755)
         environment = {
-            **{key: value for key, value in os.environ.items() if not key.startswith("FOREMAN_")},
+            **{key: value for key, value in os.environ.items() if not key.startswith("PALOMAR_")},
             "HOME": str(home),
             "PATH": f"{fake_bin}:/usr/bin:/bin",
-            "FOREMAN_PYTHON_LOG": str(python_log),
-            "FOREMAN_SYSTEMCTL_LOG": str(systemctl_log),
-            "FOREMAN_SYSTEMCTL_ACTIVE": "1" if active else "0",
-            "FOREMAN_FORBIDDEN_TOOL_LOG": str(forbidden_tool_log),
-            "FOREMAN_NPM_LOG": str(home / "npm.log"),
+            "PALOMAR_PYTHON_LOG": str(python_log),
+            "PALOMAR_SYSTEMCTL_LOG": str(systemctl_log),
+            "PALOMAR_SYSTEMCTL_ACTIVE": "1" if active else "0",
+            "PALOMAR_FORBIDDEN_TOOL_LOG": str(forbidden_tool_log),
+            "PALOMAR_NPM_LOG": str(home / "npm.log"),
             "CODEX_HOME": str(home / ".codex"),
         }
-        config = home / ".config" / "foreman" / "foreman.env"
+        config = home / ".config" / "palomar" / "palomar.env"
         repository = home / "projects" / "example"
         repository.mkdir(parents=True)
         if create_config:
             config.parent.mkdir(parents=True)
             provider_config = ""
             if "codex" in providers:
-                provider_config += f"FOREMAN_CODEX_EXECUTABLE={codex}\n"
+                provider_config += f"PALOMAR_CODEX_EXECUTABLE={codex}\n"
             if "claude-code" in providers:
-                provider_config += f"FOREMAN_CLAUDE_EXECUTABLE={claude}\n"
-                provider_config += f"FOREMAN_NODE_EXECUTABLE={fake_bin / 'node'}\n"
+                provider_config += f"PALOMAR_CLAUDE_EXECUTABLE={claude}\n"
+                provider_config += f"PALOMAR_NODE_EXECUTABLE={fake_bin / 'node'}\n"
             config.write_text(
-                "FOREMAN_HOST=127.0.0.1\n"
-                "FOREMAN_PORT=0\n"
-                "FOREMAN_WEB_HOST=127.0.0.1\n"
-                "FOREMAN_WEB_PORT=0\n"
-                f"FOREMAN_REPOSITORY_ROOT={home / 'projects'}\n"
+                "PALOMAR_HOST=127.0.0.1\n"
+                "PALOMAR_PORT=0\n"
+                "PALOMAR_WEB_HOST=127.0.0.1\n"
+                "PALOMAR_WEB_PORT=0\n"
+                f"PALOMAR_REPOSITORY_ROOT={home / 'projects'}\n"
                 + provider_config,
                 encoding="utf-8",
             )
@@ -196,7 +196,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
         destination.mkdir()
         shutil.copy2(ROOT / "install.sh", destination / "install.sh")
         shutil.copy2(ROOT / "requirements.txt", destination / "requirements.txt")
-        shutil.copy2(ROOT / "release.properties", destination / "release.properties")
+        shutil.copy2(ROOT / "palomar-release.properties", destination / "palomar-release.properties")
         shutil.copytree(
             ROOT / "linux",
             destination / "linux",
@@ -244,19 +244,19 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
 
                 self.assertEqual(installed.returncode, 0, installed.stderr)
                 config = (
-                    home / ".config/foreman/foreman.env"
+                    home / ".config/palomar/palomar.env"
                 ).read_text(encoding="utf-8")
                 codex = home / "fake-bin/codex"
                 claude = home / "fake-bin/claude"
                 self.assertEqual(
-                    f"FOREMAN_CODEX_EXECUTABLE={codex}" in config,
+                    f"PALOMAR_CODEX_EXECUTABLE={codex}" in config,
                     "codex" in providers,
                 )
                 self.assertEqual(
-                    f"FOREMAN_CLAUDE_EXECUTABLE={claude}" in config,
+                    f"PALOMAR_CLAUDE_EXECUTABLE={claude}" in config,
                     "claude-code" in providers,
                 )
-                self.assertNotIn("FOREMAN_CODEX_EXECUTABLE=\n", config)
+                self.assertNotIn("PALOMAR_CODEX_EXECUTABLE=\n", config)
                 if "claude-code" in providers:
                     self.assertIn(
                         "ci --omit=dev --ignore-scripts",
@@ -265,7 +265,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(
                         (
                             home
-                            / ".local/share/foreman/claude_bridge/node_modules/@anthropic-ai/claude-agent-sdk/package.json"
+                            / ".local/share/palomar/claude_bridge/node_modules/@anthropic-ai/claude-agent-sdk/package.json"
                         ).is_file()
                     )
                 else:
@@ -283,7 +283,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertNotEqual(installed.returncode, 0)
             self.assertIn("Codex (codex) or Claude Code (claude)", installed.stderr)
-            self.assertFalse((home / ".config/foreman").exists())
+            self.assertFalse((home / ".config/palomar").exists())
             self.assertFalse((home / ".local").exists())
             self.assertFalse((home / "systemctl.log").exists())
 
@@ -301,7 +301,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertNotEqual(missing_node.returncode, 0)
             self.assertIn("Install Node.js 20 or newer", missing_node.stderr)
-            self.assertFalse((home / ".config/foreman").exists())
+            self.assertFalse((home / ".config/palomar").exists())
             self.assertFalse((home / ".local").exists())
 
         with tempfile.TemporaryDirectory() as directory:
@@ -320,8 +320,8 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotEqual(missing_sdk.returncode, 0)
             self.assertIn("pinned Claude Agent SDK could not be prepared", missing_sdk.stderr)
             self.assertIn("npm ci --omit=dev --ignore-scripts", missing_sdk.stderr)
-            self.assertFalse((home / ".config/foreman/foreman.env").exists())
-            self.assertFalse((home / ".local/share/foreman").exists())
+            self.assertFalse((home / ".config/palomar/palomar.env").exists())
+            self.assertFalse((home / ".local/share/palomar").exists())
 
         with tempfile.TemporaryDirectory() as directory:
             script = self.copy_install_payload(Path(directory) / "source-payload")
@@ -347,7 +347,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(
                 (
                     home
-                    / ".local/share/foreman/claude_bridge/node_modules/@anthropic-ai/claude-agent-sdk/package.json"
+                    / ".local/share/palomar/claude_bridge/node_modules/@anthropic-ai/claude-agent-sdk/package.json"
                 ).exists()
             )
 
@@ -369,7 +369,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(
                 (
                     home
-                    / ".local/share/foreman/claude_bridge/node_modules/@anthropic-ai/claude-agent-sdk/package.json"
+                    / ".local/share/palomar/claude_bridge/node_modules/@anthropic-ai/claude-agent-sdk/package.json"
                 ).is_file()
             )
 
@@ -379,7 +379,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             configured = home / "provider-bin/codex-custom"
             configured.parent.mkdir()
             (home / "fake-bin/codex").replace(configured)
-            config = home / ".config/foreman/foreman.env"
+            config = home / ".config/palomar/palomar.env"
             config.write_text(
                 config.read_text(encoding="utf-8").replace(
                     str(home / "fake-bin/codex"), str(configured)
@@ -400,7 +400,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             home, environment, python_log, systemctl_log = self.prepare_home(
                 directory
             )
-            obsolete_venv = home / ".local" / "share" / "foreman" / "venv"
+            obsolete_venv = home / ".local" / "share" / "palomar" / "venv"
             obsolete_venv.mkdir(parents=True)
             (obsolete_venv / "old-runtime").write_text("old", encoding="utf-8")
 
@@ -410,12 +410,12 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertEqual(installed.returncode, 0, installed.stderr)
 
-            install_dir = home / ".local" / "share" / "foreman"
-            launcher = home / ".local" / "bin" / "foreman"
-            unit = home / ".config" / "systemd" / "user" / "foreman.service"
+            install_dir = home / ".local" / "share" / "palomar"
+            launcher = home / ".local" / "bin" / "palomar"
+            unit = home / ".config" / "systemd" / "user" / "palomar.service"
             recovery_unit = (
                 home / ".config" / "systemd" / "user"
-                / "foreman-update-recovery.service"
+                / "palomar-update-recovery.service"
             )
             self.assertFalse((install_dir / "venv").exists())
             self.assertIn(
@@ -444,9 +444,13 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue((install_dir / "release_updates.py").is_file())
             self.assertTrue((install_dir / "server_update.py").is_file())
             self.assertTrue((install_dir / "update_cli.py").is_file())
-            self.assertTrue((home / ".local/libexec/foreman-updater").is_file())
+            self.assertTrue((install_dir / "palomar_uninstall").is_file())
+            self.assertTrue((home / ".local/libexec/palomar-updater").is_file())
+            self.assertTrue((home / ".local/share/bash-completion/completions/palomar").is_file())
+            self.assertTrue((home / ".local/share/zsh/site-functions/_palomar").is_file())
+            self.assertTrue((home / ".local/share/fish/vendor_completions.d/palomar.fish").is_file())
             self.assertIn(
-                "--user enable foreman-update-recovery.service",
+                "--user enable palomar-update-recovery.service",
                 systemctl_log.read_text(encoding="utf-8"),
             )
             self.assertTrue((install_dir / "claude_bridge/bridge.mjs").is_file())
@@ -464,8 +468,8 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
                 ).is_file(),
             )
             self.assertEqual(
-                (ROOT / "release.properties").read_text(encoding="utf-8"),
-                (install_dir / "release.properties").read_text(encoding="utf-8"),
+                (ROOT / "palomar-release.properties").read_text(encoding="utf-8"),
+                (install_dir / "palomar-release.properties").read_text(encoding="utf-8"),
             )
 
             paired = await self.run_command(
@@ -496,7 +500,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             process = await asyncio.create_subprocess_exec(
                 "/usr/bin/env",
                 "python3",
-                str(install_dir / "foreman_service.py"),
+                str(install_dir / "palomar_service.py"),
                 env=environment,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -510,8 +514,8 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
                         self.fail(f"installed service exited during startup: {stderr}")
                     output.append(line.decode())
                 self.assertIn("SHARED_DESKTOP_LIVE_STATUS_AVAILABLE", "".join(output))
-                self.assertIn("Foreman listening", "".join(output))
-                self.assertIn("Foreman web listening", "".join(output))
+                self.assertIn("Palomar listening", "".join(output))
+                self.assertIn("Palomar web listening", "".join(output))
                 self.assertIn("initialize", server.methods)
                 self.assertIn("thread/list", server.methods)
                 self.assertIn("thread/resume", server.methods)
@@ -524,11 +528,11 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             invocations = python_log.read_text(encoding="utf-8")
             self.assertNotRegex(invocations, r"-m (venv|pip|ensurepip)")
             self.assertIn(
-                f"{install_dir}/foreman_service.py --create-pairing", invocations
+                f"{install_dir}/palomar_service.py --create-pairing", invocations
             )
-            self.assertIn(f"{install_dir}/foreman_service.py", invocations)
+            self.assertIn(f"{install_dir}/palomar_service.py", invocations)
             service_calls = systemctl_log.read_text(encoding="utf-8")
-            self.assertIn("--user restart foreman.service", service_calls)
+            self.assertIn("--user restart palomar.service", service_calls)
             self.assertFalse((home / "forbidden-tool.log").exists())
 
             web_url = await self.run_command([str(launcher), "web"], environment)
@@ -540,16 +544,16 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             home, environment, _, _ = self.prepare_home(directory)
-            config = home / ".config" / "foreman" / "foreman.env"
+            config = home / ".config" / "palomar" / "palomar.env"
             config.write_text(
-                config.read_text(encoding="utf-8") + "FOREMAN_REMOTE_RESTART=1\n",
+                config.read_text(encoding="utf-8") + "PALOMAR_REMOTE_RESTART=1\n",
                 encoding="utf-8",
             )
-            state_dir = home / ".local" / "state" / "foreman"
+            state_dir = home / ".local" / "state" / "palomar"
             state_dir.mkdir(parents=True)
             state = state_dir / "state.json"
             state.write_text(
-                '{"pairings":[],"devices":[{"id":"fmc_old","digest":"abc",'
+                '{"pairings":[],"devices":[{"id":"pmc_old","digest":"abc",'
                 '"name":"Prior phone","type":"android","createdAt":1}]}\n',
                 encoding="utf-8",
             )
@@ -558,10 +562,10 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
 
             first = await self.run_command([str(ROOT / "install.sh")], environment)
             self.assertEqual(first.returncode, 0, first.stderr)
-            install_dir = home / ".local" / "share" / "foreman"
+            install_dir = home / ".local" / "share" / "palomar"
             obsolete = install_dir / "removed-after-prior-alpha.txt"
             obsolete.write_text("old payload\n", encoding="utf-8")
-            (install_dir / "foreman_service.py").write_text(
+            (install_dir / "palomar_service.py").write_text(
                 "prior alpha payload\n", encoding="utf-8"
             )
 
@@ -572,7 +576,7 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(obsolete.exists())
             self.assertIn(
                 "small authenticated TCP bridge",
-                (install_dir / "foreman_service.py").read_text(encoding="utf-8"),
+                (install_dir / "palomar_service.py").read_text(encoding="utf-8"),
             )
 
     async def test_claude_only_reinstall_preserves_paths_and_provider_choice(self) -> None:
@@ -582,8 +586,8 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
                 directory,
                 providers=("claude-code",),
             )
-            config = home / ".config/foreman/foreman.env"
-            state = home / ".local/state/foreman/state.json"
+            config = home / ".config/palomar/palomar.env"
+            state = home / ".local/state/palomar/state.json"
             state.parent.mkdir(parents=True)
             state.write_text(
                 '{"pairings":[],"devices":[],"providerEnabled":'
@@ -613,29 +617,29 @@ class InstallerTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_activation_rolls_back_the_existing_install(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             home, environment, _, _ = self.prepare_home(directory, active=False)
-            install_dir = home / ".local" / "share" / "foreman"
+            install_dir = home / ".local" / "share" / "palomar"
             obsolete_venv = install_dir / "venv"
             obsolete_venv.mkdir(parents=True)
-            old_service = install_dir / "foreman_service.py"
+            old_service = install_dir / "palomar_service.py"
             old_service.write_text("old service\n", encoding="utf-8")
-            launcher = home / ".local" / "bin" / "foreman"
+            launcher = home / ".local" / "bin" / "palomar"
             launcher.parent.mkdir(parents=True)
             launcher.write_text("old launcher\n", encoding="utf-8")
-            unit = home / ".config" / "systemd" / "user" / "foreman.service"
+            unit = home / ".config" / "systemd" / "user" / "palomar.service"
             unit.parent.mkdir(parents=True)
             unit.write_text("old unit\n", encoding="utf-8")
             recovery_unit = (
                 home / ".config" / "systemd" / "user"
-                / "foreman-update-recovery.service"
+                / "palomar-update-recovery.service"
             )
             recovery_unit.write_text("old recovery unit\n", encoding="utf-8")
-            helper = home / ".local" / "libexec" / "foreman-updater"
+            helper = home / ".local" / "libexec" / "palomar-updater"
             helper.parent.mkdir(parents=True)
             helper.write_text("old helper\n", encoding="utf-8")
-            state = home / ".local" / "state" / "foreman" / "state.json"
+            state = home / ".local" / "state" / "palomar" / "state.json"
             state.parent.mkdir(parents=True)
-            state.write_text('{"devices":[{"id":"fmc_old"}]}\n', encoding="utf-8")
-            config = home / ".config" / "foreman" / "foreman.env"
+            state.write_text('{"devices":[{"id":"pmc_old"}]}\n', encoding="utf-8")
+            config = home / ".config" / "palomar" / "palomar.env"
             expected_config = config.read_bytes()
             expected_state = state.read_bytes()
 

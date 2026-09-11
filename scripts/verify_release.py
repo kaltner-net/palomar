@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when release metadata drifts across Foreman deliverables."""
+"""Fail when release metadata drifts across Palomar deliverables."""
 
 from __future__ import annotations
 
@@ -34,9 +34,9 @@ def main() -> None:
     parser.add_argument("--tag", help="Require metadata to match this v-prefixed tag")
     args = parser.parse_args()
 
-    metadata = properties(ROOT / "release.properties")
+    metadata = properties(ROOT / "palomar-release.properties")
     required = {
-        "foremanVersion",
+        "palomarVersion",
         "releaseBuild",
         "androidVersionCode",
         "protocolVersion",
@@ -44,17 +44,17 @@ def main() -> None:
     }
     missing = sorted(required - metadata.keys())
     if missing:
-        raise SystemExit(f"release.properties: missing {', '.join(missing)}")
+        raise SystemExit(f"palomar-release.properties: missing {', '.join(missing)}")
 
-    version = metadata["foremanVersion"]
+    version = metadata["palomarVersion"]
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-.][0-9A-Za-z.-]+)?", version):
-        raise SystemExit(f"release.properties: invalid foremanVersion {version!r}")
+        raise SystemExit(f"palomar-release.properties: invalid palomarVersion {version!r}")
     if args.tag is not None and args.tag != f"v{version}":
         raise SystemExit(f"tag {args.tag!r} does not match v{version}")
     if metadata["releaseBuild"] not in {"true", "false"}:
-        raise SystemExit("release.properties: releaseBuild must be true or false")
+        raise SystemExit("palomar-release.properties: releaseBuild must be true or false")
     if args.tag is not None and metadata["releaseBuild"] != "true":
-        raise SystemExit("release.properties: tagged releases require releaseBuild=true")
+        raise SystemExit("palomar-release.properties: tagged releases require releaseBuild=true")
 
     try:
         version_code = int(metadata["androidVersionCode"])
@@ -66,27 +66,27 @@ def main() -> None:
     if not re.fullmatch(r"[0-9a-f]{64}", metadata["androidSigningCertificateSha256"]):
         raise SystemExit("androidSigningCertificateSha256 must be a lowercase SHA-256 digest")
 
-    require_text(ROOT / "linux/codex.py", f'FOREMAN_VERSION = "{version}"')
+    require_text(ROOT / "linux/codex.py", f'PALOMAR_VERSION = "{version}"')
     require_text(ROOT / "linux/protocol.py", f"VERSION = {protocol_version}")
     require_text(ROOT / "web/src/protocol.ts", f"PROTOCOL_VERSION = {protocol_version};")
     require_text(
-        ROOT / "android/app/src/main/java/net/kaltner/foreman/ForemanConnection.kt",
-        "version = BuildConfig.FOREMAN_PROTOCOL_VERSION",
+        ROOT / "android/app/src/main/java/net/kaltner/palomar/PalomarConnection.kt",
+        "version = BuildConfig.PALOMAR_PROTOCOL_VERSION",
     )
     require_text(
         ROOT / "android/app/build.gradle.kts",
-        'releaseProperties.getProperty("foremanVersion")',
+        'releaseProperties.getProperty("palomarVersion")',
     )
-    require_text(ROOT / "web/vite.config.ts", "loadForemanBuildMetadata")
+    require_text(ROOT / "web/vite.config.ts", "loadPalomarBuildMetadata")
 
     package = json.loads((ROOT / "web/package.json").read_text(encoding="utf-8"))
     lock = json.loads((ROOT / "web/package-lock.json").read_text(encoding="utf-8"))
     if package.get("version") != version:
-        raise SystemExit("web/package.json version does not match release.properties")
+        raise SystemExit("web/package.json version does not match palomar-release.properties")
     if package.get("license") != "Apache-2.0":
         raise SystemExit("web/package.json must declare Apache-2.0")
     if lock.get("version") != version or lock.get("packages", {}).get("", {}).get("version") != version:
-        raise SystemExit("web/package-lock.json version does not match release.properties")
+        raise SystemExit("web/package-lock.json version does not match palomar-release.properties")
     if lock.get("packages", {}).get("", {}).get("license") != "Apache-2.0":
         raise SystemExit("web/package-lock.json must declare Apache-2.0 for the root package")
 
@@ -97,7 +97,7 @@ def main() -> None:
         (ROOT / "linux/claude_bridge/package-lock.json").read_text(encoding="utf-8")
     )
     if bridge_package.get("version") != version:
-        raise SystemExit("linux/claude_bridge/package.json version does not match release.properties")
+        raise SystemExit("linux/claude_bridge/package.json version does not match palomar-release.properties")
     if bridge_package.get("license") != "Apache-2.0":
         raise SystemExit("linux/claude_bridge/package.json must declare Apache-2.0")
     if (
@@ -105,7 +105,7 @@ def main() -> None:
         or bridge_lock.get("packages", {}).get("", {}).get("version") != version
     ):
         raise SystemExit(
-            "linux/claude_bridge/package-lock.json version does not match release.properties"
+            "linux/claude_bridge/package-lock.json version does not match palomar-release.properties"
         )
     if bridge_lock.get("packages", {}).get("", {}).get("license") != "Apache-2.0":
         raise SystemExit(
@@ -113,7 +113,7 @@ def main() -> None:
         )
     require_text(
         ROOT / "linux/claude_bridge/bridge.mjs",
-        f'CLAUDE_AGENT_SDK_CLIENT_APP: "foreman/{version}"',
+        f'CLAUDE_AGENT_SDK_CLIENT_APP: "palomar/{version}"',
     )
 
     notes = ROOT / "docs" / "releases" / f"{version}.md"

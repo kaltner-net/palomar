@@ -77,7 +77,7 @@ describe("conversation render boundaries", () => {
     const messages = [...conversationMessages, ...activityMessages];
     const session: SessionSummary = {
       id: "long-transcript",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "Long transcript",
       status: "idle",
       messages,

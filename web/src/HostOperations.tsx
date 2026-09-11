@@ -32,10 +32,10 @@ export function diagnosticsText(events: DiagnosticEvent[]): string {
 function restartLabel(phase: RestartPhase): string {
   switch (phase) {
     case "scheduling": return "Scheduling restart…";
-    case "scheduled": return "Restart scheduled; waiting for Foreman to stop…";
-    case "reconnecting": return "Foreman is restarting; reconnecting…";
-    case "succeeded": return "Restart complete; Foreman is connected.";
-    case "timedOut": return "Restart timed out before Foreman returned.";
+    case "scheduled": return "Restart scheduled; waiting for Palomar to stop…";
+    case "reconnecting": return "Palomar is restarting; reconnecting…";
+    case "succeeded": return "Restart complete; Palomar is connected.";
+    case "timedOut": return "Restart timed out before Palomar returned.";
     case "failed": return "Restart could not be scheduled.";
     default: return "";
   }
@@ -89,7 +89,7 @@ export function HostOperations({
 
   const restart = async () => {
     if (restartBlocked) return;
-    if (!window.confirm("Restart Foreman? Connected clients will briefly disconnect and reconnect automatically. Desktop Codex will not be restarted.")) return;
+    if (!window.confirm("Restart Palomar? Connected clients will briefly disconnect and reconnect automatically. Desktop Codex will not be restarted.")) return;
     setRestartPhase("scheduling");
     try {
       const result = await scheduleRestart();
@@ -109,7 +109,7 @@ export function HostOperations({
     <div className="diagnostic-actions">
       <button onClick={() => void refresh()} disabled={disabled || loading}>{loading ? "Refreshing…" : "Refresh"}</button>
       <CopyFeedbackButton text={diagnosticsText(events)} disabled={!events.length} className="diagnostic-copy" />
-      <button className="restart-service" onClick={() => void restart()} disabled={disabled || !remoteRestartEnabled || restartBlocked || restartPhase === "scheduling" || restartPhase === "scheduled" || restartPhase === "reconnecting"}>Restart Foreman</button>
+      <button className="restart-service" onClick={() => void restart()} disabled={disabled || !remoteRestartEnabled || restartBlocked || restartPhase === "scheduling" || restartPhase === "scheduled" || restartPhase === "reconnecting"}>Restart Palomar</button>
     </div>
     {!remoteRestartEnabled && <p className="diagnostic-note">Remote restart is disabled on this host.</p>}
     {remoteRestartEnabled && restartBlocked && <p className="diagnostic-note">Restart is unavailable while sessions are active or waiting for attention.</p>}

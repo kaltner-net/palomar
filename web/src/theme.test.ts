@@ -5,20 +5,20 @@ import { describe, expect, it, vi } from "vitest";
 import { CURATED_THEMES, DEFAULT_APPEARANCE, type Appearance } from "./storage";
 import { applyAppearance, resolvedTheme } from "./theme";
 
-describe("curated Foreman themes", () => {
+describe("curated Palomar themes", () => {
   it("loads startup theming as a same-origin script compatible with the production CSP", () => {
     const html = readFileSync(join(process.cwd(), "index.html"), "utf8");
     expect(html).toContain('<script src="/assets/theme-startup.js"></script>');
-    expect(html).not.toMatch(/<script>(.|\n)*foreman\.appearance/s);
+    expect(html).not.toMatch(/<script>(.|\n)*palomar\.appearance/s);
     expect(readFileSync(join(process.cwd(), "public/assets/theme-startup.js"), "utf8"))
-      .toContain("foreman.appearance.v2");
+      .toContain("palomar.appearance.v2");
     const startup = readFileSync(join(process.cwd(), "public/assets/theme-startup.js"), "utf8");
     for (const { id } of CURATED_THEMES) expect(startup).toContain(`"${id}"`);
   });
 
   it("uses the same stable IDs and names as Android", () => {
     expect(CURATED_THEMES.map(({ id, name }) => ({ id, name }))).toEqual([
-      { id: "foreman", name: "Foreman" },
+      { id: "palomar", name: "Palomar" },
       { id: "harbor", name: "Harbor" },
       { id: "grove", name: "Grove" },
       { id: "ember", name: "Ember" },
@@ -28,12 +28,31 @@ describe("curated Foreman themes", () => {
     ]);
   });
 
-  it("reuses the canonical Android product mark for web identity and browser chrome", () => {
-    const webLogo = readFileSync(join(process.cwd(), "public/foreman-logo.png"));
-    const androidLogo = readFileSync(join(process.cwd(), "../android/app/src/main/res/drawable-nodpi/foreman_logo.png"));
+  it("uses the production asset family for web identity, metadata, and browser chrome", () => {
+    const webLogo = readFileSync(join(process.cwd(), "public/palomar-mark.svg"), "utf8");
+    const repositoryLogo = readFileSync(join(process.cwd(), "../docs/brand/palomar-mark.svg"), "utf8");
+    const favicon = readFileSync(join(process.cwd(), "public/palomar-mark-16px.svg"), "utf8");
+    const appIcon = readFileSync(join(process.cwd(), "public/palomar-app-icon.svg"), "utf8");
+    const socialPreview = readFileSync(join(process.cwd(), "public/palomar-social-preview.png"));
     const html = readFileSync(join(process.cwd(), "index.html"), "utf8");
-    expect(webLogo.equals(androidLogo)).toBe(true);
-    expect(html).toContain('<link rel="icon" type="image/png" href="/foreman-logo.png" />');
+    const manifest = JSON.parse(readFileSync(join(process.cwd(), "public/manifest.webmanifest"), "utf8"));
+    expect(webLogo).toBe(repositoryLogo);
+    expect(favicon).toBe(readFileSync(join(process.cwd(), "../docs/brand/palomar-mark-16px.svg"), "utf8"));
+    expect(appIcon).toBe(readFileSync(join(process.cwd(), "../docs/brand/palomar-app-icon.svg"), "utf8"));
+    expect(socialPreview).toEqual(readFileSync(join(process.cwd(), "../docs/brand/palomar-social-preview.png")));
+    expect(webLogo).toContain("#CFC1FD");
+    expect(webLogo).toContain("#62F9F8");
+    expect(favicon).toContain('viewBox="0 0 16 16"');
+    expect(html).toContain('sizes="16x16" href="/palomar-mark-16px.svg"');
+    expect(html).toContain('sizes="any" href="/palomar-mark.svg"');
+    expect(html).toContain('property="og:image"');
+    expect(html).toContain("docs/brand/palomar-social-preview.png");
+    expect(html).toContain('<link rel="manifest" href="/manifest.webmanifest" />');
+    expect(manifest.name).toBe("Palomar");
+    expect(manifest.icons.map(({ src }: { src: string }) => src)).toEqual([
+      "/palomar-app-icon.svg",
+      "/palomar-app-icon.svg",
+    ]);
   });
 
   it("applies every named theme in light and dark modes", () => {
@@ -41,7 +60,7 @@ describe("curated Foreman themes", () => {
       for (const colorMode of ["light", "dark"] as const) {
         const appearance: Appearance = { ...DEFAULT_APPEARANCE, colorMode, themeId: id };
         const cleanup = applyAppearance(appearance);
-        expect(document.documentElement.dataset.foremanTheme).toBe(id);
+        expect(document.documentElement.dataset.palomarTheme).toBe(id);
         expect(document.documentElement.dataset.colorMode).toBe(colorMode);
         expect(document.documentElement.style.colorScheme).toBe(colorMode);
         cleanup();
@@ -88,14 +107,20 @@ describe("curated Foreman themes", () => {
     const baseDark = rule(":root[data-color-mode=dark]");
     for (const { id } of CURATED_THEMES) {
       for (const dark of [false, true]) {
-        const override = id === "foreman" ? {} : rule(
+        const override = id === "palomar" ? {} : rule(
           dark
-            ? `:root[data-color-mode=dark][data-foreman-theme=${id}]`
-            : `:root[data-foreman-theme=${id}]`,
+            ? `:root[data-color-mode=dark][data-palomar-theme=${id}]`
+            : `:root[data-palomar-theme=${id}]`,
         );
         const palette = { ...baseLight, ...(dark ? baseDark : {}), ...override };
         expect(contrast(palette["--text-primary"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} text`).toBeGreaterThanOrEqual(7);
         expect(contrast(palette["--on-accent"], palette["--accent-primary"]), `${id} ${dark ? "dark" : "light"} accent`).toBeGreaterThanOrEqual(4.5);
+        if (id === "palomar") {
+          expect(contrast(palette["--link"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} link`).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(palette["--on-accent-container"], palette["--accent-container"]), `${id} ${dark ? "dark" : "light"} selection`).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(palette["--disabled-text"], palette["--disabled-surface"]), `${id} ${dark ? "dark" : "light"} disabled`).toBeGreaterThanOrEqual(3);
+          expect(palette["--accent-primary"]).not.toBe(palette["--context-fill"]);
+        }
         for (const role of ["success", "working", "attention", "warning", "failure", "full-access"]) {
           expect(
             contrast(palette[`--${role}`], palette[`--${role}-container`]),
@@ -111,12 +136,22 @@ describe("curated Foreman themes", () => {
         }
       }
     }
+    expect(baseLight).toMatchObject({
+      "--app-background": "#f7f5fc",
+      "--text-primary": "#171527",
+      "--context-fill": "#006e73",
+    });
+    expect(baseDark).toMatchObject({
+      "--app-background": "#171527",
+      "--accent-primary": "#cfc1fd",
+      "--context-fill": "#62f9f8",
+    });
     for (const dark of [false, true]) {
       const palettes = CURATED_THEMES.filter(({ id }) => id !== "high-contrast").map(({ id }) => {
-        const override = id === "foreman" ? {} : rule(
+        const override = id === "palomar" ? {} : rule(
           dark
-            ? `:root[data-color-mode=dark][data-foreman-theme=${id}]`
-            : `:root[data-foreman-theme=${id}]`,
+            ? `:root[data-color-mode=dark][data-palomar-theme=${id}]`
+            : `:root[data-palomar-theme=${id}]`,
         );
         return { ...baseLight, ...(dark ? baseDark : {}), ...override };
       });

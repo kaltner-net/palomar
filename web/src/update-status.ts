@@ -1,6 +1,6 @@
-import type { ComponentReleaseUpdates, ForemanRelease, ReleaseUpdateSnapshot } from "./protocol";
+import type { ComponentReleaseUpdates, PalomarRelease, ReleaseUpdateSnapshot } from "./protocol";
 
-const RELEASE_NOTES_PREFIX = "https://github.com/mkaltner/foreman/releases/tag/";
+const RELEASE_NOTES_PREFIX = "https://github.com/kaltner-net/palomar/releases/tag/";
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 interface ParsedSemVer {
@@ -22,7 +22,7 @@ export interface ComponentUpdateStatus {
   kind: UpdateStatusKind;
   label: string;
   detail?: string;
-  release?: ForemanRelease;
+  release?: PalomarRelease;
 }
 
 export function parseSemVer(value: string): ParsedSemVer | null {
@@ -118,9 +118,9 @@ export function componentUpdateStatus(
   };
 }
 
-function validRelease(value: unknown, supported: boolean): ForemanRelease | null {
+function validRelease(value: unknown, supported: boolean): PalomarRelease | null {
   if (!value || typeof value !== "object") return null;
-  const release = value as Partial<ForemanRelease>;
+  const release = value as Partial<PalomarRelease>;
   if (
     typeof release.version !== "string" || release.version.length > 80 || !parseSemVer(release.version) ||
     release.tag !== `v${release.version}` ||
@@ -129,7 +129,7 @@ function validRelease(value: unknown, supported: boolean): ForemanRelease | null
     release.releaseNotesUrl !== `${RELEASE_NOTES_PREFIX}${release.tag}` ||
     typeof release.artifactAvailable !== "boolean" || (supported && !release.artifactAvailable)
   ) return null;
-  return release as ForemanRelease;
+  return release as PalomarRelease;
 }
 
 export function normalizeReleaseUpdates(value: unknown): ReleaseUpdateSnapshot | null {

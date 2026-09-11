@@ -1,0 +1,25 @@
+{
+  "name": "Palomar",
+  "short_name": "Palomar",
+  "description": "Persistent coding agents. Under your control.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#171527",
+  "theme_color": "#171527",
+  "icons": [
+    {
+      "src": "/palomar-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/palomar-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

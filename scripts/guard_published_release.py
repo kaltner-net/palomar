@@ -61,7 +61,7 @@ def guard_release(
             errors.extend(verify_manifest(manifest, tag))
 
         if not errors:
-            with tempfile.TemporaryDirectory(prefix="foreman-release-guard-") as temporary:
+            with tempfile.TemporaryDirectory(prefix="palomar-release-guard-") as temporary:
                 directory = Path(temporary)
                 _run(
                     runner,
@@ -78,7 +78,7 @@ def guard_release(
                 )
                 errors.extend(verify_directory(directory, tag))
                 metadata = {}
-                for line in (Path(__file__).parents[1] / "release.properties").read_text(encoding="utf-8").splitlines():
+                for line in (Path(__file__).parents[1] / "palomar-release.properties").read_text(encoding="utf-8").splitlines():
                     if "=" in line:
                         key, value = line.split("=", 1)
                         metadata[key] = value

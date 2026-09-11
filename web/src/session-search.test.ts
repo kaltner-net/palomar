@@ -13,13 +13,13 @@ import {
 } from "./session-search";
 
 const repositories: RepositoryInfo[] = [
-  { id: "foreman", name: "foreman", path: "foreman", branch: "main", dirty: false },
+  { id: "palomar", name: "palomar", path: "palomar", branch: "main", dirty: false },
 ];
 const sessions: SessionSummary[] = [
-  { id: "active", title: "Build WebSocket endpoint", repository: "/projects/foreman/src", status: "working", lastActivity: 1_700_000_300 },
+  { id: "active", title: "Build WebSocket endpoint", repository: "/projects/palomar/src", status: "working", lastActivity: 1_700_000_300 },
   { id: "waiting", title: "Review release", repository: "/home/operator", status: "waiting", lastActivity: 1_700_000_200 },
-  { id: "done", title: "Long completed title", repository: "/projects/foreman", status: "idle", lastActivity: 1_700_000_100 },
-  { provider: "codex", id: "archived", title: "Archived socket work", repository: "/projects/foreman", status: "idle", lastActivity: 1_700_000_150, archived: true, readOnly: true },
+  { id: "done", title: "Long completed title", repository: "/projects/palomar", status: "idle", lastActivity: 1_700_000_100 },
+  { provider: "codex", id: "archived", title: "Archived socket work", repository: "/projects/palomar", status: "idle", lastActivity: 1_700_000_150, archived: true, readOnly: true },
 ];
 
 describe("session discovery semantics", () => {
@@ -31,7 +31,7 @@ describe("session discovery semantics", () => {
     const filters = {
       ...DEFAULT_SESSION_FILTERS,
       query: "handler",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       statuses: ["active" as const],
       dateRange: "custom" as const,
       dateFrom: "2023-11-14",
@@ -69,7 +69,7 @@ describe("session discovery semantics", () => {
     const visible = filterSessions(sessions, DEFAULT_SESSION_FILTERS, new Set(["done"]), new Set(), [], repositories, "/projects");
     const groups = repositorySessionGroups(visible, repositories, "/projects");
     expect(groups.map(({ repository }) => repository.label)).toEqual([
-      "Repository: foreman",
+      "Repository: palomar",
       "Workspace: /home/operator",
     ]);
     expect(groups[0].sessions.map(({ session }) => session.id)).toEqual(["active", "done"]);
@@ -117,7 +117,7 @@ describe("session discovery semantics", () => {
 
     expect(showSessionCardRepository(repositorySession, repositories, "/projects", {
       groupByRepository: true,
-      repositoryGroupId: "/projects/foreman",
+      repositoryGroupId: "/projects/palomar",
     })).toBe(false);
     expect(showSessionCardRepository(workspaceSession, repositories, "/projects", {
       groupByRepository: true,
@@ -129,7 +129,7 @@ describe("session discovery semantics", () => {
     })).toBe(true);
     expect(showSessionCardRepository(repositorySession, repositories, "/projects", {
       groupByRepository: false,
-      repositoryGroupId: "/projects/foreman",
+      repositoryGroupId: "/projects/palomar",
     })).toBe(true);
     expect(showSessionCardRepository(repositorySession, repositories, "/projects", {
       groupByRepository: true,
@@ -137,12 +137,12 @@ describe("session discovery semantics", () => {
   });
 
   it("retains collapsed repositories per host across screen navigation", () => {
-    let collapsed = toggleCollapsedRepository(new Map(), "home", "/projects/foreman");
+    let collapsed = toggleCollapsedRepository(new Map(), "home", "/projects/palomar");
     collapsed = toggleCollapsedRepository(collapsed, "work", "/projects/other");
 
-    expect(collapsed.get("home")).toEqual(new Set(["/projects/foreman"]));
+    expect(collapsed.get("home")).toEqual(new Set(["/projects/palomar"]));
     expect(collapsed.get("work")).toEqual(new Set(["/projects/other"]));
-    expect(toggleCollapsedRepository(collapsed, "home", "/projects/foreman").has("home"))
+    expect(toggleCollapsedRepository(collapsed, "home", "/projects/palomar").has("home"))
       .toBe(false);
   });
 
@@ -150,13 +150,13 @@ describe("session discovery semantics", () => {
     const completed = filterSessions(sessions, { ...DEFAULT_SESSION_FILTERS, statuses: ["completed"] }, new Set(), new Set(), [], repositories, "/projects");
     expect(completed.map(({ session }) => session.id)).toEqual(["done"]);
     expect(repositoryFilterOptions(sessions, repositories, "/projects")).toEqual([
-      { id: "/projects/foreman", label: "Repository: foreman" },
+      { id: "/projects/palomar", label: "Repository: palomar" },
       { id: "/home/operator", label: "Workspace: /home/operator" },
     ]);
   });
 
   it("round trips robust, bookmarkable URL state without local ID lists", () => {
-    const filters = parseSessionFilters("?q=websocket&scope=archived&provider=codex&status=active&status=failed&repo=%2Fprojects%2Fforeman&date=7d&pinned=1&hidden=1&sort=recent");
+    const filters = parseSessionFilters("?q=websocket&scope=archived&provider=codex&status=active&status=failed&repo=%2Fprojects%2Fpalomar&date=7d&pinned=1&hidden=1&sort=recent");
     expect(filters.statuses).toEqual(["active", "failed"]);
     expect(filters.scope).toBe("archived");
     expect(filters.provider).toBe("codex");
@@ -176,7 +176,7 @@ describe("session discovery semantics", () => {
         scope: "archived",
         provider: "codex",
         query: "socket",
-        repository: "/projects/foreman",
+        repository: "/projects/palomar",
         statuses: ["completed"],
         dateRange: "custom",
         dateFrom: "2023-11-14",

@@ -606,7 +606,7 @@ class State:
         self, key: str, device_name: str, device_type: str = "unknown"
     ) -> str | None:
         key_digest = _digest(key)
-        device_token = _token("fmt_", 32)
+        device_token = _token("pmt_", 32)
 
         def update(data: dict[str, Any]) -> str | None:
             now = int(time.time())
@@ -629,7 +629,7 @@ class State:
                 return None
             data.setdefault("devices", []).append(
                 {
-                    "id": _token("fmc_", 12),
+                    "id": _token("pmc_", 12),
                     "digest": _digest(device_token),
                     "name": device_name[:80],
                     "type": device_type if device_type in ("browser", "android") else "unknown",
@@ -712,13 +712,13 @@ class State:
     @staticmethod
     def _ensure_device_id(item: dict[str, Any]) -> None:
         if not isinstance(item.get("id"), str) or not item["id"]:
-            item["id"] = _token("fmc_", 12)
+            item["id"] = _token("pmc_", 12)
 
     @staticmethod
     def _public_device(item: dict[str, Any]) -> dict[str, Any]:
         return {
             "id": item["id"],
-            "name": item.get("name") if isinstance(item.get("name"), str) else "Foreman client",
+            "name": item.get("name") if isinstance(item.get("name"), str) else "Palomar client",
             "type": item.get("type") if item.get("type") in ("browser", "android") else "unknown",
             "access": item.get("access") if item.get("access") in ("full", "read") else "full",
             "createdAt": item.get("createdAt") if isinstance(item.get("createdAt"), int) else None,

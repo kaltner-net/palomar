@@ -16,19 +16,19 @@ ROOT = Path(__file__).parents[1]
 
 def operation(phase: str, *, code: str | None = None) -> dict[str, Any]:
     return {
-        "id": "fmu_1234567890abcdef",
+        "id": "pmu_1234567890abcdef",
         "phase": phase,
         "currentVersion": "1.0.2",
         "targetVersion": "1.0.3",
-        "source": "Official Foreman GitHub releases",
-        "sourceUrl": "https://github.com/mkaltner/foreman/releases",
-        "releaseNotesUrl": "https://github.com/mkaltner/foreman/releases/tag/v1.0.3",
+        "source": "Official Palomar GitHub releases",
+        "sourceUrl": "https://github.com/kaltner-net/palomar/releases",
+        "releaseNotesUrl": "https://github.com/kaltner-net/palomar/releases/tag/v1.0.3",
         "progress": 100 if phase in {"succeeded", "rolledBack", "recoveryRequired"} else 5,
         "createdAt": "2026-08-31T00:00:00Z",
         "updatedAt": "2026-08-31T00:01:00Z",
         "message": "Safe update status.",
         **({"resultCode": code} if code else {}),
-        **({"recoveryCommand": "foreman update --recover"} if phase == "recoveryRequired" else {}),
+        **({"recoveryCommand": "palomar update --recover"} if phase == "recoveryRequired" else {}),
     }
 
 
@@ -36,13 +36,13 @@ def check(*, available: bool, blockers=None) -> dict[str, Any]:
     return {
         "currentVersion": "1.0.2",
         "releaseBuild": True,
-        "source": "Official Foreman GitHub releases",
-        "sourceUrl": "https://github.com/mkaltner/foreman/releases",
+        "source": "Official Palomar GitHub releases",
+        "sourceUrl": "https://github.com/kaltner-net/palomar/releases",
         "updateAvailable": available,
         "target": {
-            "version": "1.0.3", "tag": "v1.0.3", "title": "Foreman 1.0.3",
+            "version": "1.0.3", "tag": "v1.0.3", "title": "Palomar 1.0.3",
             "publishedAt": "2026-08-31T00:00:00Z",
-            "releaseNotesUrl": "https://github.com/mkaltner/foreman/releases/tag/v1.0.3",
+            "releaseNotesUrl": "https://github.com/kaltner-net/palomar/releases/tag/v1.0.3",
             "artifactAvailable": True,
         } if available else None,
         "blockers": blockers or [],
@@ -85,7 +85,7 @@ class FakeControl:
 
 class UpdateCliTests(unittest.IsolatedAsyncioTestCase):
     async def run_cli(self, state: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
-        environment = {**os.environ, "FOREMAN_STATE_DIRECTORY": str(state)}
+        environment = {**os.environ, "PALOMAR_STATE_DIRECTORY": str(state)}
         return await asyncio.to_thread(
             subprocess.run,
             [sys.executable, str(ROOT / "linux/update_cli.py"), *arguments],

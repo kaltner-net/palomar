@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Foreman"
+rootProject.name = "Palomar"
 include(":app")

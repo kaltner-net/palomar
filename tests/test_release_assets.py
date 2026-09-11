@@ -36,7 +36,7 @@ class ReleaseManifestTests(unittest.TestCase):
                 self.assertIn("missing release assets", "\n".join(verify_manifest(manifest(missing=name), TAG)))
 
     def test_rejects_empty_and_unexpected_assets(self):
-        errors = verify_manifest(manifest(empty=f"foreman-{TAG}.apk", extra=True), TAG)
+        errors = verify_manifest(manifest(empty=f"palomar-{TAG}.apk", extra=True), TAG)
         self.assertIn("is empty", "\n".join(errors))
         self.assertIn("unexpected release assets", "\n".join(errors))
 
@@ -48,16 +48,16 @@ class ReleaseManifestTests(unittest.TestCase):
 class ReleaseDirectoryTests(unittest.TestCase):
     def create_release(self, directory: Path) -> None:
         payloads = {
-            f"foreman-{TAG}.apk": b"signed apk",
-            f"foreman-linux-{TAG}.tar.gz": b"linux archive",
+            f"palomar-{TAG}.apk": b"signed apk",
+            f"palomar-linux-{TAG}.tar.gz": b"linux archive",
         }
         checksum_lines = []
         for name, content in payloads.items():
             (directory / name).write_bytes(content)
             checksum_lines.append(f"{hashlib.sha256(content).hexdigest()}  {name}")
-        (directory / "SHA256SUMS").write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
-        (directory / "SHA256SUMS.sig").write_bytes(b"detached signature")
-        (directory / "foreman-release-cert.pem").write_text("public certificate\n", encoding="utf-8")
+        (directory / "palomar-SHA256SUMS").write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
+        (directory / "palomar-SHA256SUMS.sig").write_bytes(b"detached signature")
+        (directory / "palomar-release-cert.pem").write_text("public certificate\n", encoding="utf-8")
 
     def test_accepts_downloaded_release(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -69,15 +69,15 @@ class ReleaseDirectoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             self.create_release(directory)
-            (directory / f"foreman-{TAG}.apk").write_bytes(b"tampered")
+            (directory / f"palomar-{TAG}.apk").write_bytes(b"tampered")
             self.assertIn("checksum mismatch", "\n".join(verify_directory(directory, TAG)))
 
     def test_rejects_missing_zero_byte_and_unexpected_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             self.create_release(directory)
-            (directory / f"foreman-{TAG}.apk").unlink()
-            (directory / f"foreman-linux-{TAG}.tar.gz").write_bytes(b"")
+            (directory / f"palomar-{TAG}.apk").unlink()
+            (directory / f"palomar-linux-{TAG}.tar.gz").write_bytes(b"")
             (directory / "extra.txt").write_text("extra", encoding="utf-8")
             errors = "\n".join(verify_directory(directory, TAG))
             self.assertIn("missing release files", errors)
@@ -88,8 +88,8 @@ class ReleaseDirectoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             self.create_release(directory)
-            (directory / "SHA256SUMS").write_text(
-                f"{'0' * 64}  foreman-{TAG}.apk\n",
+            (directory / "palomar-SHA256SUMS").write_text(
+                f"{'0' * 64}  palomar-{TAG}.apk\n",
                 encoding="utf-8",
             )
             errors = "\n".join(verify_directory(directory, TAG))
