@@ -125,6 +125,10 @@ describe("curated Palomar themes", () => {
           ...(id !== "palomar" && dark ? nonPalomarDark : {}),
           ...override,
         };
+        const resolve = (value: string) => {
+          const reference = value.match(/^var\((--[^)]+)\)$/)?.[1];
+          return reference ? palette[reference] : value;
+        };
         expect(contrast(palette["--text-primary"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} text`).toBeGreaterThanOrEqual(7);
         expect(contrast(palette["--on-accent"], palette["--accent-primary"]), `${id} ${dark ? "dark" : "light"} accent`).toBeGreaterThanOrEqual(4.5);
         if (["palomar", "neon-wave", "obsidian"].includes(id)) {
@@ -134,6 +138,8 @@ describe("curated Palomar themes", () => {
           expect(contrast(palette["--focus-indicator"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} focus`).toBeGreaterThanOrEqual(3);
           expect(contrast(palette["--on-accent-container"], palette["--accent-container"]), `${id} ${dark ? "dark" : "light"} selection`).toBeGreaterThanOrEqual(4.5);
           expect(contrast(palette["--disabled-text"], palette["--disabled-surface"]), `${id} ${dark ? "dark" : "light"} disabled`).toBeGreaterThanOrEqual(3);
+          expect(contrast(resolve(palette["--usage-fill"]), resolve(palette["--usage-track"])), `${id} ${dark ? "dark" : "light"} usage meter`).toBeGreaterThanOrEqual(3);
+          expect(contrast(resolve(palette["--context-fill"]), resolve(palette["--context-track"])), `${id} ${dark ? "dark" : "light"} context meter`).toBeGreaterThanOrEqual(3);
           expect(palette["--brand-structure"]).not.toBe(palette["--accent-primary"]);
           expect(palette["--usage-fill"]).not.toBe(palette["--context-fill"]);
         } else if (id !== "high-contrast") {

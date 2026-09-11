@@ -6214,14 +6214,15 @@ private fun AccountUsageDock(
     var open by remember { mutableStateOf(false) }
     val constraint = accountUsageConstraint(visible)
     val usedPercent = constraint?.window?.usedPercent?.roundToInt()?.coerceIn(0, 100) ?: 0
-    Surface(tonalElevation = 3.dp, shadowElevation = 4.dp) {
+    val theme = LocalPalomarThemeVariant.current
+    Surface(color = theme.raisedSurface, shadowElevation = 4.dp) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { open = true }
                 .navigationBarsPadding().padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            UsageRing(usedPercent, 28.dp)
+            UsageRing(usedPercent, 28.dp, theme.usageFill, theme.usageTrack)
             Column(Modifier.weight(1f)) {
                 Text(
                     constraint?.let { accountUsageConstraintSummary(it, showProviderIdentity) }
@@ -6251,6 +6252,7 @@ private fun AccountUsageDialog(
     showProviderIdentity: Boolean,
     onDismiss: () -> Unit,
 ) {
+    val theme = LocalPalomarThemeVariant.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Account usage") },
@@ -6288,7 +6290,7 @@ private fun AccountUsageDialog(
                                         )
                                         Text(
                                             "$remaining% left",
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = theme.usageFill,
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1,
                                         )
@@ -6296,6 +6298,8 @@ private fun AccountUsageDialog(
                                     LinearProgressIndicator(
                                         progress = { (window.usedPercent / 100).toFloat().coerceIn(0f, 1f) },
                                         modifier = Modifier.fillMaxWidth(),
+                                        color = theme.usageFill,
+                                        trackColor = theme.usageTrack,
                                     )
                                     Text(
                                         window.resetsAt?.let {
@@ -6331,12 +6335,13 @@ private fun AccountUsageDialog(
 }
 
 @Composable
-private fun UsageRing(percentUsed: Int, size: Dp) {
+private fun UsageRing(percentUsed: Int, size: Dp, color: Color, trackColor: Color) {
     CircularProgressIndicator(
         progress = { (percentUsed / 100f).coerceIn(0f, 1f) },
         modifier = Modifier.size(size),
         strokeWidth = 3.dp,
-        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        color = color,
+        trackColor = trackColor,
     )
 }
 
@@ -6344,6 +6349,7 @@ private fun UsageRing(percentUsed: Int, size: Dp) {
 private fun SessionContextUsageAction(session: SessionSummary, state: UiState) {
     val usage = contextUsageView(session.tokenUsage) ?: return
     var open by remember(session.providerKey()) { mutableStateOf(false) }
+    val theme = LocalPalomarThemeVariant.current
     Surface(
         modifier = Modifier.padding(horizontal = 3.dp).clickable { open = true },
         shape = RoundedCornerShape(18.dp),
@@ -6354,7 +6360,7 @@ private fun SessionContextUsageAction(session: SessionSummary, state: UiState) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            UsageRing(usage.percentUsed, 22.dp)
+            UsageRing(usage.percentUsed, 22.dp, theme.contextFill, theme.contextTrack)
             Text(
                 "${usage.percentRemaining}%",
                 style = MaterialTheme.typography.labelMedium,
@@ -6374,6 +6380,7 @@ private fun SessionInfoDialog(
     state: UiState,
     onDismiss: () -> Unit,
 ) {
+    val theme = LocalPalomarThemeVariant.current
     val provider = sessionProvider(session)
     val models = if (provider == PROVIDER_CLAUDE_CODE) state.claudeModels else state.models
     val model = models.firstOrNull { it.id == session.model }?.displayName ?: session.model ?: "—"
@@ -6404,11 +6411,13 @@ private fun SessionInfoDialog(
             ) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("${formatTokenCount(usage.usedTokens)} / ${formatTokenCount(usage.contextWindow)} tokens")
-                    Text("${usage.percentRemaining}% left", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text("${usage.percentRemaining}% left", color = theme.contextFill, fontWeight = FontWeight.Bold)
                 }
                 LinearProgressIndicator(
                     progress = { usage.percentUsed / 100f },
                     modifier = Modifier.fillMaxWidth(),
+                    color = theme.contextFill,
+                    trackColor = theme.contextTrack,
                 )
                 Text(
                     "${formatTokenCount(usage.remainingTokens)} tokens remain. Conversation history normally compacts automatically before the window is exhausted.",

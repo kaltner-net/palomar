@@ -1065,6 +1065,8 @@ class PalomarConnectionTest {
                     assertTrue(contrastRatio(palette.focus, palette.background) >= 3.0)
                     assertTrue(contrastRatio(palette.selectionText, palette.selection) >= 4.5)
                     assertTrue(contrastRatio(palette.disabledText, palette.disabledSurface) >= 3.0)
+                    assertTrue(contrastRatio(palette.usageFill, palette.usageTrack) >= 3.0)
+                    assertTrue(contrastRatio(palette.contextFill, palette.contextTrack) >= 3.0)
                     assertFalse(palette.usageFill == palette.contextFill)
                     assertFalse(palette.brandStructure == palette.accent)
                 } else {
