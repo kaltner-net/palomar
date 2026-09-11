@@ -1578,7 +1578,13 @@ internal class PalomarViewModel(application: Application) : AndroidViewModel(app
         synchronizeSessionPresence()
     }
 
-    fun enterSessions() {
+    fun enterSessions() = enterSessions(forceList = false)
+
+    private fun enterSessions(forceList: Boolean) {
+        if (forceList) {
+            showSessions()
+            return
+        }
         val current = state.value
         val target = rememberedSessionTarget(restorationProvider, restorationSessionId)
         val remembered = rememberedSessionForEntry(
@@ -1611,16 +1617,15 @@ internal class PalomarViewModel(application: Application) : AndroidViewModel(app
         }
     }
 
-    fun openOverviewSessions(hostId: String) {
+    fun openOverviewSessions(hostId: String, forceList: Boolean = false) {
         overviewNavigation.clear()
-        // This button names the list destination; remembered detail is restored only by enterSessions.
         when (hostNavigationAction(state.value.activeHostId, state.value.connected, hostId)) {
-            HostNavigationAction.Show -> showSessions()
+            HostNavigationAction.Show -> enterSessions(forceList)
             HostNavigationAction.Reconnect -> {
-                showSessions()
+                enterSessions(forceList)
                 reconnect()
             }
-            HostNavigationAction.Switch -> switchHost(hostId, Screen.Sessions)
+            HostNavigationAction.Switch -> if (forceList) switchHost(hostId, Screen.Sessions) else switchHost(hostId)
         }
     }
 
@@ -5518,7 +5523,7 @@ private fun UnifiedOverviewScreen(
                     host,
                     snapshot,
                     onOpenDashboard = { viewModel.openOverviewHost(host.id) },
-                    onOpenSessions = { viewModel.openOverviewSessions(host.id) },
+                    onOpenSessions = { viewModel.openOverviewSessions(host.id, forceList = true) },
                     onReconnect = { viewModel.reconnectOverviewHost(host.id) },
                     onRename = { renameHost = host; renameValue = host.displayName },
                     onForget = { forgetHost = host },
