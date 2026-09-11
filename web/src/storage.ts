@@ -5,7 +5,7 @@ import { normalizeReleaseUpdates } from "./update-status";
 import { forgetServerUpdateOperationId } from "./server-update";
 
 export type ColorMode = "system" | "light" | "dark";
-export type ThemeId = "palomar" | "harbor" | "grove" | "ember" | "dune" | "slate" | "high-contrast";
+export type ThemeId = "palomar" | "harbor" | "grove" | "ember" | "dune" | "slate" | "neon-wave" | "obsidian" | "high-contrast";
 type LegacyAccentColor = "purple" | "blue" | "teal" | "green" | "orange" | "red" | "pink";
 export type { ActivityDetail } from "./activity-detail";
 export type StoredHostStatus = "connected" | "reconnecting" | "disconnected";
@@ -126,6 +126,18 @@ export const CURATED_THEMES: readonly CuratedTheme[] = [
     name: "Slate",
     description: "Cool blue-gray surfaces with a steady blue accent.",
     preview: ["#f3f6fa", "#ffffff", "#365a8c", "#d8e6f8"],
+  },
+  {
+    id: "neon-wave",
+    name: "Neon Wave",
+    description: "Deep indigo with focused magenta, cyan, and violet energy.",
+    preview: ["#060817", "#161438", "#FF4FD8", "#55F6FF"],
+  },
+  {
+    id: "obsidian",
+    name: "Obsidian",
+    description: "Graphite depth with restrained wine and violet structure.",
+    preview: ["#0B0C0F", "#1C1E24", "#D66A99", "#B39BC8"],
   },
   {
     id: "high-contrast",

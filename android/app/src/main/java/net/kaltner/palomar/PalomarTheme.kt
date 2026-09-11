@@ -42,6 +42,7 @@ internal data class PalomarThemeVariant(
     val focus: Color,
     val selection: Color,
     val selectionText: Color,
+    val subtleAccentSurface: Color,
     val disabledSurface: Color,
     val disabledText: Color,
     val disabledBorder: Color,
@@ -126,6 +127,70 @@ private val highContrastDarkSemantic =
         fullAccessContainer = Color(0xFF4A0018),
     )
 
+private val neonWaveLightSemantic =
+    PalomarSemanticColors(
+        success = Color(0xFF08704C),
+        successContainer = Color(0xFFD8F3E9),
+        working = Color(0xFF006F78),
+        workingContainer = Color(0xFFD5F4F4),
+        attention = Color(0xFF8A4B00),
+        attentionContainer = Color(0xFFFFF0CF),
+        warning = Color(0xFF7B4A00),
+        warningContainer = Color(0xFFFFF5D8),
+        failure = Color(0xFFB42318),
+        failureContainer = Color(0xFFFEE4E2),
+        fullAccess = Color(0xFFA4293D),
+        fullAccessContainer = Color(0xFFFFE4E9),
+    )
+
+private val neonWaveDarkSemantic =
+    PalomarSemanticColors(
+        success = Color(0xFF66E8B7),
+        successContainer = Color(0xFF143B31),
+        working = Color(0xFF55F6FF),
+        workingContainer = Color(0xFF103A4A),
+        attention = Color(0xFFFFC56F),
+        attentionContainer = Color(0xFF4B2D0C),
+        warning = Color(0xFFFFD58A),
+        warningContainer = Color(0xFF49330F),
+        failure = Color(0xFFFFB4AB),
+        failureContainer = Color(0xFF571D1B),
+        fullAccess = Color(0xFFFF9FC0),
+        fullAccessContainer = Color(0xFF5C1F2B),
+    )
+
+private val obsidianLightSemantic =
+    PalomarSemanticColors(
+        success = Color(0xFF166D45),
+        successContainer = Color(0xFFDBF1E4),
+        working = Color(0xFF67507C),
+        workingContainer = Color(0xFFE8E0F0),
+        attention = Color(0xFF8A4B00),
+        attentionContainer = Color(0xFFFFF0CF),
+        warning = Color(0xFF7B4A00),
+        warningContainer = Color(0xFFFFF5D8),
+        failure = Color(0xFFB42318),
+        failureContainer = Color(0xFFFEE4E2),
+        fullAccess = Color(0xFF872957),
+        fullAccessContainer = Color(0xFFF5DAE6),
+    )
+
+private val obsidianDarkSemantic =
+    PalomarSemanticColors(
+        success = Color(0xFF70D9A0),
+        successContainer = Color(0xFF18382C),
+        working = Color(0xFFB39BC8),
+        workingContainer = Color(0xFF34283F),
+        attention = Color(0xFFF4C274),
+        attentionContainer = Color(0xFF443016),
+        warning = Color(0xFFF5D18A),
+        warningContainer = Color(0xFF433518),
+        failure = Color(0xFFF3AAA5),
+        failureContainer = Color(0xFF4C2020),
+        fullAccess = Color(0xFFE394B7),
+        fullAccessContainer = Color(0xFF4A2033),
+    )
+
 private fun tint(base: Color, accent: Color, amount: Float): Color =
     Color(
         red = base.red + (accent.red - base.red) * amount,
@@ -193,6 +258,7 @@ private fun lightVariant(
     focus = Color(focus),
     selection = Color(accentContainer),
     selectionText = Color(onAccentContainer),
+    subtleAccentSurface = tint(Color(surface), Color(accentContainer), 0.45f),
     disabledSurface = Color(disabledSurface),
     disabledText = Color(disabledText),
     disabledBorder = Color(disabledBorder),
@@ -252,6 +318,7 @@ private fun darkVariant(
     focus = Color(focus),
     selection = Color(accentContainer),
     selectionText = Color(onAccentContainer),
+    subtleAccentSurface = tint(Color(surface), Color(accentContainer), 0.45f),
     disabledSurface = Color(disabledSurface),
     disabledText = Color(disabledText),
     disabledBorder = Color(disabledBorder),
@@ -317,6 +384,50 @@ internal fun palomarThemePalette(themeId: ThemeId): PalomarThemePalette =
             light = lightVariant(0xFFF3F6FA, 0xFFFFFFFF, 0xFFE7EDF4, 0xFFCBD5E1, 0xFF172033, 0xFF59677B, 0xFF365A8C, 0xFF27456F, 0xFFD8E6F8, 0xFF152F52, 0xFF2D5489, 0xFF40699E),
             dark = darkVariant(0xFF0F141C, 0xFF171F2B, 0xFF222D3B, 0xFF3B4A5F, 0xFFF2F6FB, 0xFFAAB7C7, 0xFF9FC5F5, 0xFF183656, 0xFF78A7DD, 0xFF294F78, 0xFFE4F0FF, 0xFFAFD2FF, 0xFF9FC5F5),
         )
+        ThemeId.NeonWave -> PalomarThemePalette(
+            light = lightVariant(
+                0xFFF8F6FC, 0xFFFFFFFF, 0xFFF0ECF8, 0xFFD7CDE6,
+                0xFF171126, 0xFF655D75, 0xFF9B006F, 0xFF006F78,
+                0xFFF2D7EE, 0xFF4E123E, 0xFF006F78, 0xFF9B006F,
+                brandStructure = 0xFF6C3CB2,
+                disabledSurface = 0xFFEBE7F0,
+                disabledText = 0xFF716A7B,
+                disabledBorder = 0xFFD4CCDF,
+                semantic = neonWaveLightSemantic,
+            ).copy(contextFill = Color(0xFF006F78)),
+            dark = darkVariant(
+                0xFF060817, 0xFF0C1024, 0xFF161438, 0xFF3B3F6B,
+                0xFFF8F6FF, 0xFFB7B3C9, 0xFFFF4FD8, 0xFF200018,
+                0xFF55F6FF, 0xFF4A174C, 0xFFFFE8FA, 0xFF73F4FF, 0xFFFF4FD8,
+                brandStructure = 0xFFB69CFF,
+                disabledSurface = 0xFF1B1E35,
+                disabledText = 0xFF9692A8,
+                disabledBorder = 0xFF34374D,
+                semantic = neonWaveDarkSemantic,
+            ).copy(contextFill = Color(0xFF55F6FF)),
+        )
+        ThemeId.Obsidian -> PalomarThemePalette(
+            light = lightVariant(
+                0xFFF7F5F6, 0xFFFFFFFF, 0xFFEEE9ED, 0xFFD3CBD3,
+                0xFF1D171C, 0xFF685F67, 0xFF872957, 0xFF67507C,
+                0xFFEEDAE4, 0xFF4D1832, 0xFF75305A, 0xFF872957,
+                brandStructure = 0xFF67507C,
+                disabledSurface = 0xFFE8E4E7,
+                disabledText = 0xFF746C73,
+                disabledBorder = 0xFFCFC8CE,
+                semantic = obsidianLightSemantic,
+            ),
+            dark = darkVariant(
+                0xFF0B0C0F, 0xFF13151A, 0xFF1C1E24, 0xFF45414B,
+                0xFFF6F3F5, 0xFFB7AFB5, 0xFFD66A99, 0xFF260914,
+                0xFFB39BC8, 0xFF4A2033, 0xFFFFE7F0, 0xFFE394B7, 0xFFE176A7,
+                brandStructure = 0xFFB39BC8,
+                disabledSurface = 0xFF24252B,
+                disabledText = 0xFF999298,
+                disabledBorder = 0xFF3A3B42,
+                semantic = obsidianDarkSemantic,
+            ),
+        )
         ThemeId.HighContrast -> PalomarThemePalette(
             light = lightVariant(
                 0xFFFFFFFF, 0xFFFFFFFF, 0xFFE6E6E6, 0xFF1A1A1A, 0xFF000000, 0xFF333333,
@@ -361,9 +472,13 @@ internal fun palomarColorScheme(themeId: ThemeId, darkTheme: Boolean) =
             onSurface = colors.text,
             surfaceVariant = colors.alternateSurface,
             onSurfaceVariant = colors.mutedText,
+            surfaceDim = colors.background,
+            surfaceBright = colors.alternateSurface,
+            surfaceContainerLowest = colors.background,
             surfaceContainer = colors.raisedSurface,
             surfaceContainerLow = colors.card,
             surfaceContainerHigh = colors.groupedHeader,
+            surfaceContainerHighest = colors.card,
             outline = colors.border,
             outlineVariant = colors.divider,
             error = semantic.failure,

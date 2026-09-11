@@ -26,6 +26,8 @@ describe("curated Palomar themes", () => {
       { id: "ember", name: "Ember" },
       { id: "dune", name: "Dune" },
       { id: "slate", name: "Slate" },
+      { id: "neon-wave", name: "Neon Wave" },
+      { id: "obsidian", name: "Obsidian" },
       { id: "high-contrast", name: "High Contrast" },
     ]);
   });
@@ -123,12 +125,21 @@ describe("curated Palomar themes", () => {
           ...(id !== "palomar" && dark ? nonPalomarDark : {}),
           ...override,
         };
+        const resolve = (value: string) => {
+          const reference = value.match(/^var\((--[^)]+)\)$/)?.[1];
+          return reference ? palette[reference] : value;
+        };
         expect(contrast(palette["--text-primary"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} text`).toBeGreaterThanOrEqual(7);
         expect(contrast(palette["--on-accent"], palette["--accent-primary"]), `${id} ${dark ? "dark" : "light"} accent`).toBeGreaterThanOrEqual(4.5);
-        if (id === "palomar") {
+        if (["palomar", "neon-wave", "obsidian"].includes(id)) {
+          expect(contrast(palette["--on-accent"], palette["--accent-emphasis"]), `${id} ${dark ? "dark" : "light"} secondary accent`).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(palette["--text-muted"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} secondary text`).toBeGreaterThanOrEqual(4.5);
           expect(contrast(palette["--link"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} link`).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(palette["--focus-indicator"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} focus`).toBeGreaterThanOrEqual(3);
           expect(contrast(palette["--on-accent-container"], palette["--accent-container"]), `${id} ${dark ? "dark" : "light"} selection`).toBeGreaterThanOrEqual(4.5);
           expect(contrast(palette["--disabled-text"], palette["--disabled-surface"]), `${id} ${dark ? "dark" : "light"} disabled`).toBeGreaterThanOrEqual(3);
+          expect(contrast(resolve(palette["--usage-fill"]), resolve(palette["--usage-track"])), `${id} ${dark ? "dark" : "light"} usage meter`).toBeGreaterThanOrEqual(3);
+          expect(contrast(resolve(palette["--context-fill"]), resolve(palette["--context-track"])), `${id} ${dark ? "dark" : "light"} context meter`).toBeGreaterThanOrEqual(3);
           expect(palette["--brand-structure"]).not.toBe(palette["--accent-primary"]);
           expect(palette["--usage-fill"]).not.toBe(palette["--context-fill"]);
         } else if (id !== "high-contrast") {
@@ -195,6 +206,26 @@ describe("curated Palomar themes", () => {
     });
     expect(baseLight["--usage-fill"]).toBe("var(--brand-structure)");
     expect({ ...baseLight, ...baseDark }["--usage-fill"]).toBe("var(--brand-structure)");
+    expect(rule(":root[data-palomar-theme=neon-wave]")).toMatchObject({
+      "--app-background": "#f8f6fc", "--surface-primary": "#fff", "--surface-alternate": "#f0ecf8",
+      "--accent-primary": "#9b006f", "--accent-emphasis": "#006f78", "--brand-structure": "#6c3cb2",
+      "--context-fill": "#006f78",
+    });
+    expect(rule(":root[data-color-mode=dark][data-palomar-theme=neon-wave]")).toMatchObject({
+      "--app-background": "#060817", "--surface-primary": "#0c1024", "--surface-alternate": "#161438",
+      "--accent-primary": "#ff4fd8", "--accent-emphasis": "#55f6ff", "--brand-structure": "#b69cff",
+      "--context-fill": "#55f6ff",
+    });
+    expect(rule(":root[data-palomar-theme=obsidian]")).toMatchObject({
+      "--app-background": "#f7f5f6", "--surface-primary": "#fff", "--surface-alternate": "#eee9ed",
+      "--accent-primary": "#872957", "--accent-emphasis": "#67507c", "--brand-structure": "#67507c",
+    });
+    expect(rule(":root[data-color-mode=dark][data-palomar-theme=obsidian]")).toMatchObject({
+      "--app-background": "#0b0c0f", "--surface-primary": "#13151a", "--surface-alternate": "#1c1e24",
+      "--accent-primary": "#d66a99", "--accent-emphasis": "#b39bc8", "--brand-structure": "#b39bc8",
+    });
+    expect(css).toContain(":root[data-palomar-theme=neon-wave] .session-card.selected");
+    expect(css).not.toContain(":root[data-palomar-theme=obsidian] .session-card.selected");
     expect(baseLight).toMatchObject({
       "--success": "#087443", "--working": "#315fc4", "--attention": "#9b5800",
       "--warning": "#8a5000", "--failure": "#b42318", "--full-access": "#a4293d",

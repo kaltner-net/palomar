@@ -6214,14 +6214,15 @@ private fun AccountUsageDock(
     var open by remember { mutableStateOf(false) }
     val constraint = accountUsageConstraint(visible)
     val usedPercent = constraint?.window?.usedPercent?.roundToInt()?.coerceIn(0, 100) ?: 0
-    Surface(tonalElevation = 3.dp, shadowElevation = 4.dp) {
+    val theme = LocalPalomarThemeVariant.current
+    Surface(color = theme.raisedSurface, shadowElevation = 4.dp) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { open = true }
                 .navigationBarsPadding().padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            UsageRing(usedPercent, 28.dp)
+            UsageRing(usedPercent, 28.dp, theme.usageFill, theme.usageTrack)
             Column(Modifier.weight(1f)) {
                 Text(
                     constraint?.let { accountUsageConstraintSummary(it, showProviderIdentity) }
@@ -6251,6 +6252,7 @@ private fun AccountUsageDialog(
     showProviderIdentity: Boolean,
     onDismiss: () -> Unit,
 ) {
+    val theme = LocalPalomarThemeVariant.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Account usage") },
@@ -6288,7 +6290,7 @@ private fun AccountUsageDialog(
                                         )
                                         Text(
                                             "$remaining% left",
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = theme.usageFill,
                                             fontWeight = FontWeight.SemiBold,
                                             maxLines = 1,
                                         )
@@ -6296,6 +6298,8 @@ private fun AccountUsageDialog(
                                     LinearProgressIndicator(
                                         progress = { (window.usedPercent / 100).toFloat().coerceIn(0f, 1f) },
                                         modifier = Modifier.fillMaxWidth(),
+                                        color = theme.usageFill,
+                                        trackColor = theme.usageTrack,
                                     )
                                     Text(
                                         window.resetsAt?.let {
@@ -6331,12 +6335,13 @@ private fun AccountUsageDialog(
 }
 
 @Composable
-private fun UsageRing(percentUsed: Int, size: Dp) {
+private fun UsageRing(percentUsed: Int, size: Dp, color: Color, trackColor: Color) {
     CircularProgressIndicator(
         progress = { (percentUsed / 100f).coerceIn(0f, 1f) },
         modifier = Modifier.size(size),
         strokeWidth = 3.dp,
-        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        color = color,
+        trackColor = trackColor,
     )
 }
 
@@ -6344,6 +6349,7 @@ private fun UsageRing(percentUsed: Int, size: Dp) {
 private fun SessionContextUsageAction(session: SessionSummary, state: UiState) {
     val usage = contextUsageView(session.tokenUsage) ?: return
     var open by remember(session.providerKey()) { mutableStateOf(false) }
+    val theme = LocalPalomarThemeVariant.current
     Surface(
         modifier = Modifier.padding(horizontal = 3.dp).clickable { open = true },
         shape = RoundedCornerShape(18.dp),
@@ -6354,7 +6360,7 @@ private fun SessionContextUsageAction(session: SessionSummary, state: UiState) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            UsageRing(usage.percentUsed, 22.dp)
+            UsageRing(usage.percentUsed, 22.dp, theme.contextFill, theme.contextTrack)
             Text(
                 "${usage.percentRemaining}%",
                 style = MaterialTheme.typography.labelMedium,
@@ -6374,6 +6380,7 @@ private fun SessionInfoDialog(
     state: UiState,
     onDismiss: () -> Unit,
 ) {
+    val theme = LocalPalomarThemeVariant.current
     val provider = sessionProvider(session)
     val models = if (provider == PROVIDER_CLAUDE_CODE) state.claudeModels else state.models
     val model = models.firstOrNull { it.id == session.model }?.displayName ?: session.model ?: "—"
@@ -6404,11 +6411,13 @@ private fun SessionInfoDialog(
             ) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("${formatTokenCount(usage.usedTokens)} / ${formatTokenCount(usage.contextWindow)} tokens")
-                    Text("${usage.percentRemaining}% left", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text("${usage.percentRemaining}% left", color = theme.contextFill, fontWeight = FontWeight.Bold)
                 }
                 LinearProgressIndicator(
                     progress = { usage.percentUsed / 100f },
                     modifier = Modifier.fillMaxWidth(),
+                    color = theme.contextFill,
+                    trackColor = theme.contextTrack,
                 )
                 Text(
                     "${formatTokenCount(usage.remainingTokens)} tokens remain. Conversation history normally compacts automatically before the window is exhausted.",
@@ -6476,7 +6485,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.repositorySessionSect
         Surface(
             modifier = Modifier.fillMaxWidth().clickable(onClick = toggleCollapsed),
             shape = RoundedCornerShape(10.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+            color = LocalPalomarThemeVariant.current.groupedHeader,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {
             Row(
@@ -6614,11 +6623,12 @@ private fun SessionCard(
     providerUsable: Boolean,
     showProviderIdentity: Boolean,
 ) {
+    val theme = LocalPalomarThemeVariant.current
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = if (session.archived) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
-            else MaterialTheme.colorScheme.surfaceVariant,
+            else theme.card,
         ),
         border = if (session.archived) BorderStroke(1.dp, MaterialTheme.colorScheme.secondary) else null,
     ) {
@@ -7158,7 +7168,12 @@ private fun SessionDetailScreen(
 @Composable
 private fun CollapsedActivityGroup(items: List<ConversationItem>) {
     var expanded by remember(items.map { it.id }) { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth()) {
+    val theme = LocalPalomarThemeVariant.current
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = theme.card),
+        border = BorderStroke(1.dp, theme.border),
+    ) {
         Column {
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(12.dp),
@@ -7194,9 +7209,10 @@ private fun CollapsedActivityGroup(items: List<ConversationItem>) {
 private fun LiveActivityRow(session: SessionSummary) {
     val activityMessage = liveActivityMessage(session)
     val activityTitle = activityMessage ?: "${liveActivityLabel(session)}…"
+    val theme = LocalPalomarThemeVariant.current
     Surface(
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        color = theme.subtleAccentSurface,
+        contentColor = theme.text,
         shape = RoundedCornerShape(14.dp),
     ) {
         Row(
@@ -7213,7 +7229,7 @@ private fun LiveActivityRow(session: SessionSummary) {
                 Text(
                     inlineMarkdown(
                         activityTitle,
-                        MaterialTheme.colorScheme.onSecondaryContainer,
+                        theme.text,
                     ),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
@@ -7285,13 +7301,15 @@ private fun ConversationRow(
         }
         "command", "tool" -> {
             val tone = activityStatusTone(item)
+            val theme = LocalPalomarThemeVariant.current
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = theme.card),
                 border =
                     when (tone) {
                         ActivityStatusTone.Active -> BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                         ActivityStatusTone.Attention -> BorderStroke(1.dp, MaterialTheme.colorScheme.error)
-                        ActivityStatusTone.Neutral -> null
+                        ActivityStatusTone.Neutral -> BorderStroke(1.dp, theme.border)
                     },
             ) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -7320,23 +7338,27 @@ private fun ConversationRow(
                 }
             }
         }
-        "compaction" -> Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer,
-        ) {
-            Row(
-                Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+        "compaction" -> LocalPalomarThemeVariant.current.let { theme ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = theme.card,
+                contentColor = theme.text,
+                border = BorderStroke(1.dp, theme.border),
             ) {
-                Text("↻", color = LocalPalomarThemeVariant.current.brandStructure, style = MaterialTheme.typography.titleMedium)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text("Context compacted", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
-                    Text(compactionDetail(item), style = MaterialTheme.typography.bodySmall)
-                }
-                item.durationMs?.let {
-                    Text(compactDuration(it), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(
+                    Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("↻", color = theme.brandStructure, style = MaterialTheme.typography.titleMedium)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Context compacted", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                        Text(compactionDetail(item), style = MaterialTheme.typography.bodySmall)
+                    }
+                    item.durationMs?.let {
+                        Text(compactDuration(it), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }
@@ -8129,6 +8151,8 @@ private fun UiSettingsMenu(
                                         ThemeId.Ember -> "Warm plum and clay surfaces"
                                         ThemeId.Dune -> "Warm sand and amber with earthy neutrals"
                                         ThemeId.Slate -> "Cool blue-gray surfaces with a steady blue accent"
+                                        ThemeId.NeonWave -> "Deep indigo with focused magenta, cyan, and violet energy"
+                                        ThemeId.Obsidian -> "Graphite depth with restrained wine and violet structure"
                                         ThemeId.HighContrast -> "Maximum separation for text, controls, and status cues"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
