@@ -26,7 +26,7 @@
     root.dataset.palomarTheme = themeId;
     root.style.colorScheme = resolved;
     const chromeColors = {
-      palomar: { light: "#f7f5fc", dark: "#171527" },
+      palomar: { light: "#f7f8fc", dark: "#090b16" },
       harbor: { light: "#006b75", dark: "#142226" },
       grove: { light: "#356a3f", dark: "#19231a" },
       ember: { light: "#8a3d61", dark: "#25191e" },
@@ -40,6 +40,6 @@
     root.dataset.colorMode = resolved;
     root.dataset.palomarTheme = fallback.themeId;
     root.style.colorScheme = resolved;
-    document.querySelector('meta[name="theme-color"]').content = resolved === "dark" ? "#171527" : "#f7f5fc";
+    document.querySelector('meta[name="theme-color"]').content = resolved === "dark" ? "#090b16" : "#f7f8fc";
   }
 })();

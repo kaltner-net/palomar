@@ -93,10 +93,12 @@ class AboutInformationTest {
         assertTrue(fullColor.contains("@color/palomar_lavender"))
         assertTrue(fullColor.contains("@color/palomar_cyan"))
         assertTrue(notification.contains("M 9.080,36.550"))
-        assertTrue(colors.contains("<color name=\"app_background\">#F7F5FC</color>"))
+        assertTrue(colors.contains("<color name=\"app_background\">#F7F8FC</color>"))
         assertTrue(colors.contains("<color name=\"palomar_dark\">#171527</color>"))
         assertTrue(colors.contains("<color name=\"palomar_lavender\">#CFC1FD</color>"))
         assertTrue(colors.contains("<color name=\"palomar_cyan\">#62F9F8</color>"))
-        assertTrue(nightColors.contains("<color name=\"app_background\">#171527</color>"))
+        assertTrue(colors.contains("<color name=\"palomar_platform_accent\">#006E73</color>"))
+        assertTrue(nightColors.contains("<color name=\"app_background\">#090B16</color>"))
+        assertTrue(nightColors.contains("<color name=\"palomar_platform_accent\">#62F9F8</color>"))
     }
 }

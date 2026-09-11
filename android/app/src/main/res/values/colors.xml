@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="app_background">#F7F5FC</color>
+    <color name="app_background">#F7F8FC</color>
     <color name="palomar_dark">#171527</color>
     <color name="palomar_lavender">#CFC1FD</color>
     <color name="palomar_cyan">#62F9F8</color>
-    <color name="palomar_platform_accent">#6542A6</color>
+    <color name="palomar_platform_accent">#006E73</color>
 </resources>

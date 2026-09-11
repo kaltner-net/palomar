@@ -9,7 +9,7 @@ Both clients use the same stable theme IDs and names:
 
 | ID | Name | Intent |
 | --- | --- | --- |
-| `palomar` | Palomar | Dark violet, lavender, and cyan production default |
+| `palomar` | Palomar | Ink/navy foundations, lavender structure, and cyan controls |
 | `harbor` | Harbor | Ocean blue and blue-green |
 | `grove` | Grove | Natural green and warm neutral |
 | `ember` | Ember | Warm plum and clay |
@@ -17,12 +17,37 @@ Both clients use the same stable theme IDs and names:
 | `slate` | Slate | Cool blue-gray and steady blue |
 | `high-contrast` | High Contrast | Maximum separation for text, controls, borders, focus, and status cues |
 
-Every theme has an explicit light and dark palette. Palomar dark mode uses
-`#171527` as its application background, `#CFC1FD` as its primary accent, and
-`#62F9F8` selectively for links, focus, connectivity, and secondary emphasis.
-Its light mode uses a lavender-neutral background, white surfaces, `#171527`
-text, and accessibility-adjusted deep-violet and dark-cyan controls. The logo
+Every theme has an explicit light and dark palette. Palomar follows the hero
+artwork's hierarchy: neutral ink and navy carry the large surfaces, violet and
+lavender provide branded structure and selected containers, and cyan marks
+primary actions, links, focus, selected-item outlines, and live connectivity.
+Usage meters retain lavender so cyan remains a recognizable interaction and
+network accent rather than becoming a general-purpose decoration. The logo
 retains its canonical colors rather than inheriting theme colors.
+
+The production Palomar values are:
+
+| Semantic role | Light | Dark |
+| --- | --- | --- |
+| Application background | `#F7F8FC` | `#090B16` |
+| Primary surface | `#FFFFFF` | `#111326` |
+| Alternate/grouped surface | `#EEF0F7` | `#171527` |
+| Ordinary border/divider | `#D7DAE5` | `#30354D` |
+| Primary text | `#111326` | `#FFFFFF` |
+| Muted text | `#5D6175` | `#B6B7CA` |
+| Interactive cyan | `#006E73` | `#62F9F8` |
+| Brand structure | `#493B82` | `#CFC1FD` |
+| Selected container | `#EAE5FF` | `#352D63` |
+| Selected-container text | `#2F2853` | `#F5F0FF` |
+| Disabled surface | `#E8EAF1` | `#202338` |
+| Disabled text | `#686B7C` | `#989BAD` |
+| Disabled border | `#CDD1DC` | `#30344A` |
+
+Light-mode controls use `#006E73`, an accessibility-adjusted dark cyan, rather
+than placing the hero's bright `#62F9F8` on white. Dark mode uses the canonical
+bright cyan directly. The canonical structural violet and lavender values are
+also used for repository hierarchy, product labels, selected containers, and
+other restrained secondary emphasis.
 
 Semantic success, working, attention, warning, failure, and full-access roles
 remain consistent and separate from theme accents. Labels, icons, borders, and

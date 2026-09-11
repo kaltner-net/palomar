@@ -1039,6 +1039,7 @@ class PalomarConnectionTest {
                 val palette = palomarThemeVariant(themeId, dark)
                 val scheme = palomarColorScheme(themeId, dark)
                 assertEquals(palette.accent, scheme.primary)
+                assertEquals(palette.accentEmphasis, scheme.secondary)
                 assertEquals(palette.background, scheme.background)
                 assertEquals(palette.surface, scheme.surface)
                 assertEquals(palette.alternateSurface, scheme.surfaceVariant)
@@ -1052,6 +1053,10 @@ class PalomarConnectionTest {
                     assertTrue(contrastRatio(palette.selectionText, palette.selection) >= 4.5)
                     assertTrue(contrastRatio(palette.disabledText, palette.disabledSurface) >= 3.0)
                     assertFalse(palette.usageFill == palette.contextFill)
+                    assertFalse(palette.brandStructure == palette.accent)
+                } else {
+                    assertEquals(palette.accent, palette.brandStructure)
+                    assertEquals(palette.accent, palette.usageFill)
                 }
                 with(palette.semantic) {
                     listOf(
@@ -1095,13 +1100,43 @@ class PalomarConnectionTest {
             assertEquals(themed.size, themed.map { it.success }.distinct().size)
         }
         with(palomarThemeVariant(ThemeId.Palomar, darkTheme = false)) {
-            assertEquals(Color(0xFFF7F5FC), background)
-            assertEquals(Color(0xFF171527), text)
+            assertEquals(Color(0xFFF7F8FC), background)
+            assertEquals(Color(0xFFFFFFFF), surface)
+            assertEquals(Color(0xFFEEF0F7), alternateSurface)
+            assertEquals(Color(0xFFD7DAE5), border)
+            assertEquals(Color(0xFF111326), text)
+            assertEquals(Color(0xFF5D6175), mutedText)
+            assertEquals(Color(0xFF006E73), accent)
+            assertEquals(Color(0xFF493B82), accentEmphasis)
+            assertEquals(Color(0xFFEAE5FF), accentContainer)
+            assertEquals(Color(0xFF2F2853), onAccentContainer)
+            assertEquals(Color(0xFF493B82), brandStructure)
+            assertEquals(Color(0xFF006E73), link)
+            assertEquals(Color(0xFF006E73), focus)
+            assertEquals(Color(0xFFE8EAF1), disabledSurface)
+            assertEquals(Color(0xFF686B7C), disabledText)
+            assertEquals(Color(0xFFCDD1DC), disabledBorder)
+            assertEquals(Color(0xFF493B82), usageFill)
             assertEquals(Color(0xFF006E73), contextFill)
         }
         with(palomarThemeVariant(ThemeId.Palomar, darkTheme = true)) {
-            assertEquals(Color(0xFF171527), background)
-            assertEquals(Color(0xFFCFC1FD), accent)
+            assertEquals(Color(0xFF090B16), background)
+            assertEquals(Color(0xFF111326), surface)
+            assertEquals(Color(0xFF171527), alternateSurface)
+            assertEquals(Color(0xFF30354D), border)
+            assertEquals(Color(0xFFFFFFFF), text)
+            assertEquals(Color(0xFFB6B7CA), mutedText)
+            assertEquals(Color(0xFF62F9F8), accent)
+            assertEquals(Color(0xFFCFC1FD), accentEmphasis)
+            assertEquals(Color(0xFF352D63), accentContainer)
+            assertEquals(Color(0xFFF5F0FF), onAccentContainer)
+            assertEquals(Color(0xFFCFC1FD), brandStructure)
+            assertEquals(Color(0xFF62F9F8), link)
+            assertEquals(Color(0xFF62F9F8), focus)
+            assertEquals(Color(0xFF202338), disabledSurface)
+            assertEquals(Color(0xFF989BAD), disabledText)
+            assertEquals(Color(0xFF30344A), disabledBorder)
+            assertEquals(Color(0xFFCFC1FD), usageFill)
             assertEquals(Color(0xFF62F9F8), contextFill)
         }
     }
