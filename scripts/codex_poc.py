@@ -81,7 +81,7 @@ async def proof(args: argparse.Namespace) -> None:
         threads = await adapter.list_threads()
         print(f"existing threads: {len(threads)} returned")
 
-        with tempfile.TemporaryDirectory(prefix="foreman-poc-") as repository:
+        with tempfile.TemporaryDirectory(prefix="palomar-poc-") as repository:
             subprocess.run(["git", "init", "-q", repository], check=True)
             started = await adapter.start_thread(repository, ephemeral=True)
             thread_id = started["id"]
@@ -95,7 +95,7 @@ async def proof(args: argparse.Namespace) -> None:
             model_id = selected["id"] if selected else None
             effort = selected["defaultReasoningEffort"] if selected else None
             inputs = user_input(
-                "Reply with exactly FOREMAN_POC_OK. Do not use tools.",
+                "Reply with exactly PALOMAR_POC_OK. Do not use tools.",
                 [],
             )
             params: dict[str, Any] = {"threadId": thread_id, "input": inputs}
@@ -111,7 +111,7 @@ async def proof(args: argparse.Namespace) -> None:
                 args.verbose_events,
             )
             status = completed["params"]["turn"]["status"]
-            if status != "completed" or "FOREMAN_POC_OK" not in assistant:
+            if status != "completed" or "PALOMAR_POC_OK" not in assistant:
                 raise RuntimeError("text prompt result was unexpected")
             print(f"text prompt completed: {status}")
 
@@ -122,7 +122,7 @@ async def proof(args: argparse.Namespace) -> None:
                         {
                             "threadId": thread_id,
                             "input": user_input(
-                                "Reply with exactly FOREMAN_IMAGE_OK.",
+                                "Reply with exactly PALOMAR_IMAGE_OK.",
                                 [
                                     {
                                         "mimeType": "image/png",
@@ -143,7 +143,7 @@ async def proof(args: argparse.Namespace) -> None:
                 )
                 if (
                     image_completed["params"]["turn"]["status"] != "completed"
-                    or "FOREMAN_IMAGE_OK" not in image_assistant
+                    or "PALOMAR_IMAGE_OK" not in image_assistant
                 ):
                     raise RuntimeError("image prompt result was unexpected")
                 print("image prompt completed: completed")
@@ -155,7 +155,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--codex",
-        default=os.environ.get("FOREMAN_CODEX_EXECUTABLE") or shutil.which("codex"),
+        default=os.environ.get("PALOMAR_CODEX_EXECUTABLE") or shutil.which("codex"),
     )
     parser.add_argument(
         "--socket",
@@ -167,12 +167,12 @@ def main() -> int:
         "--fallback-socket",
         type=Path,
         default=resolve_fallback_socket_path(),
-        help="Foreman-only socket used when the Desktop socket is unavailable",
+        help="Palomar-only socket used when the Desktop socket is unavailable",
     )
     parser.add_argument(
         "--attach-only",
         action="store_true",
-        help="fail instead of launching the Foreman-only fallback",
+        help="fail instead of launching the Palomar-only fallback",
     )
     parser.add_argument("--with-image", action="store_true")
     parser.add_argument("--verbose-events", action="store_true")
@@ -182,9 +182,9 @@ def main() -> int:
     try:
         asyncio.run(proof(args))
     except CodexError as error:
-        print(f"FOREMAN_CODEX_POC_FAIL: {error}", file=sys.stderr)
+        print(f"PALOMAR_CODEX_POC_FAIL: {error}", file=sys.stderr)
         return 1
-    print("FOREMAN_CODEX_POC_PASS")
+    print("PALOMAR_CODEX_POC_PASS")
     return 0
 
 

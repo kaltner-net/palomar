@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Opt-in authenticated proof through Foreman's production WebSocket surface."""
+"""Opt-in authenticated proof through Palomar's production WebSocket surface."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "linux" / "vendor"))
 
 import protocol  # noqa: E402
 from claude_code import ClaudeCode  # noqa: E402
-from foreman_service import Foreman  # noqa: E402
+from palomar_service import Palomar  # noqa: E402
 from state import State  # noqa: E402
 from websockets.asyncio.client import connect  # noqa: E402
 
@@ -136,18 +136,18 @@ async def proof() -> dict[str, object]:
     claude = shutil.which("claude")
     if claude is None:
         raise RuntimeError("native claude executable is required")
-    with tempfile.TemporaryDirectory(prefix="foreman-claude-web-proof-") as directory:
+    with tempfile.TemporaryDirectory(prefix="palomar-claude-web-proof-") as directory:
         base = Path(directory)
         repository_root = base / "projects"
         repository = repository_root / "repo"
         repository.mkdir(parents=True)
         subprocess.run(["git", "init", "-q", str(repository)], check=True)
-        (repository / "FOREMAN_WEB_PROOF.txt").write_text(
-            "FOREMAN_WEB_MARKER\n", encoding="utf-8"
+        (repository / "PALOMAR_WEB_PROOF.txt").write_text(
+            "PALOMAR_WEB_MARKER\n", encoding="utf-8"
         )
         state = State(base / "state")
         pairing_key, _ = state.create_pairing()
-        app = Foreman(
+        app = Palomar(
             "127.0.0.1",
             0,
             repository_root,
@@ -212,8 +212,8 @@ async def proof() -> dict[str, object]:
                         "provider": "claude-code",
                         "repositoryId": "repo",
                         "text": (
-                            "Use Read to read FOREMAN_WEB_PROOF.txt. Then use Bash to run exactly "
-                            "`pwd`. Reply with exactly FOREMAN_WEB_MARKER."
+                            "Use Read to read PALOMAR_WEB_PROOF.txt. Then use Bash to run exactly "
+                            "`pwd`. Reply with exactly PALOMAR_WEB_MARKER."
                         ),
                         "model": "sonnet",
                         "permissionMode": "bypassPermissions",
@@ -227,7 +227,7 @@ async def proof() -> dict[str, object]:
                     raise RuntimeError("web Read/Bash query did not complete")
                 started_events = browser.events[event_index:]
                 visible = json.dumps(started_events)
-                if "FOREMAN_WEB_MARKER" not in assistant_text(started_events, started_id):
+                if "PALOMAR_WEB_MARKER" not in assistant_text(started_events, started_id):
                     raise RuntimeError("web assistant deltas did not contain the marker")
                 if "Reading a file" not in visible or "Running a command (output hidden)" not in visible:
                     raise RuntimeError("web safe Read/Bash activity was not observed")
@@ -320,7 +320,7 @@ async def proof() -> dict[str, object]:
                     cwd=repository,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
-                    env={**os.environ, "FOREMAN_CLAUDE_EXECUTABLE": claude},
+                    env={**os.environ, "PALOMAR_CLAUDE_EXECUTABLE": claude},
                 )
                 async with asyncio.timeout(30):
                     while True:

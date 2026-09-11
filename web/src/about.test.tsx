@@ -2,22 +2,29 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   AboutSection,
-  FOREMAN_LICENSE_URL,
-  FOREMAN_RELEASES_URL,
-  FOREMAN_REPOSITORY_URL,
-  FOREMAN_THIRD_PARTY_NOTICES_URL,
+  KALTNER_WEBSITE_URL,
+  PALOMAR_LICENSE_URL,
+  PALOMAR_RELEASES_URL,
+  PALOMAR_REPOSITORY_URL,
+  PALOMAR_THIRD_PARTY_NOTICES_URL,
   WEB_CLIENT_VERSION,
   WEB_RELEASE_BUILD,
   clientBuildDescription,
 } from "./about";
 
 describe("AboutSection", () => {
+  it("uses the approved creator attribution", () => {
+    render(<AboutSection serverVersion={null} connected={false} />);
+    expect(screen.getByText(/Palomar is an open-source project created by/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Michael Kaltner" })).toHaveAttribute("href", KALTNER_WEBSITE_URL);
+  });
+
   const completeRelease = {
     version: "1.0.0",
     tag: "v1.0.0",
-    title: "Foreman 1.0.0",
+    title: "Palomar 1.0.0",
     publishedAt: "2026-08-29T04:47:19Z",
-    releaseNotesUrl: "https://github.com/mkaltner/foreman/releases/tag/v1.0.0",
+    releaseNotesUrl: "https://github.com/kaltner-net/palomar/releases/tag/v1.0.0",
     artifactAvailable: true,
   };
   const releaseUpdates = {
@@ -48,8 +55,8 @@ describe("AboutSection", () => {
 
     expect(screen.getByText("Server").nextElementSibling).toHaveTextContent("0.9.0");
     expect(screen.getByText("Build").nextElementSibling).toHaveTextContent(WEB_CLIENT_VERSION);
-    expect(screen.getByText("Connected Foreman server")).toBeInTheDocument();
-    expect(screen.getByText("This browser’s Foreman web client")).toBeInTheDocument();
+    expect(screen.getByText("Connected Palomar server")).toBeInTheDocument();
+    expect(screen.getByText("This browser’s Palomar web client")).toBeInTheDocument();
   });
 
   it("presents matching server and bundled web versions as one installation", () => {
@@ -61,9 +68,9 @@ describe("AboutSection", () => {
       />,
     );
 
-    expect(screen.getByText("Connected Foreman installation")).toBeInTheDocument();
+    expect(screen.getByText("Connected Palomar installation")).toBeInTheDocument();
     expect(screen.getByText("Bundled web client").nextElementSibling).toHaveTextContent("matches server");
-    expect(screen.queryByText("This browser’s Foreman web client")).not.toBeInTheDocument();
+    expect(screen.queryByText("This browser’s Palomar web client")).not.toBeInTheDocument();
     if (WEB_RELEASE_BUILD) {
       expect(screen.queryByText("Development or source-checkout build")).not.toBeInTheDocument();
     } else {
@@ -105,8 +112,8 @@ describe("AboutSection", () => {
     const onReviewUpdate = vi.fn(async () => ({
       currentVersion: "0.9.0",
       releaseBuild: true,
-      source: "Official Foreman GitHub releases",
-      sourceUrl: FOREMAN_RELEASES_URL,
+      source: "Official Palomar GitHub releases",
+      sourceUrl: PALOMAR_RELEASES_URL,
       updateAvailable: true,
       target: completeRelease,
       blockers: [{ category: "pendingApproval" as const, count: 1 }],
@@ -124,21 +131,21 @@ describe("AboutSection", () => {
 
   it("shows durable progress and actionable rollback recovery", async () => {
     render(<AboutSection serverVersion="1.0.2" serverReleaseBuild connected updateOperation={{
-      id: "fmu_1234567890abcdef",
+      id: "pmu_1234567890abcdef",
       phase: "recoveryRequired",
       currentVersion: "1.0.2",
       targetVersion: "1.0.3",
-      source: "Official Foreman GitHub releases",
-      sourceUrl: FOREMAN_RELEASES_URL,
-      releaseNotesUrl: "https://github.com/mkaltner/foreman/releases/tag/v1.0.3",
+      source: "Official Palomar GitHub releases",
+      sourceUrl: PALOMAR_RELEASES_URL,
+      releaseNotesUrl: "https://github.com/kaltner-net/palomar/releases/tag/v1.0.3",
       progress: 100,
       createdAt: "2026-08-31T00:00:00Z",
       updatedAt: "2026-08-31T00:01:00Z",
       message: "Automatic rollback failed.",
-      recoveryCommand: "foreman update --recover",
+      recoveryCommand: "palomar update --recover",
     }} />);
     expect(screen.getByRole("status")).toHaveTextContent("Recovery required");
-    expect(screen.getByText("foreman update --recover")).toBeInTheDocument();
+    expect(screen.getByText("palomar update --recover")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("progressbar")).toHaveValue(100));
   });
 
@@ -155,14 +162,14 @@ describe("AboutSection", () => {
 
     expect(screen.getByText(/Cached release information from/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Check again" })).toBeDisabled();
-    expect(screen.getByText("Connected Foreman server")).toBeInTheDocument();
+    expect(screen.getByText("Connected Palomar server")).toBeInTheDocument();
   });
 
   it.each([
-    ["GitHub repository", FOREMAN_REPOSITORY_URL],
-    ["Current releases", FOREMAN_RELEASES_URL],
-    ["License", FOREMAN_LICENSE_URL],
-    ["Third-party notices", FOREMAN_THIRD_PARTY_NOTICES_URL],
+    ["GitHub repository", PALOMAR_REPOSITORY_URL],
+    ["Current releases", PALOMAR_RELEASES_URL],
+    ["License", PALOMAR_LICENSE_URL],
+    ["Third-party notices", PALOMAR_THIRD_PARTY_NOTICES_URL],
   ])("uses the expected %s target", (name, href) => {
     render(<AboutSection serverVersion={null} connected={false} />);
     const link = screen.getByRole("link", { name });

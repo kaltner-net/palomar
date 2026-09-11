@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that a Foreman APK carries its first-party legal files."""
+"""Verify that a Palomar APK carries its first-party legal files."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from pathlib import Path
 REQUIRED_LEGAL_ASSETS = frozenset(
     {
         "assets/LICENSE",
+        "assets/NOTICE",
         "assets/THIRD_PARTY_NOTICES.md",
     }
 )
@@ -35,7 +36,7 @@ def main() -> None:
     if missing:
         raise SystemExit(f"release APK is missing {', '.join(sorted(missing))}")
 
-    print("APK includes Foreman license and third-party notices")
+    print("APK includes Palomar license, copyright notice, and third-party notices")
 
 
 if __name__ == "__main__":

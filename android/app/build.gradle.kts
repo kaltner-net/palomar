@@ -8,12 +8,15 @@ import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 
-abstract class GenerateForemanLegalAssets : DefaultTask() {
+abstract class GeneratePalomarLegalAssets : DefaultTask() {
     @get:InputFile
     abstract val licenseFile: RegularFileProperty
 
     @get:InputFile
     abstract val noticesFile: RegularFileProperty
+
+    @get:InputFile
+    abstract val copyrightNoticeFile: RegularFileProperty
 
     @get:OutputDirectory
     abstract val outputDirectory: DirectoryProperty
@@ -26,6 +29,7 @@ abstract class GenerateForemanLegalAssets : DefaultTask() {
         fileSystemOperations.sync {
             from(licenseFile)
             from(noticesFile)
+            from(copyrightNoticeFile)
             into(outputDirectory)
         }
     }
@@ -39,55 +43,56 @@ plugins {
 
 val releaseProperties =
     Properties().apply {
-        rootProject.file("../release.properties").inputStream().use(::load)
+        rootProject.file("../palomar-release.properties").inputStream().use(::load)
     }
-val foremanVersionCode =
-    providers.gradleProperty("foremanVersionCode").orNull?.toIntOrNull()
+val palomarVersionCode =
+    providers.gradleProperty("palomarVersionCode").orNull?.toIntOrNull()
         ?: releaseProperties.getProperty("androidVersionCode").toInt()
-val foremanVersionName =
-    providers.gradleProperty("foremanVersionName").orNull
-        ?: releaseProperties.getProperty("foremanVersion")
-val foremanProtocolVersion = releaseProperties.getProperty("protocolVersion").toInt()
-val foremanAndroidSigningCertificateSha256 =
+val palomarVersionName =
+    providers.gradleProperty("palomarVersionName").orNull
+        ?: releaseProperties.getProperty("palomarVersion")
+val palomarProtocolVersion = releaseProperties.getProperty("protocolVersion").toInt()
+val palomarAndroidSigningCertificateSha256 =
     releaseProperties.getProperty("androidSigningCertificateSha256")
         ?.takeIf { it.matches(Regex("[0-9a-f]{64}")) }
-        ?: error("release.properties: invalid androidSigningCertificateSha256")
-val foremanReleaseBuild =
+        ?: error("palomar-release.properties: invalid androidSigningCertificateSha256")
+val palomarReleaseBuild =
     releaseProperties.getProperty("releaseBuild")?.toBooleanStrictOrNull()
-        ?: error("release.properties: releaseBuild must be true or false")
-val foremanBuildCommit =
-    providers.environmentVariable("FOREMAN_BUILD_COMMIT").orNull?.trim()?.takeIf {
+        ?: error("palomar-release.properties: releaseBuild must be true or false")
+val palomarBuildCommit =
+    providers.environmentVariable("PALOMAR_BUILD_COMMIT").orNull?.trim()?.takeIf {
         it.matches(Regex("[0-9A-Za-z._-]{1,64}"))
     } ?: runCatching {
         providers.exec {
             commandLine("git", "-C", rootProject.projectDir.parent, "rev-parse", "--short=12", "HEAD")
         }.standardOutput.asText.get().trim()
     }.getOrDefault("unknown").takeIf { it.matches(Regex("[0-9a-f]{7,40}")) } ?: "unknown"
-val releaseKeystorePath = System.getenv("FOREMAN_ANDROID_KEYSTORE")
-val generateForemanLegalAssets =
-    tasks.register<GenerateForemanLegalAssets>("generateForemanLegalAssets") {
+val releaseKeystorePath = System.getenv("PALOMAR_ANDROID_KEYSTORE")
+val generatePalomarLegalAssets =
+    tasks.register<GeneratePalomarLegalAssets>("generatePalomarLegalAssets") {
         licenseFile.set(rootProject.layout.projectDirectory.file("../LICENSE"))
         noticesFile.set(rootProject.layout.projectDirectory.file("../THIRD_PARTY_NOTICES.md"))
-        outputDirectory.set(layout.buildDirectory.dir("generated/foremanLegalAssets"))
+        copyrightNoticeFile.set(rootProject.layout.projectDirectory.file("../NOTICE"))
+        outputDirectory.set(layout.buildDirectory.dir("generated/palomarLegalAssets"))
     }
 
 android {
-    namespace = "net.kaltner.foreman"
+    namespace = "net.kaltner.palomar"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "net.kaltner.foreman"
+        applicationId = "net.kaltner.palomar"
         minSdk = 23
         targetSdk = 37
-        versionCode = foremanVersionCode
-        versionName = foremanVersionName
-        buildConfigField("int", "FOREMAN_PROTOCOL_VERSION", foremanProtocolVersion.toString())
-        buildConfigField("String", "FOREMAN_BUILD_COMMIT", "\"$foremanBuildCommit\"")
-        buildConfigField("boolean", "FOREMAN_RELEASE_BUILD", foremanReleaseBuild.toString())
+        versionCode = palomarVersionCode
+        versionName = palomarVersionName
+        buildConfigField("int", "PALOMAR_PROTOCOL_VERSION", palomarProtocolVersion.toString())
+        buildConfigField("String", "PALOMAR_BUILD_COMMIT", "\"$palomarBuildCommit\"")
+        buildConfigField("boolean", "PALOMAR_RELEASE_BUILD", palomarReleaseBuild.toString())
         buildConfigField(
             "String",
-            "FOREMAN_ANDROID_SIGNING_CERTIFICATE_SHA256",
-            "\"$foremanAndroidSigningCertificateSha256\"",
+            "PALOMAR_ANDROID_SIGNING_CERTIFICATE_SHA256",
+            "\"$palomarAndroidSigningCertificateSha256\"",
         )
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -100,9 +105,9 @@ android {
         if (!releaseKeystorePath.isNullOrBlank()) {
             create("release") {
                 storeFile = file(releaseKeystorePath)
-                storePassword = System.getenv("FOREMAN_ANDROID_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("FOREMAN_ANDROID_KEY_ALIAS")
-                keyPassword = System.getenv("FOREMAN_ANDROID_KEY_PASSWORD")
+                storePassword = System.getenv("PALOMAR_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("PALOMAR_ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("PALOMAR_ANDROID_KEY_PASSWORD")
             }
         }
     }
@@ -142,8 +147,8 @@ android {
 androidComponents {
     onVariants(selector().all()) { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(
-            generateForemanLegalAssets,
-            GenerateForemanLegalAssets::outputDirectory,
+            generatePalomarLegalAssets,
+            GeneratePalomarLegalAssets::outputDirectory,
         )
     }
 }

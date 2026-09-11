@@ -1,15 +1,15 @@
-# Foreman themes
+# Palomar themes
 
 Appearance has two independent settings on web and Android:
 
-- **Color mode** controls whether Foreman follows the system or always uses Light or Dark.
+- **Color mode** controls whether Palomar follows the system or always uses Light or Dark.
 - **Theme** selects a named palette whose backgrounds, surfaces, text, controls, and accent roles are designed together.
 
 Both clients use the same stable theme IDs and names:
 
 | ID | Name | Intent |
 | --- | --- | --- |
-| `foreman` | Foreman | Signature violet and cool neutral default |
+| `palomar` | Palomar | Signature violet and cool neutral default |
 | `harbor` | Harbor | Ocean blue and teal |
 | `grove` | Grove | Natural green and warm neutral |
 | `ember` | Ember | Warm plum and clay |
@@ -23,15 +23,15 @@ High Contrast uses stronger surface boundaries, focus indicators, disabled-state
 
 ## Local persistence and migration
 
-Appearance remains a client-local, host-scoped preference. Web stores version 2 appearance records under `foreman.appearance.v2.<host-id>`; Android stores appearance version 2 in the existing per-host preferences file. Forgetting a host deletes its appearance data with the rest of that host's local presentation state.
+Appearance remains a client-local, host-scoped preference. Web stores version 2 appearance records under `palomar.appearance.v2.<host-id>`; Android stores appearance version 2 in the existing per-host preferences file. Forgetting a host deletes its appearance data with the rest of that host's local presentation state.
 
 Legacy accents migrate deterministically on first load:
 
 | Legacy accent | Theme |
 | --- | --- |
-| Purple | Foreman |
+| Purple | Palomar |
 | Blue, Teal | Harbor |
 | Green | Grove |
 | Orange, Red, Pink | Ember |
 
-Migration preserves color mode, activity detail, and repository grouping. Unknown or malformed values fall back to Foreman and cannot prevent startup. After migration, the legacy accent key is removed.
+Migration preserves color mode, activity detail, and repository grouping. Unknown or malformed values fall back to Palomar and cannot prevent startup. After migration, the legacy accent key is removed.

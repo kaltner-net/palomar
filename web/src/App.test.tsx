@@ -20,7 +20,7 @@ vi.mock("./client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client")>();
   return {
     ...actual,
-    ForemanWebClient: class {
+    PalomarWebClient: class {
       constructor(options: { onState: (state: "connected") => void; onEvent: (message: unknown) => void; onAuthenticationRejected?: (detail: string) => void }) {
         clientMock.onState = options.onState;
         clientMock.onEvent = options.onEvent;
@@ -115,7 +115,7 @@ function mockConnectedState(
       case "provider.model.list": return { models: [] };
       case "provider.permission.list": return { modes: [] };
       case "service.status": return {
-        foremanVersion: "test",
+        palomarVersion: "test",
         connected: true,
         uptimeSeconds: 1,
         repositoryRoot: "/projects",
@@ -187,7 +187,7 @@ describe("host navigation history", () => {
 
     act(() => clientMock.onAuthenticationRejected?.("This client token was revoked. Pair this browser again to reconnect."));
 
-    await screen.findByRole("heading", { name: "Connect to Foreman" });
+    await screen.findByRole("heading", { name: "Connect to Palomar" });
     expect(loadHostRegistry()).toEqual({ hosts: [], activeHostId: null });
     expect(screen.getByRole("alert")).toHaveTextContent("token was revoked");
   });
@@ -211,7 +211,7 @@ describe("host navigation history", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Disconnect and revoke access for Office browser" }));
 
-    await screen.findByRole("heading", { name: "Connect to Foreman" });
+    await screen.findByRole("heading", { name: "Connect to Palomar" });
     expect(loadHostRegistry()).toEqual({ hosts: [], activeHostId: null });
     expect(clientMock.request).toHaveBeenCalledWith("client.revoke", { clientId: "current" });
   });
@@ -234,7 +234,7 @@ describe("host navigation history", () => {
       browser,
       { id: "phone", name: "Pixel", type: "android", pairedAt: "2026-09-09T12:00:00+00:00", connected: true, connectionCount: 2, current: false },
     ];
-    act(() => clientMock.onEvent?.({ type: "service.event", payload: { foremanVersion: "test", codex: {}, listeners: {} } }));
+    act(() => clientMock.onEvent?.({ type: "service.event", payload: { palomarVersion: "test", codex: {}, listeners: {} } }));
 
     expect(await screen.findByText("Pixel")).toBeInTheDocument();
     expect(screen.getByText("Android · Connected · 2 live connections")).toBeInTheDocument();
@@ -285,7 +285,7 @@ describe("host navigation history", () => {
       provider: "claude-code",
       id: "claude-thread",
       repositoryId: "repo",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "Claude thread",
       status: "idle",
       messages: [],
@@ -317,9 +317,9 @@ describe("host navigation history", () => {
     expect(harbor).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(harbor);
 
-    await waitFor(() => expect(document.documentElement.dataset.foremanTheme).toBe("harbor"));
+    await waitFor(() => expect(document.documentElement.dataset.palomarTheme).toBe("harbor"));
     expect(harbor).toHaveAttribute("aria-pressed", "true");
-    expect(localStorage.getItem(`foreman.appearance.v2.${home.id}`)).toContain('"themeId":"harbor"');
+    expect(localStorage.getItem(`palomar.appearance.v2.${home.id}`)).toContain('"themeId":"harbor"');
     expect(screen.queryByText("Accent")).not.toBeInTheDocument();
   });
 
@@ -327,9 +327,9 @@ describe("host navigation history", () => {
     const release = (version: string) => ({
       version,
       tag: `v${version}`,
-      title: `Foreman v${version}`,
+      title: `Palomar v${version}`,
       publishedAt: "2026-08-31T22:01:42Z",
-      releaseNotesUrl: `https://github.com/mkaltner/foreman/releases/tag/v${version}`,
+      releaseNotesUrl: `https://github.com/kaltner-net/palomar/releases/tag/v${version}`,
       artifactAvailable: true,
     });
     const staleRelease = release("1.0.4");
@@ -362,8 +362,8 @@ describe("host navigation history", () => {
       if (type === "service.status") {
         return {
           ...await baseRequest(type, payload),
-          foremanVersion: "1.0.4",
-          foremanReleaseBuild: true,
+          palomarVersion: "1.0.4",
+          palomarReleaseBuild: true,
           releaseUpdates: staleSnapshot,
         };
       }
@@ -415,7 +415,7 @@ describe("host navigation history", () => {
     const archived: SessionSummary = {
       provider: "codex",
       id: "archived-reopen",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "Archived reopen",
       status: "idle",
       archived: true,
@@ -457,7 +457,7 @@ describe("host navigation history", () => {
     const archived: SessionSummary = {
       provider: "codex",
       id: "restore-once",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "Restore once",
       status: "idle",
       archived: true,
@@ -494,7 +494,7 @@ describe("host navigation history", () => {
     const session: SessionSummary = {
       provider: "codex",
       id: "archive-selected",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "Archive selected",
       status: "idle",
       capabilities: ["session.read", "session.archive", "session.delete"],
@@ -563,7 +563,7 @@ describe("host navigation history", () => {
     const selected: SessionSummary = {
       provider: "codex",
       id: "still-selected",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "Still selected",
       status: "idle",
       messages: [],
@@ -571,7 +571,7 @@ describe("host navigation history", () => {
     const archived: SessionSummary = {
       provider: "codex",
       id: "archive-other",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "Archive other",
       status: "idle",
       capabilities: ["session.archive"],
@@ -607,7 +607,7 @@ describe("host navigation history", () => {
     const session: SessionSummary = {
       provider: "codex",
       id: "externally-archived-selected",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "Externally archived selected",
       status: "completed",
       lastActivity: Date.now() / 1000,
@@ -617,7 +617,7 @@ describe("host navigation history", () => {
     window.history.replaceState(
       null,
       "",
-      `/sessions/codex/${session.id}?host=${home.id}&provider=codex&repo=%2Fprojects%2Fforeman&status=completed&date=30d&sort=oldest`,
+      `/sessions/codex/${session.id}?host=${home.id}&provider=codex&repo=%2Fprojects%2Fpalomar&status=completed&date=30d&sort=oldest`,
     );
     mockConnectedState([session]);
     render(<App />);
@@ -649,7 +649,7 @@ describe("host navigation history", () => {
     const session: SessionSummary = {
       provider: "codex",
       id: "external-lifecycle",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "External lifecycle",
       status: "idle",
       capabilities: ["session.read", "session.archive", "session.delete"],
@@ -705,7 +705,7 @@ describe("host navigation history", () => {
     const session: SessionSummary = {
       provider: "codex",
       id: "externally-restored-detail",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "Externally restored detail",
       status: "idle",
       archived: true,
@@ -989,7 +989,7 @@ describe("host navigation history", () => {
   it("restores an approval from the server when a conversation is reopened", async () => {
     const session: SessionSummary = {
       id: "thread-1",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "Approval session",
       status: "waiting",
       attention: true,
@@ -1045,7 +1045,7 @@ describe("host navigation history", () => {
   it("does not let an obsolete session open overwrite newer navigation", async () => {
     const first: SessionSummary = {
       id: "thread-a",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       title: "Session A",
       status: "idle",
       messages: [],
@@ -1126,7 +1126,7 @@ describe("DevicesAndAccess", () => {
   });
 });
 
-describe("Foreman setup", () => {
+describe("Palomar setup", () => {
   it("captures a display name and explicit web port for each host", () => {
     const onConnect = vi.fn().mockResolvedValue(undefined);
     const { container } = render(<SetupView error="" busy={false} onConnect={onConnect} />);
@@ -1135,7 +1135,7 @@ describe("Foreman setup", () => {
     expect([...container.querySelectorAll("form label")].map((label) => label.firstChild?.textContent))
       .toEqual(["Host", "Web port", "Host display name", "Pairing code", "Device name"]);
     fireEvent.change(screen.getByLabelText("Host"), {
-      target: { value: "foreman.local" },
+      target: { value: "palomar.local" },
     });
     fireEvent.change(screen.getByLabelText("Pairing code"), {
       target: { value: "123456" },
@@ -1144,8 +1144,8 @@ describe("Foreman setup", () => {
 
     expect(onConnect).toHaveBeenCalledWith(
       {
-        displayName: "foreman.local",
-        host: "foreman.local",
+        displayName: "palomar.local",
+        host: "palomar.local",
         tcpPort: 8765,
         webPort: inferPagePort(),
         deviceName: "Web browser",
@@ -1193,8 +1193,8 @@ describe("Claude session deletion", () => {
     provider: "claude-code",
     id: "claude-session",
     sessionId: "claude-session",
-    repositoryId: "foreman",
-    repository: "/projects/foreman",
+    repositoryId: "palomar",
+    repository: "/projects/palomar",
     title: "Claude work",
     status: "resumable",
     source: "external",
@@ -1207,7 +1207,7 @@ describe("Claude session deletion", () => {
       payload: {
         provider: "claude-code",
         sessionId: "claude-session",
-        repositoryId: "foreman",
+        repositoryId: "palomar",
         confirm: true,
       },
     });
@@ -1247,7 +1247,7 @@ describe("Claude session deletion", () => {
     expect(onHide).toHaveBeenCalledWith("claude-code", "claude-session");
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(onAction).toHaveBeenCalledWith("delete", session);
-    const repositoryGroup = screen.getByRole("button", { name: /Workspace: \/projects\/foreman/ });
+    const repositoryGroup = screen.getByRole("button", { name: /Workspace: \/projects\/palomar/ });
     expect(repositoryGroup).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(repositoryGroup);
     expect(repositoryGroup).toHaveAttribute("aria-expanded", "false");
@@ -1296,7 +1296,7 @@ describe("Claude session deletion", () => {
 describe("session card repository context", () => {
   const repository: SessionSummary = {
     id: "repository-session",
-    repository: "/projects/foreman/src",
+    repository: "/projects/palomar/src",
     title: "Repository work",
     status: "working",
     lastActivity: 1_700_000_300,
@@ -1316,7 +1316,7 @@ describe("session card repository context", () => {
   }));
   const baseProps = {
     results,
-    repositories: [{ id: "foreman", name: "foreman", path: "foreman", branch: "main", dirty: false }],
+    repositories: [{ id: "palomar", name: "palomar", path: "palomar", branch: "main", dirty: false }],
     repositoryRoot: "/projects",
     repositoryOptions: [],
     searchLoading: false,
@@ -1339,7 +1339,7 @@ describe("session card repository context", () => {
     const repositoryCard = screen.getByRole("heading", { name: "Repository work" }).closest("article") as HTMLElement;
     const workspaceCard = screen.getByRole("heading", { name: "Workspace work" }).closest("article") as HTMLElement;
 
-    expect(screen.getByRole("button", { name: /Collapse Repository: foreman/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Collapse Repository: palomar/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Collapse Workspace: \/home\/operator/ })).toBeInTheDocument();
     expect(repositoryCard).toHaveClass("repository-metadata-suppressed");
     expect(workspaceCard).toHaveClass("repository-metadata-suppressed");
@@ -1357,7 +1357,7 @@ describe("session card repository context", () => {
   it("keeps full identity in filtered results even when grouping is enabled", () => {
     render(<SessionList {...baseProps} filters={{ ...DEFAULT_SESSION_FILTERS, query: "work" }} groupByRepository />);
 
-    expect(screen.getByText("/projects/foreman/src")).toBeInTheDocument();
+    expect(screen.getByText("/projects/palomar/src")).toBeInTheDocument();
     expect(screen.getByText("/home/operator")).toBeInTheDocument();
     expect(screen.getByLabelText("Unpin Repository work")).toBeInTheDocument();
   });
@@ -1382,7 +1382,7 @@ describe("session card repository context", () => {
       onRestore={restore}
     />);
 
-    const group = screen.getByRole("button", { name: /Collapse Repository: foreman/ });
+    const group = screen.getByRole("button", { name: /Collapse Repository: palomar/ });
     expect(group).toHaveAttribute("aria-expanded", "true");
     expect(screen.getAllByText("Archived").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
@@ -1410,7 +1410,7 @@ describe("session context usage", () => {
     render(<ConversationView
       session={{
         id: "usage-session",
-        repository: "/projects/foreman",
+        repository: "/projects/palomar",
         title: "Usage session",
         status: "idle",
         model: "gpt-test",
@@ -1788,7 +1788,7 @@ describe("assistant code blocks", () => {
     Object.defineProperty(document, "execCommand", { configurable: true, value: execCommand });
 
     try {
-      render(<Markdown text={"```\nforeman status\n```"} />);
+      render(<Markdown text={"```\npalomar status\n```"} />);
       fireEvent.click(screen.getByRole("button", { name: "Copy" }));
 
       await waitFor(() => expect(execCommand).toHaveBeenCalledWith("copy"));
@@ -1834,7 +1834,7 @@ describe("assistant code blocks", () => {
 describe("conversation drafts", () => {
   const session = (id: string): SessionSummary => ({
     id,
-    repository: "/projects/foreman",
+    repository: "/projects/palomar",
     title: `Session ${id}`,
     status: "idle",
     messages: [],
@@ -2249,7 +2249,7 @@ describe("conversation drafts", () => {
       repositoryId: ".",
       permissionMode: "dontAsk",
     }));
-    fireEvent.click(screen.getByRole("button", { name: "Resume in Foreman" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume in Palomar" }));
 
     await waitFor(() => expect(onRequest).toHaveBeenCalledWith("provider.session.resume", {
       provider: "claude-code",
@@ -2267,7 +2267,7 @@ describe("conversation drafts", () => {
 describe("conversation activity detail", () => {
   const session: SessionSummary = {
     id: "activity",
-    repository: "/projects/foreman",
+    repository: "/projects/palomar",
     title: "Activity",
     status: "idle",
     messages: [
@@ -2417,7 +2417,7 @@ describe("NewSessionDialog", () => {
 
   it("defaults to the workspace root and orders route settings like the composer", () => {
     const create = vi.fn().mockResolvedValue(undefined);
-    const { container } = render(<NewSessionDialog repositories={[{ id: "foreman", name: "foreman", path: "foreman", branch: "main", dirty: false }]} repositoryRoot="/projects" {...routeProps} onClose={vi.fn()} onCreate={create} />);
+    const { container } = render(<NewSessionDialog repositories={[{ id: "palomar", name: "palomar", path: "palomar", branch: "main", dirty: false }]} repositoryRoot="/projects" {...routeProps} onClose={vi.fn()} onCreate={create} />);
 
     const button = screen.getByRole("button", { name: "Create" });
     expect(screen.getByLabelText("Workspace")).toHaveValue(".");
@@ -2427,14 +2427,14 @@ describe("NewSessionDialog", () => {
     fireEvent.click(button);
     expect(create).toHaveBeenLastCalledWith(expect.objectContaining({ repositoryId: "." }));
 
-    fireEvent.change(screen.getByLabelText("Workspace"), { target: { value: "foreman" } });
+    fireEvent.change(screen.getByLabelText("Workspace"), { target: { value: "palomar" } });
     fireEvent.change(screen.getByLabelText("Reasoning"), { target: { value: "low" } });
     fireEvent.change(screen.getByLabelText("Access"), { target: { value: "full" } });
     fireEvent.click(button);
 
     expect(create).toHaveBeenLastCalledWith({
       provider: "codex",
-      repositoryId: "foreman",
+      repositoryId: "palomar",
       model: "model-test",
       reasoningEffort: "low",
       accessLevel: "full",
@@ -2443,10 +2443,10 @@ describe("NewSessionDialog", () => {
 
   it("returns to the workspace root when repository discovery removes the selection", () => {
     const create = vi.fn().mockResolvedValue(undefined);
-    const repository = { id: "foreman", name: "foreman", path: "foreman", branch: "main", dirty: false };
+    const repository = { id: "palomar", name: "palomar", path: "palomar", branch: "main", dirty: false };
     const view = render(<NewSessionDialog repositories={[repository]} repositoryRoot="/projects" {...routeProps} onClose={vi.fn()} onCreate={create} />);
 
-    fireEvent.change(screen.getByLabelText("Workspace"), { target: { value: "foreman" } });
+    fireEvent.change(screen.getByLabelText("Workspace"), { target: { value: "palomar" } });
     view.rerender(<NewSessionDialog repositories={[]} repositoryRoot="/projects" {...routeProps} onClose={vi.fn()} onCreate={create} />);
     fireEvent.click(screen.getByRole("button", { name: "Start in workspace" }));
 

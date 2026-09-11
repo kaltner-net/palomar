@@ -17,7 +17,7 @@ export async function copyText(text: string): Promise<void> {
       await navigator.clipboard.writeText(text);
       return;
     } catch {
-      // Local Foreman hosts may not have a secure context; fall back to a selected textarea.
+      // Local Palomar hosts may not have a secure context; fall back to a selected textarea.
     }
   }
 

@@ -25,12 +25,12 @@ async def proof() -> dict[str, object]:
     claude = shutil.which("claude")
     if claude is None:
         raise RuntimeError("native claude executable is required")
-    with tempfile.TemporaryDirectory(prefix="foreman-claude-production-proof-") as directory:
+    with tempfile.TemporaryDirectory(prefix="palomar-claude-production-proof-") as directory:
         root = Path(directory)
         repository = root / "repo"
         repository.mkdir()
         subprocess.run(["git", "init", "-q", str(repository)], check=True)
-        (repository / "FOREMAN_PROOF.txt").write_text("FOREMAN_PRODUCTION_MARKER\n", encoding="utf-8")
+        (repository / "PALOMAR_PROOF.txt").write_text("PALOMAR_PRODUCTION_MARKER\n", encoding="utf-8")
         state_path = root / "claude-code-sessions.json"
         events: list[dict[str, object]] = []
 
@@ -43,7 +43,7 @@ async def proof() -> dict[str, object]:
                 state_path,
                 on_event=event,
                 bridge_path=ROOT / "linux" / "claude_bridge" / "bridge.mjs",
-                env={**os.environ, "FOREMAN_CLAUDE_EXECUTABLE": claude},
+                env={**os.environ, "PALOMAR_CLAUDE_EXECUTABLE": claude},
             )
 
         async def wait_for(predicate, timeout: float = 180):
@@ -91,7 +91,7 @@ async def proof() -> dict[str, object]:
             index = len(events)
             read_run = await current.start_session(
                 repository,
-                "Use Read to read FOREMAN_PROOF.txt, then reply with exactly FOREMAN_PRODUCTION_MARKER.",
+                "Use Read to read PALOMAR_PROOF.txt, then reply with exactly PALOMAR_PRODUCTION_MARKER.",
                 model="sonnet",
                 permission_mode="default",
             )
@@ -101,7 +101,7 @@ async def proof() -> dict[str, object]:
                 raise RuntimeError("Read proof did not complete")
             if not any(item.get("kind") == "assistant.delta" for item in read_events):
                 raise RuntimeError("assistant partial text was not observed")
-            if "FOREMAN_PRODUCTION_MARKER" not in "".join(
+            if "PALOMAR_PRODUCTION_MARKER" not in "".join(
                 str(item.get("text", "")) for item in read_events if item.get("kind") == "assistant.delta"
             ):
                 raise RuntimeError("assistant partial text did not contain the proof marker")
@@ -211,7 +211,7 @@ async def proof() -> dict[str, object]:
             await finish(after_restart["sessionId"], index)
             if after_restart["sessionId"] != read_run["sessionId"]:
                 raise RuntimeError("adapter restart changed the session ID")
-            if "FOREMAN_PRODUCTION_MARKER" not in "".join(
+            if "PALOMAR_PRODUCTION_MARKER" not in "".join(
                 str(item.get("text", "")) for item in events[index:] if item.get("kind") == "assistant.delta"
             ):
                 raise RuntimeError("adapter restart did not restore Claude session context")

@@ -298,7 +298,7 @@ class InstalledContractProofTests(unittest.TestCase):
         executable = shutil.which("codex")
         if not executable:
             self.skipTest("Codex is not installed")
-        with tempfile.TemporaryDirectory(prefix="foreman-installed-proof-") as directory:
+        with tempfile.TemporaryDirectory(prefix="palomar-installed-proof-") as directory:
             completed = subprocess.run(
                 [executable, "app-server", "generate-json-schema", "--experimental", "--out", directory],
                 text=True,

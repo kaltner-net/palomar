@@ -47,24 +47,24 @@ describe("storage, appearance, and interaction helpers", () => {
   beforeEach(() => localStorage.clear());
 
   it("stores isolated hosts and forgets only the selected host", () => {
-    const home = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "fmt_home" });
-    const work = createStoredHost({ displayName: "Work", host: "work.local", webPort: 9766, deviceToken: "fmt_work" });
+    const home = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "pmt_home" });
+    const work = createStoredHost({ displayName: "Work", host: "work.local", webPort: 9766, deviceToken: "pmt_work" });
     let registry = addStoredHost({ hosts: [], activeHostId: null }, home);
     registry = addStoredHost(registry, work);
     saveHostRegistry(registry);
     saveCollapsedRepositories(new Set(["/projects/work"]), work.id);
     expect(loadHostRegistry().hosts.map(({ displayName }) => displayName)).toEqual(["Home", "Work"]);
-    expect(localStorage.getItem("foreman.hosts.v2")).not.toContain("pairingKey");
+    expect(localStorage.getItem("palomar.hosts.v2")).not.toContain("pairingKey");
     registry = forgetStoredHost(registry, work.id);
     saveHostRegistry(registry);
     expect(loadHostRegistry().hosts).toHaveLength(1);
-    expect(loadHostRegistry().hosts[0].deviceToken).toBe("fmt_home");
+    expect(loadHostRegistry().hosts[0].deviceToken).toBe("pmt_home");
     expect(loadCollapsedRepositories(work.id)).toEqual(new Set());
   });
 
   it("stores bounded provider-aware last sessions per host and removes them when forgotten", () => {
-    const home = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "fmt_home" });
-    const work = createStoredHost({ displayName: "Work", host: "work.local", webPort: 9766, deviceToken: "fmt_work" });
+    const home = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "pmt_home" });
+    const work = createStoredHost({ displayName: "Work", host: "work.local", webPort: 9766, deviceToken: "pmt_work" });
     let registry = addStoredHost({ hosts: [], activeHostId: null }, home);
     registry = addStoredHost(registry, work);
     saveRememberedSession({ hostId: home.id, provider: "codex", sessionId: "home-thread" });
@@ -83,14 +83,14 @@ describe("storage, appearance, and interaction helpers", () => {
   });
 
   it("restores validated release information per host and removes it when forgotten", () => {
-    const home = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "fmt_home" });
-    const work = createStoredHost({ displayName: "Work", host: "work.local", webPort: 9766, deviceToken: "fmt_work" });
+    const home = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "pmt_home" });
+    const work = createStoredHost({ displayName: "Work", host: "work.local", webPort: 9766, deviceToken: "pmt_work" });
     let registry = addStoredHost({ hosts: [], activeHostId: null }, home);
     registry = addStoredHost(registry, work);
     const release = {
-      version: "1.0.0", tag: "v1.0.0", title: "Foreman 1.0.0",
+      version: "1.0.0", tag: "v1.0.0", title: "Palomar 1.0.0",
       publishedAt: "2026-08-29T04:47:19Z",
-      releaseNotesUrl: "https://github.com/mkaltner/foreman/releases/tag/v1.0.0",
+      releaseNotesUrl: "https://github.com/kaltner-net/palomar/releases/tag/v1.0.0",
       artifactAvailable: true,
     };
     const snapshot = {
@@ -111,8 +111,8 @@ describe("storage, appearance, and interaction helpers", () => {
   });
 
   it("restores account usage across reloads per host and deletes only the forgotten host", () => {
-    const home = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "fmt_home" });
-    const work = createStoredHost({ displayName: "Work", host: "work.local", webPort: 9766, deviceToken: "fmt_work" });
+    const home = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "pmt_home" });
+    const work = createStoredHost({ displayName: "Work", host: "work.local", webPort: 9766, deviceToken: "pmt_work" });
     let registry = addStoredHost({ hosts: [], activeHostId: null }, home);
     registry = addStoredHost(registry, work);
     saveAccountUsage(home.id, { providers: { codex: { available: true, rateLimits: { windows: [{ id: "home", usedPercent: 25 }] } } } });
@@ -126,7 +126,7 @@ describe("storage, appearance, and interaction helpers", () => {
   });
 
   it("does not resurrect a forgotten host when a stale socket update arrives", () => {
-    const host = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "fmt_home" });
+    const host = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "pmt_home" });
     const paired = addStoredHost({ hosts: [], activeHostId: null }, host);
     const forgotten = forgetStoredHost(paired, host.id);
     saveHostRegistry(forgotten);
@@ -137,51 +137,51 @@ describe("storage, appearance, and interaction helpers", () => {
     expect(afterStaleDisconnect).toBe(forgotten);
     saveHostRegistry(afterStaleDisconnect);
     expect(loadHostRegistry()).toEqual({ hosts: [], activeHostId: null });
-    expect(localStorage.getItem("foreman.hosts.v2")).not.toContain("fmt_home");
+    expect(localStorage.getItem("palomar.hosts.v2")).not.toContain("pmt_home");
   });
 
   it("migrates the prior single-host record and its local preferences", () => {
-    localStorage.setItem("foreman.host.v1", JSON.stringify({ host: "old.local", port: 8766, deviceName: "Browser", deviceToken: "fmt_old" }));
-    localStorage.setItem("foreman.notifications.v1", "true");
+    localStorage.setItem("palomar.host.v1", JSON.stringify({ host: "old.local", port: 8766, deviceName: "Browser", deviceToken: "pmt_old" }));
+    localStorage.setItem("palomar.notifications.v1", "true");
     const registry = loadHostRegistry();
     expect(registry.hosts).toHaveLength(1);
     expect(registry.hosts[0]).toMatchObject({ host: "old.local", webPort: 8766, isDefault: true });
     expect(loadNotificationsEnabled(registry.hosts[0].id)).toBe(true);
-    expect(localStorage.getItem("foreman.host.v1")).toBeNull();
+    expect(localStorage.getItem("palomar.host.v1")).toBeNull();
   });
 
   it("separates the legacy browser device name from the host display name", () => {
-    localStorage.setItem("foreman.host.v1", JSON.stringify({ host: "localhost", port: 8766, deviceName: "Web browser", deviceToken: "fmt_old" }));
-    expect(loadHostRegistry().hosts[0].displayName).toBe("Local Foreman");
+    localStorage.setItem("palomar.host.v1", JSON.stringify({ host: "localhost", port: 8766, deviceName: "Web browser", deviceToken: "pmt_old" }));
+    expect(loadHostRegistry().hosts[0].displayName).toBe("Local Palomar");
 
-    const migrated = createStoredHost({ displayName: "Web browser", host: "workstation.local", webPort: 8766, deviceToken: "fmt_migrated" }, true);
+    const migrated = createStoredHost({ displayName: "Web browser", host: "workstation.local", webPort: 8766, deviceToken: "pmt_migrated" }, true);
     saveHostRegistry({ hosts: [migrated], activeHostId: migrated.id });
     expect(loadHostRegistry().hosts[0].displayName).toBe("workstation.local");
-    expect(localStorage.getItem("foreman.hosts.v2")).toContain('"displayName":"workstation.local"');
+    expect(localStorage.getItem("palomar.hosts.v2")).toContain('"displayName":"workstation.local"');
   });
 
   it("suggests a local label or the endpoint hostname for new hosts", () => {
-    expect(suggestedHostDisplayName("localhost")).toBe("Local Foreman");
-    expect(suggestedHostDisplayName("http://127.0.0.1")).toBe("Local Foreman");
+    expect(suggestedHostDisplayName("localhost")).toBe("Local Palomar");
+    expect(suggestedHostDisplayName("http://127.0.0.1")).toBe("Local Palomar");
     expect(suggestedHostDisplayName("workstation.local")).toBe("workstation.local");
   });
 
   it("persists color mode and curated theme with safe defaults", () => {
-    expect(loadAppearance()).toEqual({ colorMode: "system", themeId: "foreman", activityDetail: "focused", groupSessionsByRepository: true });
+    expect(loadAppearance()).toEqual({ colorMode: "system", themeId: "palomar", activityDetail: "focused", groupSessionsByRepository: true });
     saveAppearance({ colorMode: "dark", themeId: "harbor", activityDetail: "full", groupSessionsByRepository: false });
     expect(loadAppearance()).toEqual({ colorMode: "dark", themeId: "harbor", activityDetail: "full", groupSessionsByRepository: false });
-    expect(localStorage.getItem("foreman.appearance.v2")).toContain('"version":2');
-    expect(localStorage.getItem("foreman.appearance.v2")).not.toContain("accent");
+    expect(localStorage.getItem("palomar.appearance.v2")).toContain('"version":2');
+    expect(localStorage.getItem("palomar.appearance.v2")).not.toContain("accent");
 
-    localStorage.setItem("foreman.appearance.v2", '{"version":2,"colorMode":"light","themeId":"chartreuse","activityDetail":"full","groupSessionsByRepository":false}');
-    expect(loadAppearance()).toEqual({ colorMode: "light", themeId: "foreman", activityDetail: "full", groupSessionsByRepository: false });
-    localStorage.setItem("foreman.appearance.v2", "not-json");
-    expect(loadAppearance()).toEqual({ colorMode: "system", themeId: "foreman", activityDetail: "focused", groupSessionsByRepository: true });
+    localStorage.setItem("palomar.appearance.v2", '{"version":2,"colorMode":"light","themeId":"chartreuse","activityDetail":"full","groupSessionsByRepository":false}');
+    expect(loadAppearance()).toEqual({ colorMode: "light", themeId: "palomar", activityDetail: "full", groupSessionsByRepository: false });
+    localStorage.setItem("palomar.appearance.v2", "not-json");
+    expect(loadAppearance()).toEqual({ colorMode: "system", themeId: "palomar", activityDetail: "focused", groupSessionsByRepository: true });
   });
 
   it("migrates every legacy accent deterministically without losing unrelated appearance settings", () => {
     const migrations = {
-      purple: "foreman",
+      purple: "palomar",
       blue: "harbor",
       teal: "harbor",
       green: "grove",
@@ -191,7 +191,7 @@ describe("storage, appearance, and interaction helpers", () => {
     } as const;
     for (const [accent, themeId] of Object.entries(migrations)) {
       localStorage.clear();
-      localStorage.setItem("foreman.appearance.v1.host-a", JSON.stringify({
+      localStorage.setItem("palomar.appearance.v1.host-a", JSON.stringify({
         theme: "dark",
         accent,
         activityDetail: "full",
@@ -203,13 +203,13 @@ describe("storage, appearance, and interaction helpers", () => {
         activityDetail: "full",
         groupSessionsByRepository: false,
       });
-      expect(localStorage.getItem("foreman.appearance.v1.host-a")).toBeNull();
-      expect(localStorage.getItem("foreman.appearance.v2.host-a")).toContain(`"themeId":"${themeId}"`);
+      expect(localStorage.getItem("palomar.appearance.v1.host-a")).toBeNull();
+      expect(localStorage.getItem("palomar.appearance.v2.host-a")).toContain(`"themeId":"${themeId}"`);
     }
 
     localStorage.clear();
-    localStorage.setItem("foreman.appearance.v1.host-a", '{"theme":4,"accent":[],"activityDetail":{},"groupSessionsByRepository":"bad"}');
-    expect(loadAppearance("host-a")).toEqual({ colorMode: "system", themeId: "foreman", activityDetail: "focused", groupSessionsByRepository: true });
+    localStorage.setItem("palomar.appearance.v1.host-a", '{"theme":4,"accent":[],"activityDetail":{},"groupSessionsByRepository":"bad"}');
+    expect(loadAppearance("host-a")).toEqual({ colorMode: "system", themeId: "palomar", activityDetail: "focused", groupSessionsByRepository: true });
   });
 
   it("keeps appearance isolated across host switches and removes it with a forgotten host", () => {
@@ -218,10 +218,10 @@ describe("storage, appearance, and interaction helpers", () => {
     expect(loadAppearance("home").themeId).toBe("grove");
     expect(loadAppearance("work").themeId).toBe("ember");
 
-    const home = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "fmt_home" });
+    const home = createStoredHost({ displayName: "Home", host: "home.local", webPort: 8766, deviceToken: "pmt_home" });
     const registry = { hosts: [{ ...home, id: "home" }], activeHostId: "home" };
     forgetStoredHost(registry, "home");
-    expect(localStorage.getItem("foreman.appearance.v2.home")).toBeNull();
+    expect(localStorage.getItem("palomar.appearance.v2.home")).toBeNull();
     expect(loadAppearance("work").themeId).toBe("ember");
   });
 
@@ -233,12 +233,12 @@ describe("storage, appearance, and interaction helpers", () => {
     });
     saveDashboardPreferences({
       filter: "failed",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       dismissedFailures: ["failed-1"],
     });
     expect(loadDashboardPreferences()).toEqual({
       filter: "failed",
-      repository: "/projects/foreman",
+      repository: "/projects/palomar",
       dismissedFailures: ["failed-1"],
     });
   });
@@ -246,7 +246,7 @@ describe("storage, appearance, and interaction helpers", () => {
   it("persists browser-local pins and hidden sessions", () => {
     saveSessionOrganization({ pinnedIds: ["one", "one", "two"], hiddenIds: ["noise"] });
     expect(loadSessionOrganization()).toEqual({ pinnedIds: ["one", "two"], hiddenIds: ["noise"] });
-    expect(localStorage.getItem("foreman.session-organization.v1")).not.toContain("transcript");
+    expect(localStorage.getItem("palomar.session-organization.v1")).not.toContain("transcript");
   });
 
   it("namespaces local settings by stable host ID", () => {
@@ -257,10 +257,10 @@ describe("storage, appearance, and interaction helpers", () => {
   });
 
   it("restores collapsed repositories after a tab is reopened and keeps hosts isolated", () => {
-    saveCollapsedRepositories(new Set(["/projects/foreman"]), "home");
+    saveCollapsedRepositories(new Set(["/projects/palomar"]), "home");
     saveCollapsedRepositories(new Set(["/projects/android"]), "work");
 
-    expect(loadCollapsedRepositories("home")).toEqual(new Set(["/projects/foreman"]));
+    expect(loadCollapsedRepositories("home")).toEqual(new Set(["/projects/palomar"]));
     expect(loadCollapsedRepositories("work")).toEqual(new Set(["/projects/android"]));
   });
 
@@ -304,12 +304,12 @@ describe("storage, appearance, and interaction helpers", () => {
         { text: "," },
         { text: " then javascript:alert(1)." },
       ]);
-    expect(linkifyPlainText("See https://en.wikipedia.org/wiki/Foreman_(software)."))
+    expect(linkifyPlainText("See https://en.wikipedia.org/wiki/Palomar_(software)."))
       .toEqual([
         { text: "See " },
         {
-          text: "https://en.wikipedia.org/wiki/Foreman_(software)",
-          href: "https://en.wikipedia.org/wiki/Foreman_(software)",
+          text: "https://en.wikipedia.org/wiki/Palomar_(software)",
+          href: "https://en.wikipedia.org/wiki/Palomar_(software)",
         },
         { text: "." },
       ]);
@@ -335,14 +335,14 @@ describe("storage, appearance, and interaction helpers", () => {
     const content = parseAssistantContent([
       "Validation passed.",
       "",
-      '::git-commit{cwd="/home/mkaltner/projects/foreman"}',
-      '::git-push{cwd="/home/mkaltner/projects/foreman" branch="codex/web"}',
+      '::git-commit{cwd="/home/mkaltner/projects/palomar"}',
+      '::git-push{cwd="/home/mkaltner/projects/palomar" branch="codex/web"}',
     ].join("\n"));
 
     expect(content).toEqual([
       { kind: "markdown", text: "Validation passed.\n" },
-      { kind: "directive", directive: { name: "git-commit", attributes: { cwd: "/home/mkaltner/projects/foreman" } } },
-      { kind: "directive", directive: { name: "git-push", attributes: { cwd: "/home/mkaltner/projects/foreman", branch: "codex/web" } } },
+      { kind: "directive", directive: { name: "git-commit", attributes: { cwd: "/home/mkaltner/projects/palomar" } } },
+      { kind: "directive", directive: { name: "git-push", attributes: { cwd: "/home/mkaltner/projects/palomar", branch: "codex/web" } } },
     ]);
   });
 
@@ -367,8 +367,8 @@ describe("storage, appearance, and interaction helpers", () => {
       .toBe("/sessions/claude-code/thread%2Fone");
     const deepLink = `${webRoutePath({ view: "detail", provider: "codex", sessionId: "same" })}${withHostInSearch("", "host-work")}`;
     expect(deepLink).toBe("/sessions/codex/same?host=host-work");
-    expect(parseWebRoute(new URL(deepLink, "https://foreman.local").pathname))
+    expect(parseWebRoute(new URL(deepLink, "https://palomar.local").pathname))
       .toEqual({ view: "detail", provider: "codex", sessionId: "same" });
-    expect(hostIdFromUrl(new URL(deepLink, "https://foreman.local").search)).toBe("host-work");
+    expect(hostIdFromUrl(new URL(deepLink, "https://palomar.local").search)).toBe("host-work");
   });
 });

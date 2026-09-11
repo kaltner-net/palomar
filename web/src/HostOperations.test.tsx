@@ -28,7 +28,7 @@ describe("sanitized host operations", () => {
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(diagnosticsText(events)));
     expect(screen.getByRole("button", { name: "Copied" })).toHaveTextContent("✓");
     expect(screen.getByText("Remote restart is disabled on this host.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Restart Foreman" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Restart Palomar" })).toBeDisabled();
   });
 
   it("reports success only after disconnect and automatic reconnect", async () => {
@@ -37,8 +37,8 @@ describe("sanitized host operations", () => {
     const props = { disabled: false, remoteRestartEnabled: true, fetchDiagnostics: vi.fn().mockResolvedValue([]), scheduleRestart };
     const view = render(<HostOperations {...props} connection="connected" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Restart Foreman" }));
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("waiting for Foreman to stop"));
+    fireEvent.click(screen.getByRole("button", { name: "Restart Palomar" }));
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("waiting for Palomar to stop"));
     expect(screen.getByRole("status")).not.toHaveTextContent("complete");
 
     view.rerender(<HostOperations {...props} connection="reconnecting" />);
@@ -51,8 +51,8 @@ describe("sanitized host operations", () => {
     vi.useFakeTimers();
     vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<HostOperations connection="connected" disabled={false} remoteRestartEnabled fetchDiagnostics={vi.fn().mockResolvedValue([])} scheduleRestart={vi.fn().mockResolvedValue({ scheduled: true, timeoutSeconds: 1 })} />);
-    fireEvent.click(screen.getByRole("button", { name: "Restart Foreman" }));
-    await vi.waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("waiting for Foreman to stop"));
+    fireEvent.click(screen.getByRole("button", { name: "Restart Palomar" }));
+    await vi.waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("waiting for Palomar to stop"));
     act(() => vi.advanceTimersByTime(1_001));
     expect(screen.getByRole("status")).toHaveTextContent("timed out");
     expect(screen.getByRole("status")).not.toHaveTextContent("complete");
@@ -62,7 +62,7 @@ describe("sanitized host operations", () => {
     const scheduleRestart = vi.fn();
     render(<HostOperations connection="connected" disabled={false} remoteRestartEnabled restartBlocked fetchDiagnostics={vi.fn().mockResolvedValue([])} scheduleRestart={scheduleRestart} />);
 
-    expect(screen.getByRole("button", { name: "Restart Foreman" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Restart Palomar" })).toBeDisabled();
     expect(screen.getByText("Restart is unavailable while sessions are active or waiting for attention.")).toBeInTheDocument();
     expect(scheduleRestart).not.toHaveBeenCalled();
   });

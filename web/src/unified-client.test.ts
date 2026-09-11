@@ -24,7 +24,7 @@ class FakeOverviewClient implements OverviewClient {
       : type === "provider.session.list" ? { sessions: [] }
       : type === "approval.list" ? { approvals: [] }
         : type === "input.list" ? { inputs: [] }
-        : { foremanVersion: "1", connected: true, uptimeSeconds: 1, codex: { connected: true, mode: "shared", runtimeStatus: "ready" }, listeners: { tcpPort: 8765 }, repositoryRoot: "/" };
+        : { palomarVersion: "1", connected: true, uptimeSeconds: 1, codex: { connected: true, mode: "shared", runtimeStatus: "ready" }, listeners: { tcpPort: 8765 }, repositoryRoot: "/" };
     return payload as unknown as T;
   }
   disconnect() { this.disconnected = true; this.hooks.onState("disconnected"); }

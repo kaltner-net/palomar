@@ -1,4 +1,4 @@
-"""Foreman's tiny versioned newline-delimited JSON protocol."""
+"""Palomar's tiny versioned newline-delimited JSON protocol."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def decode(data: bytes) -> dict[str, Any]:
 
 
 def decode_message(data: bytes) -> dict[str, Any]:
-    """Decode one logical Foreman message without a transport delimiter."""
+    """Decode one logical Palomar message without a transport delimiter."""
     if len(data) > MAX_FRAME_BYTES:
         raise ProtocolError("frame is too large")
     try:

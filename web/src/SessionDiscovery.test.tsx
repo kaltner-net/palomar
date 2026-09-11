@@ -73,8 +73,8 @@ describe("SessionSearchControls", () => {
   });
 
   it("renders a normalized long-prompt title without exposing boilerplate", () => {
-    render(<SessionSearchResults results={[{ session: { id: "long", title: "Build Foreman monitoring dashboard", repository: "/projects/foreman", status: "idle" }, matches: [], pinned: false, hidden: false }]} query="" loading={false} error="" onOpen={vi.fn()} onPin={vi.fn()} onHide={vi.fn()} />);
-    expect(screen.getByText("Build Foreman monitoring dashboard")).toBeInTheDocument();
+    render(<SessionSearchResults results={[{ session: { id: "long", title: "Build Palomar monitoring dashboard", repository: "/projects/palomar", status: "idle" }, matches: [], pinned: false, hidden: false }]} query="" loading={false} error="" onOpen={vi.fn()} onPin={vi.fn()} onHide={vi.fn()} />);
+    expect(screen.getByText("Build Palomar monitoring dashboard")).toBeInTheDocument();
     expect(screen.queryByText(/GitHub:/)).not.toBeInTheDocument();
   });
 

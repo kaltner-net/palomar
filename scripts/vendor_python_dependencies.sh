@@ -36,7 +36,7 @@ sed -i '\#^../../bin/websockets,#d' \
 find "$staging_dir/vendor" -type d -name __pycache__ -prune -exec rm -rf -- {} +
 find "$staging_dir/vendor" -type f -name '*.pyc' -delete
 
-FOREMAN_WEBSOCKETS_VERSION="$pinned_version" \
+PALOMAR_WEBSOCKETS_VERSION="$pinned_version" \
 PYTHONDONTWRITEBYTECODE=1 \
 PYTHONPATH="$staging_dir/vendor" \
 "$python" -c '
@@ -44,7 +44,7 @@ import importlib.metadata
 import os
 import pathlib
 import websockets
-assert websockets.__version__ == os.environ["FOREMAN_WEBSOCKETS_VERSION"]
+assert websockets.__version__ == os.environ["PALOMAR_WEBSOCKETS_VERSION"]
 metadata = pathlib.Path(importlib.metadata.distribution("websockets")._path)
 assert (metadata / "licenses" / "LICENSE").is_file()
 '

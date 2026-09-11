@@ -43,13 +43,13 @@ DESKTOP_ATTACHMENT_HEADER = "# Files mentioned by the user:\n"
 DESKTOP_REQUEST_MARKER = "\n## My request for Codex:\n"
 SHARED_DESKTOP_LIVE_STATUS_AVAILABLE = "SHARED_DESKTOP_LIVE_STATUS_AVAILABLE"
 SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE = "SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE"
-FOREMAN_VERSION = "1.2.1"
+PALOMAR_VERSION = "2.0.0"
 
 
-def _foreman_release_build() -> bool:
+def _palomar_release_build() -> bool:
     for candidate in (
-        Path(__file__).resolve().parent / "release.properties",
-        Path(__file__).resolve().parent.parent / "release.properties",
+        Path(__file__).resolve().parent / "palomar-release.properties",
+        Path(__file__).resolve().parent.parent / "palomar-release.properties",
     ):
         try:
             for line in candidate.read_text(encoding="utf-8").splitlines():
@@ -62,7 +62,7 @@ def _foreman_release_build() -> bool:
     return False
 
 
-FOREMAN_RELEASE_BUILD = _foreman_release_build()
+PALOMAR_RELEASE_BUILD = _palomar_release_build()
 
 ACCESS_LEVELS = (
     {
@@ -121,7 +121,7 @@ class Codex:
             fallback_socket_path or resolve_fallback_socket_path()
         ).expanduser()
         if self.primary_socket_path == self.fallback_socket_path:
-            raise ValueError("Foreman fallback socket must differ from the Codex socket")
+            raise ValueError("Palomar fallback socket must differ from the Codex socket")
         self.allow_fallback = allow_fallback
         self.session_history_root = Path(
             session_history_root or resolve_codex_home() / "sessions"
@@ -210,7 +210,7 @@ class Codex:
             self.runtime_status = SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE
             if await self._attach_existing(
                 SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE,
-                "Foreman fallback socket",
+                "Palomar fallback socket",
             ):
                 return
             await self._launch_fallback_app_server()
@@ -253,7 +253,7 @@ class Codex:
                 ) from error
             if fail_if_present and path_was_present:
                 raise CodexError(
-                    f"{label} exists but Foreman could not attach: {self.socket_path}"
+                    f"{label} exists but Palomar could not attach: {self.socket_path}"
                 ) from error
             return False
         try:
@@ -284,9 +284,9 @@ class Codex:
             "initialize",
             {
                 "clientInfo": {
-                    "name": "foreman",
-                    "title": "Foreman",
-                    "version": FOREMAN_VERSION,
+                    "name": "palomar",
+                    "title": "Palomar",
+                    "version": PALOMAR_VERSION,
                 },
                 "capabilities": {"experimentalApi": True},
             },
@@ -347,9 +347,9 @@ class Codex:
                     "status": thread.get("status", {"type": "notLoaded"}),
                     "activeTurnId": active_turn_id,
                     "latestTurn": latest_turn,
-                    "_foremanReconciled": True,
-                    "_foremanActivityAt": thread.get("recencyAt") or thread.get("updatedAt"),
-                    "_foremanActivityComplete": (
+                    "_palomarReconciled": True,
+                    "_palomarActivityAt": thread.get("recencyAt") or thread.get("updatedAt"),
+                    "_palomarActivityComplete": (
                         isinstance(thread.get("status"), dict)
                         and (
                             token_count(thread.get("recencyAt")) is not None
@@ -364,7 +364,7 @@ class Codex:
         return method in self._supported_methods
 
     def _discover_supported_methods(self) -> set[str]:
-        with tempfile.TemporaryDirectory(prefix="foreman-schema-") as directory:
+        with tempfile.TemporaryDirectory(prefix="palomar-schema-") as directory:
             try:
                 completed = subprocess.run(
                     [
@@ -566,7 +566,7 @@ class Codex:
             await self._expire_approvals("disconnected", connection=websocket)
             await self._expire_inputs("disconnected", connection=websocket)
             await self.on_event(
-                {"method": "foreman/runtime/disconnected", "params": {}}
+                {"method": "palomar/runtime/disconnected", "params": {}}
             )
             if not self._stopping and (
                 self._reconnect_task is None or self._reconnect_task.done()
@@ -621,7 +621,7 @@ class Codex:
         self.last_event = time.time()
         await self.on_event(
             {
-                "method": "foreman/approval/requested",
+                "method": "palomar/approval/requested",
                 "params": {"approval": approval.projection()},
             }
         )
@@ -649,7 +649,7 @@ class Codex:
         self.last_event = time.time()
         await self.on_event(
             {
-                "method": "foreman/input/requested",
+                "method": "palomar/input/requested",
                 "params": {"input": pending.projection()},
             }
         )
@@ -687,7 +687,7 @@ class Codex:
             approval.resolution = resolution
             await self.on_event(
                 {
-                    "method": "foreman/approval/updated",
+                    "method": "palomar/approval/updated",
                     "params": {"approval": approval.projection()},
                 }
             )
@@ -725,7 +725,7 @@ class Codex:
             pending.resolution = resolution
             await self.on_event(
                 {
-                    "method": "foreman/input/updated",
+                    "method": "palomar/input/updated",
                     "params": {"input": pending.projection()},
                 }
             )
@@ -821,7 +821,7 @@ class Codex:
             self._approval_tombstones.pop(next(iter(self._approval_tombstones)))
         await self.on_event(
             {
-                "method": "foreman/approval/resolved",
+                "method": "palomar/approval/resolved",
                 "params": {"approval": approval.projection()},
             }
         )
@@ -857,7 +857,7 @@ class Codex:
             self._input_tombstones.pop(next(iter(self._input_tombstones)))
         await self.on_event(
             {
-                "method": "foreman/input/resolved",
+                "method": "palomar/input/resolved",
                 "params": {"input": pending.projection()},
             }
         )
@@ -889,7 +889,7 @@ class Codex:
             try:
                 await self._connect()
                 await self.on_event(
-                    {"method": "foreman/runtime/reconnected", "params": {}}
+                    {"method": "palomar/runtime/reconnected", "params": {}}
                 )
                 return
             except asyncio.CancelledError:
@@ -944,7 +944,7 @@ class Codex:
             except CodexError as error:
                 # Codex exposes a newly started thread through thread/list and
                 # thread/read before its first user message creates the rollout.
-                # Such a thread is a valid empty Foreman session even though the
+                # Such a thread is a valid empty Palomar session even though the
                 # paginated history endpoint cannot read it yet.
                 if not is_unmaterialized_thread_history_error(error):
                     raise
@@ -1052,9 +1052,9 @@ class Codex:
         model, effort = self._routes.get(thread["id"], (None, None))
         return {
             **thread,
-            "_foremanModel": model,
-            "_foremanReasoningEffort": effort,
-            "_foremanAccessLevel": self._access_levels.get(thread["id"]),
+            "_palomarModel": model,
+            "_palomarReasoningEffort": effort,
+            "_palomarAccessLevel": self._access_levels.get(thread["id"]),
         }
 
     def _historical_access_level(self, thread_id: str) -> str | None:
@@ -1215,7 +1215,7 @@ class Codex:
         text: str,
         images: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
-        # A different Codex client can start a newer turn after Foreman last read
+        # A different Codex client can start a newer turn after Palomar last read
         # the thread. Reconcile immediately before steering so an otherwise valid
         # message does not fail with an "expected active turn id" race.
         current = session(await self.read_thread(thread_id), True)
@@ -1259,7 +1259,7 @@ class Codex:
 
 
 def resolve_socket_path() -> Path:
-    override = os.environ.get("FOREMAN_CODEX_SOCKET")
+    override = os.environ.get("PALOMAR_CODEX_SOCKET")
     if override:
         return Path(override).expanduser()
     return resolve_codex_home() / "app-server-control" / "app-server-control.sock"
@@ -1272,13 +1272,13 @@ def resolve_codex_home() -> Path:
 
 
 def resolve_fallback_socket_path() -> Path:
-    override = os.environ.get("FOREMAN_CODEX_FALLBACK_SOCKET")
+    override = os.environ.get("PALOMAR_CODEX_FALLBACK_SOCKET")
     if override:
         return Path(override).expanduser()
     state_home = Path(
         os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state")
     ).expanduser()
-    return state_home / "foreman" / "codex-app-server.sock"
+    return state_home / "palomar" / "codex-app-server.sock"
 
 
 def model(item: Any) -> dict[str, Any] | None:
@@ -1692,9 +1692,9 @@ def session(thread: dict[str, Any], include_messages: bool = False) -> dict[str,
         "status": projected_status,
         "lastActivity": thread.get("recencyAt") or thread.get("updatedAt"),
         "attention": projected_status == "waiting",
-        "model": thread.get("_foremanModel"),
-        "reasoningEffort": thread.get("_foremanReasoningEffort"),
-        "accessLevel": thread.get("_foremanAccessLevel"),
+        "model": thread.get("_palomarModel"),
+        "reasoningEffort": thread.get("_palomarReasoningEffort"),
+        "accessLevel": thread.get("_palomarAccessLevel"),
         "activeTurnId": active_turn_id,
     }
     if turns:
@@ -1731,7 +1731,7 @@ def compact_session_title(raw: Any, limit: int = 72) -> str:
     title = next((line.strip() for line in raw.splitlines() if line.strip()), "")
     title = " ".join(title.split()).strip()
     title = re.sub(r"^(?:#{1,6}|[-*+] |\d+[.)] )\s*", "", title)
-    title = re.sub(r"\bForeman[’']s\b", "Foreman", title, flags=re.IGNORECASE)
+    title = re.sub(r"\bPalomar[’']s\b", "Palomar", title, flags=re.IGNORECASE)
     title = re.split(
         r"\s+(?=(?:Repository|GitHub|GitLab|Goal|Requirements|Acceptance criteria):)",
         title,
@@ -1986,7 +1986,7 @@ def normalize_event(message: dict[str, Any]) -> tuple[str | None, dict[str, Any]
         event.update(
             {
                 "kind": "assistant.delta",
-                "_foremanAdvancesActivity": True,
+                "_palomarAdvancesActivity": True,
                 "turnId": params.get("turnId"),
                 "itemId": params.get("itemId"),
                 "text": params.get("delta", ""),
@@ -1996,7 +1996,7 @@ def normalize_event(message: dict[str, Any]) -> tuple[str | None, dict[str, Any]
         event.update(
             {
                 "kind": "activity",
-                "_foremanAdvancesActivity": True,
+                "_palomarAdvancesActivity": True,
                 "label": "Thinking",
                 "turnId": params.get("turnId"),
                 "itemId": params.get("itemId"),
@@ -2008,7 +2008,7 @@ def normalize_event(message: dict[str, Any]) -> tuple[str | None, dict[str, Any]
         event.update(
             {
                 "kind": "activity",
-                "_foremanAdvancesActivity": True,
+                "_palomarAdvancesActivity": True,
                 "label": "Thinking",
                 "turnId": params.get("turnId"),
                 "itemId": params.get("itemId"),
@@ -2020,7 +2020,7 @@ def normalize_event(message: dict[str, Any]) -> tuple[str | None, dict[str, Any]
         event.update(
             {
                 "kind": "activity",
-                "_foremanAdvancesActivity": True,
+                "_palomarAdvancesActivity": True,
                 "label": "Planning",
                 "turnId": params.get("turnId"),
                 "text": params.get("delta", ""),
@@ -2039,7 +2039,7 @@ def normalize_event(message: dict[str, Any]) -> tuple[str | None, dict[str, Any]
         event.update(
             {
                 "kind": "activity",
-                "_foremanAdvancesActivity": True,
+                "_palomarAdvancesActivity": True,
                 "label": "Planning",
                 "turnId": params.get("turnId"),
                 "text": active_step or params.get("explanation") or "",
@@ -2050,7 +2050,7 @@ def normalize_event(message: dict[str, Any]) -> tuple[str | None, dict[str, Any]
         event.update(
             {
                 "kind": "activity",
-                "_foremanAdvancesActivity": True,
+                "_palomarAdvancesActivity": True,
                 "label": "Running command",
                 "turnId": params.get("turnId"),
                 "itemId": params.get("itemId"),
@@ -2071,7 +2071,7 @@ def normalize_event(message: dict[str, Any]) -> tuple[str | None, dict[str, Any]
         event.update(
             {
                 "kind": "item",
-                "_foremanAdvancesActivity": normalized_item is not None,
+                "_palomarAdvancesActivity": normalized_item is not None,
                 "phase": "started" if method == "item/started" else "completed",
                 "turnId": params.get("turnId"),
                 "item": normalized_item,
@@ -2082,7 +2082,7 @@ def normalize_event(message: dict[str, Any]) -> tuple[str | None, dict[str, Any]
         event.update(
             {
                 "kind": "status",
-                "_foremanAdvancesActivity": True,
+                "_palomarAdvancesActivity": True,
                 "status": "working",
                 "turnId": turn.get("id"),
                 "startedAt": turn.get("startedAt"),
@@ -2093,7 +2093,7 @@ def normalize_event(message: dict[str, Any]) -> tuple[str | None, dict[str, Any]
         event.update(
             {
                 "kind": "status",
-                "_foremanAdvancesActivity": True,
+                "_palomarAdvancesActivity": True,
                 "status": status({}, turn.get("status")),
                 "turnId": turn.get("id"),
                 "completedAt": turn.get("completedAt"),
@@ -2116,8 +2116,8 @@ def normalize_event(message: dict[str, Any]) -> tuple[str | None, dict[str, Any]
                 "failureSummary": safe_failure_summary(latest_turn.get("error")),
                 # A raw status notification is also emitted while an existing
                 # thread is resumed. Only provider turn timestamps make it an
-                # activity signal; receipt by Foreman never does.
-                "_foremanAdvancesActivity": any(
+                # activity signal; receipt by Palomar never does.
+                "_palomarAdvancesActivity": any(
                     token_count(latest_turn.get(key)) is not None
                     for key in ("startedAt", "completedAt")
                 ),
@@ -2163,7 +2163,7 @@ def normalize_event(message: dict[str, Any]) -> tuple[str | None, dict[str, Any]
         event.update(
             {
                 "kind": "status",
-                "_foremanAdvancesActivity": True,
+                "_palomarAdvancesActivity": True,
                 "status": "waiting",
                 "reason": "inputUnsupported" if wait_type == "input" else "approvalRequired",
                 "turnId": params.get("turnId"),

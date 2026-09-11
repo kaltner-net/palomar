@@ -1,23 +1,28 @@
-# Foreman product marks
+# Palomar product marks
 
-Foreman's canonical product mark is the branching **F** on the purple rounded
-square. Product identity and connection state are separate: a green presence
-dot may be placed beside the mark, but is never baked into the logo artwork.
+Palomar uses the original **Dome Path** mark: a bold observatory arc over a
+three-node control path. The mark can be read as an instrument looking outward
+or as a control plane connecting persistent hosts. It is intentionally abstract
+and is not based on Palomar Observatory or Caltech branding.
 
-## Approved variants
+The geometry must remain recognizable without color at favicon and Android
+status-bar sizes. Violet and cyan distinguish the instrument and control path
+in full-color uses, but neither color nor a gradient is required for recognition.
+Connection state is separate UI information and is never baked into the mark.
+
+## Canonical family
 
 | Variant | Source asset | Use |
 | --- | --- | --- |
-| Full-color master | `android/app/src/main/res/drawable-nodpi/foreman_logo.png` | Android launcher, splash, header, setup, pairing, and About surfaces |
-| Full-color web copy | `web/public/foreman-logo.png` | Exact copy of the master for browser chrome and every web product-logo surface through `ForemanLogo` |
-| Compact monochrome | `android/app/src/main/res/drawable/ic_notification.xml` | Android status-bar and notification small icons only |
+| Primary SVG mark | `web/public/palomar-mark.svg` | Web identity, favicon, PWA icon, and shared geometry reference |
+| Horizontal wordmark | `docs/assets/palomar-wordmark.svg` | README and repository presentation |
+| Repository preview | `docs/assets/palomar-social-preview.svg` | Source for the GitHub social preview |
+| Android full-color vector | `android/app/src/main/res/drawable/palomar_mark.xml` | Splash, setup, pairing, headers, and About |
+| Android adaptive foreground | `android/app/src/main/res/drawable/palomar_launcher_foreground.xml` | Launcher and round adaptive icons |
+| Android monochrome | `android/app/src/main/res/drawable/palomar_launcher_monochrome.xml` | Android themed launcher icon |
+| Notification silhouette | `android/app/src/main/res/drawable/ic_notification.xml` | Status-bar and notification small icon only |
 
-The compact notification mark is a solid silhouette of the **F** implied by
-the branching logo. Android supplies its color; it deliberately omits the
-purple tile, gradients, fine branch nodes, and presence state so it stays
-legible at status-bar size.
-
-Do not draw substitute letter avatars inside individual components. Reuse the
-approved platform asset, keep its aspect ratio, and render a connection dot as
-a separate semantic element when the surface needs one. A regression test
-keeps the web copy byte-for-byte identical to the Android master.
+Do not draw substitute letter avatars inside components. Reuse the platform
+asset, preserve its aspect ratio and clear space, and keep presence/status dots
+as separate semantic elements. The full-color mark uses `#171527`, `#D7CCFF`,
+and `#7CE7E0`; monochrome variants use one platform-tinted solid silhouette.

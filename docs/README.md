@@ -1,6 +1,6 @@
-# Foreman documentation
+# Palomar documentation
 
-This directory is the long-form documentation source for Foreman. The project
+This directory is the long-form documentation source for Palomar. The project
 README stays intentionally concise; use this page to find operational,
 technical, security, and release detail. The structure is suitable for a future
 static documentation site without creating a second source of truth.
@@ -41,8 +41,8 @@ static documentation site without creating a second source of truth.
 ## Project planning and release history
 
 - [Product roadmap](../ROADMAP.md)
-- [GitHub issues](https://github.com/mkaltner/foreman/issues)
-- [GitHub releases](https://github.com/mkaltner/foreman/releases)
+- [GitHub issues](https://github.com/kaltner-net/palomar/issues)
+- [GitHub releases](https://github.com/kaltner-net/palomar/releases)
 - [v1.0 acceptance record](acceptance-v1.0.0.md)
 - [Release notes archive](releases/)
 

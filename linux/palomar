@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+service_name=palomar.service
+install_dir="${PALOMAR_INSTALL_DIR:-$HOME/.local/share/palomar}"
+launcher_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+case "${1:-}" in
+  install)
+    source_installer="$launcher_dir/../install.sh"
+    if [[ -x "$source_installer" ]]; then
+      exec "$source_installer"
+    fi
+    echo "Palomar is already installed. Use 'palomar update' or rerun a verified installer." >&2
+    ;;
+  start)
+    systemctl --user start "$service_name"
+    ;;
+  stop)
+    systemctl --user stop "$service_name"
+    ;;
+  restart)
+    systemctl --user restart "$service_name"
+    ;;
+  status)
+    systemctl --user status "$service_name" --no-pager
+    ;;
+  logs)
+    journalctl --user -u "$service_name" -f
+    ;;
+  pair)
+    exec /usr/bin/env python3 \
+      "$install_dir/palomar_service.py" --create-pairing
+    ;;
+  web)
+    exec /usr/bin/env python3 \
+      "$install_dir/palomar_service.py" --print-web-url
+    ;;
+  claude-status)
+    exec /usr/bin/env python3 \
+      "$install_dir/palomar_service.py" --claude-status
+    ;;
+  update)
+    shift
+    exec /usr/bin/env python3 "$install_dir/update_cli.py" "$@"
+    ;;
+  uninstall)
+    shift
+    exec "$install_dir/palomar_uninstall" "$@"
+    ;;
+  *)
+    echo "Usage: palomar {install|start|stop|restart|status|logs|pair|web|claude-status|update|uninstall}" >&2
+    exit 2
+    ;;
+esac

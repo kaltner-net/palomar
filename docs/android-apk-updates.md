@@ -1,15 +1,15 @@
 # Android APK self-update
 
-This document is the architecture and security decision for updating Foreman's
+This document is the architecture and security decision for updating Palomar's
 sideloaded Android application. It is normative for the Android About flow,
 release discovery, release publication, signing-key continuity, and physical
 device acceptance. Android app replacement is separate from the connected
-Foreman server updater in [`server-updates.md`](server-updates.md).
+Palomar server updater in [`server-updates.md`](server-updates.md).
 
 ## Trust model and provenance
 
-Foreman has one stable release channel: published, non-prerelease releases in
-`mkaltner/foreman`. The Android app starts from the validated Android component
+Palomar has one stable release channel: published, non-prerelease releases in
+`kaltner-net/palomar`. The Android app starts from the validated Android component
 target projected by the existing release-discovery contract, then fetches that
 exact tag from the fixed GitHub Releases API. Neither a connected server nor a
 user can supply a repository, tag, URL, filename, package name, certificate, or
@@ -23,20 +23,20 @@ these checks:
 
 1. Its tag is exactly `v<available-version>` and it remains a published stable
    release.
-2. Its custom assets are exactly one nonempty `foreman-v<version>.apk`, one
-   `foreman-linux-v<version>.tar.gz`, `SHA256SUMS`, `SHA256SUMS.sig`, and
-   `foreman-release-cert.pem`. Duplicate, missing, empty, unexpected,
+2. Its custom assets are exactly one nonempty `palomar-v<version>.apk`, one
+   `palomar-linux-v<version>.tar.gz`, `palomar-SHA256SUMS`, `palomar-SHA256SUMS.sig`, and
+   `palomar-release-cert.pem`. Duplicate, missing, empty, unexpected,
    oversized, ambiguously named, or noncanonical assets fail closed.
 3. The public certificate's DER SHA-256 fingerprint equals both the trust
-   anchor embedded from the installed release's `release.properties` and the
+   anchor embedded from the installed release's `palomar-release.properties` and the
    current installed Android package signer. This prevents a modified app from
    silently inheriting official update authority.
 4. That certificate verifies the detached RSA/SHA-256 signature over the exact
-   `SHA256SUMS` bytes. The signed manifest must contain exactly one checksum for
+   `palomar-SHA256SUMS` bytes. The signed manifest must contain exactly one checksum for
    the Android APK and Linux archive and no other entry.
 5. The completed APK matches the signed APK checksum.
 6. Android package inspection recognizes a valid, signed APK for
-   `net.kaltner.foreman` with exactly one current signer matching the same
+   `net.kaltner.palomar` with exactly one current signer matching the same
    trusted certificate.
 7. The APK `versionName` equals the selected release, its version name is
    strictly newer by SemVer, and its `versionCode` is strictly greater than the
@@ -77,7 +77,7 @@ and reverified before use.
 
 User cancellation stops the job and deletes its files. Verification rejection
 also deletes every operation payload. Unreferenced operation directories older
-than seven days are pruned only within Foreman's dedicated update directory.
+than seven days are pruned only within Palomar's dedicated update directory.
 A verified APK and its small operation record survive activity recreation and
 process relaunch so returning from settings or rotating the device never
 causes another download.
@@ -104,10 +104,10 @@ user can explicitly reopen it.
 
 ## Permission and system installer
 
-Foreman requests `REQUEST_INSTALL_PACKAGES` because it is distributed outside
+Palomar requests `REQUEST_INSTALL_PACKAGES` because it is distributed outside
 Google Play. On Android 8 and later, the app checks `canRequestPackageInstalls`
 only after an APK is fully verified and the user chooses **Open Android
-installer**. If permission is absent, Foreman first explains what **Install
+installer**. If permission is absent, Palomar first explains what **Install
 unknown apps** permits, that the APK is already verified, and that Android will
 still require explicit confirmation. Only **Continue to settings** opens the
 per-app Android settings screen.
@@ -116,12 +116,12 @@ Returning with permission granted resumes the same durable operation and opens
 the installer once. Denial or backing out returns to `ready` without another
 download or repeated dialog. Android versions without the per-app permission
 go directly to the system installer. The APK is shared through a nonexported
-`FileProvider` with a one-intent read grant. Foreman never uses PackageInstaller
+`FileProvider` with a one-intent read grant. Palomar never uses PackageInstaller
 session APIs, device-owner privileges, accessibility automation, root, or any
 other silent-install mechanism, and never describes installation as automatic.
 
 Android's package installer owns final identity checks, user confirmation,
-replacement, cancellation, and platform error presentation. Foreman treats a
+replacement, cancellation, and platform error presentation. Palomar treats a
 canceled result as retryable. If Android accepts replacement, the old process
 may disappear before it can report success; the next launch compares the
 installed version to the durable target, records completion, and removes the
@@ -140,7 +140,7 @@ self-update flow creates no update-available notification and no duplicate
 foreground-service notification.
 
 An Android app update never changes, restarts, or uploads anything to the
-connected Foreman server. A server update never downloads or launches an APK.
+connected Palomar server. A server update never downloads or launches an APK.
 About shows the installed and available version for both components and labels
 whether the available release applies to the server, Android app, or both.
 Only Android exposes APK download and installer actions; web retains the shared
@@ -155,16 +155,16 @@ run this checklist.
 - [ ] From a narrow-screen Android 6/7 device or emulator, confirm the verified
   APK goes directly to Android's installer and all controls remain reachable
   with large text.
-- [ ] On Android 8+, deny **Install unknown apps** after reading Foreman's
+- [ ] On Android 8+, deny **Install unknown apps** after reading Palomar's
   explanation; confirm About returns to **Verified and ready**, no installer
   opens, and no file is downloaded again.
 - [ ] Grant the permission on a second attempt; confirm the pending verified
   APK resumes into exactly one Android installer screen with no duplicate
   explanation or download.
-- [ ] Cancel Android's installer, return to Foreman, and reopen it; confirm the
+- [ ] Cancel Android's installer, return to Palomar, and reopen it; confirm the
   verified APK is reused and only one installer is visible.
 - [ ] Interrupt the APK download by disabling networking or force-closing the
-  app; relaunch, retry, confirm partial recovery, and verify normal Foreman use
+  app; relaunch, retry, confirm partial recovery, and verify normal Palomar use
   remained responsive throughout.
 - [ ] Serve or locally inject an empty APK, duplicate/misnamed asset, changed
   checksum manifest, bad detached signature, wrong signing certificate,

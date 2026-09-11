@@ -1,0 +1,11 @@
+[Unit]
+Description=Resume an interrupted Palomar update after boot
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/libexec/palomar-updater --resume-latest --state-directory %h/.local/state/palomar --install-directory %h/.local/share/palomar --launcher-file %h/.local/bin/palomar --unit-file %h/.config/systemd/user/palomar.service --helper-file %h/.local/libexec/palomar-updater --health-port 8766
+SuccessExitStatus=1 4
+
+[Install]
+WantedBy=default.target

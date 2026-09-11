@@ -11,17 +11,17 @@ from scripts.guard_published_release import guard_release, main
 
 
 TAG = "v1.2.3"
-REPOSITORY = "mkaltner/foreman"
+REPOSITORY = "kaltner-net/palomar"
 RELEASE_ID = "123"
 
 
 def release_assets():
     return [
-        {"name": f"foreman-{TAG}.apk", "size": 10},
-        {"name": f"foreman-linux-{TAG}.tar.gz", "size": 20},
-        {"name": "SHA256SUMS", "size": 30},
-        {"name": "SHA256SUMS.sig", "size": 31},
-        {"name": "foreman-release-cert.pem", "size": 32},
+        {"name": f"palomar-{TAG}.apk", "size": 10},
+        {"name": f"palomar-linux-{TAG}.tar.gz", "size": 20},
+        {"name": "palomar-SHA256SUMS", "size": 30},
+        {"name": "palomar-SHA256SUMS.sig", "size": 31},
+        {"name": "palomar-release-cert.pem", "size": 32},
     ]
 
 
@@ -47,21 +47,21 @@ class FakeGitHub:
         if arguments[:3] == ["gh", "release", "download"]:
             destination = Path(arguments[arguments.index("--dir") + 1])
             payloads = {
-                f"foreman-{TAG}.apk": b"signed apk",
-                f"foreman-linux-{TAG}.tar.gz": b"linux archive",
+                f"palomar-{TAG}.apk": b"signed apk",
+                f"palomar-linux-{TAG}.tar.gz": b"linux archive",
             }
             checksums = []
             for name, content in payloads.items():
                 destination.joinpath(name).write_bytes(content)
                 checksums.append(f"{hashlib.sha256(content).hexdigest()}  {name}")
-            destination.joinpath("SHA256SUMS").write_text(
+            destination.joinpath("palomar-SHA256SUMS").write_text(
                 "\n".join(checksums) + "\n",
                 encoding="utf-8",
             )
-            destination.joinpath("SHA256SUMS.sig").write_bytes(b"detached signature")
-            destination.joinpath("foreman-release-cert.pem").write_text("public certificate\n", encoding="utf-8")
+            destination.joinpath("palomar-SHA256SUMS.sig").write_bytes(b"detached signature")
+            destination.joinpath("palomar-release-cert.pem").write_text("public certificate\n", encoding="utf-8")
             if self.tamper:
-                destination.joinpath(f"foreman-{TAG}.apk").write_bytes(b"tampered")
+                destination.joinpath(f"palomar-{TAG}.apk").write_bytes(b"tampered")
             return subprocess.CompletedProcess(arguments, 0, stdout="", stderr="")
         raise AssertionError(f"unexpected command: {arguments}")
 
@@ -110,7 +110,7 @@ class PublishedReleaseGuardTests(unittest.TestCase):
     @mock.patch("sys.argv", ["guard_published_release.py", "--repository", REPOSITORY, "--release-id", RELEASE_ID, "--tag", TAG])
     def test_cli_does_not_claim_failed_draft_transition_succeeded(self, guard):
         guard.return_value = [
-            "missing release assets: SHA256SUMS",
+            "missing release assets: palomar-SHA256SUMS",
             "failed to return incomplete release to draft: API rejected update",
         ]
         with self.assertRaises(SystemExit) as raised, redirect_stderr(StringIO()):

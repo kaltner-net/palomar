@@ -17,7 +17,7 @@ import {
 const working = (overrides: Partial<TurnObservation> = {}): TurnObservation => ({
   hostId: "home",
   sessionId: "one",
-  repositoryId: "/workspace/foreman",
+  repositoryId: "/workspace/palomar",
   status: "working",
   turnId: "turn-1",
   activeTurnStartedAt: Date.now(),
@@ -129,7 +129,7 @@ describe("web turn notification lifecycle", () => {
     monitor.observe(working());
     expect(monitor.observeDecision(working({ status: "completed" }))).toEqual({
       notification: null,
-      clearTag: "foreman-turn-home-one",
+      clearTag: "palomar-turn-home-one",
     });
     expect(monitor.observeDecision(working({ status: "completed" }))).toEqual({ notification: null });
   });
@@ -151,8 +151,8 @@ describe("web turn notification lifecycle", () => {
     try {
       await expect(showBrowserTestNotification()).resolves.toBe("service-worker");
       expect(showNotification).toHaveBeenCalledWith(
-        "Foreman notifications are working",
-        expect.objectContaining({ tag: "foreman-notification-test" }),
+        "Palomar notifications are working",
+        expect.objectContaining({ tag: "palomar-notification-test" }),
       );
     } finally {
       if (secure) Object.defineProperty(window, "isSecureContext", secure);
@@ -179,7 +179,7 @@ describe("web turn notification lifecycle", () => {
     try {
       await expect(showBrowserTestNotification()).resolves.toBe("page");
       expect(calls).toContainEqual([
-        "Foreman notifications are working",
+        "Palomar notifications are working",
         expect.objectContaining({ requireInteraction: true }),
       ]);
     } finally {
@@ -195,7 +195,7 @@ describe("web turn notification lifecycle", () => {
     monitor.configure(DEFAULT_NOTIFICATION_PREFERENCES, () => undefined);
     expect(monitor.observeApproval("home", "one", "approval-1", "/repo")?.event).toBe("approval");
     expect(monitor.observeApproval("home", "one", "approval-1", "/repo")).toBeNull();
-    expect(monitor.resolveApproval("home", "approval-1")).toBe("foreman-approval-home-approval-1");
+    expect(monitor.resolveApproval("home", "approval-1")).toBe("palomar-approval-home-approval-1");
     expect(monitor.observeApproval("home", "one", "approval-1", "/repo")?.event).toBe("approval");
   });
 
@@ -205,7 +205,7 @@ describe("web turn notification lifecycle", () => {
     monitor.observe(working());
     const notification = monitor.observe(working({ status: "failed" }));
     expect(notification?.body).not.toContain("/workspace");
-    expect(notification?.body).not.toContain("foreman");
+    expect(notification?.body).not.toContain("palomar");
     expect(notification?.body).not.toContain("command");
     expect(notificationStateDescription("denied", false)).toContain("blocked");
   });
@@ -214,7 +214,7 @@ describe("web turn notification lifecycle", () => {
     const monitor = new TurnNotificationMonitor();
     monitor.configure(DEFAULT_NOTIFICATION_PREFERENCES, () => undefined);
     const notification = monitor.observeApproval("home", "one", "inp-secret", "/repo");
-    expect(notification).toMatchObject({ title: "Foreman needs your attention", body: "A monitored session needs approval or input." });
+    expect(notification).toMatchObject({ title: "Palomar needs your attention", body: "A monitored session needs approval or input." });
     expect(notification?.body).not.toContain("secret");
   });
 

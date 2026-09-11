@@ -1,7 +1,7 @@
 # Secure Linux bootstrap installer
 
-`scripts/install-foreman.sh` is the acquisition layer for installing Foreman on
-a Linux host that does not already have Foreman's signed updater. It is
+`scripts/install-palomar.sh` is the acquisition layer for installing Palomar on
+a Linux host that does not already have Palomar's signed updater. It is
 intended to stay small enough to inspect and has no staging, service-control,
 health-check, or rollback implementation. After release verification it runs
 the selected release's bundled `install.sh`, which remains authoritative for
@@ -9,7 +9,7 @@ all installation behavior.
 
 ## Selection and source
 
-The bootstrapper accepts only the fixed `mkaltner/foreman` GitHub API and
+The bootstrapper accepts only the fixed `kaltner-net/palomar` GitHub API and
 download locations. With no argument it examines at most the newest 20
 published releases and selects the greatest strict `vMAJOR.MINOR.PATCH` version
 that is non-draft, non-prerelease, and complete. A newer draft, prerelease, or
@@ -20,11 +20,11 @@ Complete means exactly one nonempty custom asset with each of these names and
 no other custom asset:
 
 ```text
-foreman-vMAJOR.MINOR.PATCH.apk
-foreman-linux-vMAJOR.MINOR.PATCH.tar.gz
-SHA256SUMS
-SHA256SUMS.sig
-foreman-release-cert.pem
+palomar-vMAJOR.MINOR.PATCH.apk
+palomar-linux-vMAJOR.MINOR.PATCH.tar.gz
+palomar-SHA256SUMS
+palomar-SHA256SUMS.sig
+palomar-release-cert.pem
 ```
 
 Every metadata download URL must equal the canonical URL constructed from the
@@ -42,7 +42,7 @@ bootstrapper:
 1. converts the downloaded certificate to DER and requires SHA-256 fingerprint
    `80d479d1a8f9f038c6977a1cfb68a2b45c3117492c364620e48babebf1810ad3`;
 2. uses that pinned certificate's public key to verify the detached OpenSSL
-   SHA-256 signature over the exact `SHA256SUMS` bytes;
+   SHA-256 signature over the exact `palomar-SHA256SUMS` bytes;
 3. requires the signed manifest to contain exactly one checksum for the APK and
    versioned Linux archive, with no duplicate, renamed, path-containing, or
    extra entry;
@@ -50,7 +50,7 @@ bootstrapper:
 5. validates every tar entry before extraction, rejecting absolute and
    noncanonical paths, traversal, duplicates, symbolic and hard links, devices,
    special entries, excessive file counts, and excessive expanded size;
-6. requires the complete Foreman install layout and release metadata matching
+6. requires the complete Palomar install layout and release metadata matching
    the selected version, official-release flag, and pinned signing identity.
 
 Only then does it execute the verified bundled `install.sh`. Downloading a

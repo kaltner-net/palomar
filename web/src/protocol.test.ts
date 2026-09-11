@@ -83,7 +83,7 @@ describe("session mapping and live events", () => {
     ]);
   });
 
-  it("keeps activity, terminal, and Foreman observation timestamps distinct", () => {
+  it("keeps activity, terminal, and Palomar observation timestamps distinct", () => {
     const completed = applySessionEvent(session, {
       kind: "status",
       status: "completed",

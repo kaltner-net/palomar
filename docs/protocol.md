@@ -1,11 +1,11 @@
-# Foreman protocol v1
+# Palomar protocol v1
 
-Protocol version 1 is independent of the `1.0.0` application version.
+Protocol version 1 is independent of the `2.0.0` application version.
 The release verifier checks the Linux, web, and Android protocol constants
-against `release.properties`; this release does not introduce a protocol
+against `palomar-release.properties`; this release does not introduce a protocol
 version bump.
 
-Foreman uses the same versioned messages over two transports:
+Palomar uses the same versioned messages over two transports:
 
 - UTF-8 newline-delimited JSON over raw TCP on port `8765`;
 - one UTF-8 JSON message per WebSocket text frame at `/ws` on port `8766`.
@@ -27,7 +27,7 @@ Before authentication a client may send `hello`, `pair`, `authenticate`, and
 `ping`. All other requests require a successful pair or authentication.
 `hello.codexRuntime` is either `SHARED_DESKTOP_LIVE_STATUS_AVAILABLE` for an
 attach to the configured Desktop socket or
-`SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE` for Foreman's independent fallback.
+`SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE` for Palomar's independent fallback.
 
 The browser transport rejects binary frames and malformed, oversized, or
 unsupported messages with the same protocol error envelope where the
@@ -75,8 +75,8 @@ contains `observedAt`, `stale`, `refreshStatus` (`idle`, `checking`, or
 `android` component entries. Each component contains only `supportedRelease`
 and `newestRelease`; a release contains the normalized SemVer, tag, bounded
 title and publication time, an official
-`https://github.com/mkaltner/foreman/releases/tag/...` notes URL, and whether the
-required uploaded artifact plus `SHA256SUMS` is available. Raw GitHub payloads,
+`https://github.com/kaltner-net/palomar/releases/tag/...` notes URL, and whether the
+required uploaded artifact plus `palomar-SHA256SUMS` is available. Raw GitHub payloads,
 asset URLs, tokens, arbitrary repositories, and installation operations are not
 projected.
 
@@ -86,7 +86,7 @@ checks. A 304 renews the observation time. Offline, timeout, malformed JSON,
 oversize response, HTTP error, and rate-limit failures retain the last validated
 projection as stale; clients with no cache receive an honest unavailable state.
 The operation is additive within protocol v1 and does not block other requests.
-`service.status.foremanReleaseBuild` lets clients distinguish an installed
+`service.status.palomarReleaseBuild` lets clients distinguish an installed
 source/development checkout from an official release build.
 
 `update.check` returns the installed version, selected strictly newer compatible
@@ -145,9 +145,9 @@ never enter routes. Provider-aware events retain the existing event envelope:
 
 Session summaries keep three timestamp meanings separate. `lastActivity` is
 provider/session activity, `terminalAt` is the latest terminal turn boundary,
-and `observedAt` is only when Foreman produced the summary. Live events use
+and `observedAt` is only when Palomar produced the summary. Live events use
 `activityAt` for the activity being applied and `observedAt` for receipt by
-Foreman; `observedAt` is never an implicit `activityAt`. Metadata-only events,
+Palomar; `observedAt` is never an implicit `activityAt`. Metadata-only events,
 including route, usage, goal, MCP startup, initialization, and unknown
 thread-scoped notifications, cannot advance activity. The service durably
 retains known activity, terminal values, and bounded provenance per
@@ -155,7 +155,7 @@ provider/session. Values merge monotonically for live work and partial provider
 data. A complete inactive Codex projection may replace a legacy or
 provider-derived value to repair restart-time corruption, but never replaces a
 known live activity value with an older timestamp. When partial provider data
-has no activity timestamp, Foreman retains a known value, otherwise falls back
+has no activity timestamp, Palomar retains a known value, otherwise falls back
 only to a provider terminal or creation timestamp, and finally leaves the
 activity unavailable. Web and Android sort the restored server values while
 placing waiting and working sessions ahead of inactive work.
@@ -178,10 +178,10 @@ access and projects only visible user and assistant messages, safe tool cards,
 permission markers, and terminal query state. Hidden reasoning, unrestricted SDK
 objects, raw tool input/output, and credentials are excluded. Claude
 `provider.session.delete` requires `confirm:true` plus the exact repository ID,
-rejects an active Foreman-owned query, and uses the official SDK deletion API.
+rejects an active Palomar-owned query, and uses the official SDK deletion API.
 It permanently removes managed or external resumable history and its
 subagent-transcript directory. The SDK has no archive/unarchive operation, so
-Foreman does not present a Claude archive action. Claude session search, images,
+Palomar does not present a Claude archive action. Claude session search, images,
 notification events, and approval responses are not supported by this surface.
 
 Codex `provider.session.list` accepts `scope: "normal" | "archived"`, defaulting
@@ -207,7 +207,7 @@ session's route before it is returned.
 
 `pair` accepts `pairingKey` and `deviceName`, then returns one persistent
 `deviceToken`. `service.status` returns authenticated, user-facing host health:
-Foreman and Codex versions, uptime, runtime mode, listener ports, repository
+Palomar and Codex versions, uptime, runtime mode, listener ports, repository
 root, aggregate browser/TCP client counts, last Codex event and successful
 request times, attach time, loaded/subscribed thread counts, and narrow runtime
 ownership diagnostics. Authenticated clients receive `service.event` when safe
@@ -228,7 +228,7 @@ focused on that authenticated connection, or clears it when both fields are
 omitted. Its result and `session.presence.event` expose only the deduplicated
 focused provider/session pairs, never client or device identities. Presence is
 ephemeral, is removed when the connection closes or its token is revoked, and
-is intended only to suppress redundant notifications while another Foreman
+is intended only to suppress redundant notifications while another Palomar
 surface is already displaying the matching session.
 
 `diagnostics.list` returns at most 100 newest-first in-memory operational events.
@@ -238,15 +238,15 @@ listener lifecycle. It may include only an ISO timestamp, severity, category,
 fixed message, fixed request category, and a generated client ID. It never
 contains prompts, assistant text, commands, file content, approvals, tokens,
 hashes, pairing codes, source addresses, unrestricted paths, traces, logs, or
-raw JSON-RPC. The ring is discarded whenever Foreman stops.
+raw JSON-RPC. The ring is discarded whenever Palomar stops.
 
 `service.restart` is authenticated and available only when
-`FOREMAN_REMOTE_RESTART=1`. Its result is `{scheduled:true,timeoutSeconds:45}`;
-that envelope is flushed before Foreman invokes exactly
-`systemctl --user restart --no-block foreman.service`. The scheduled result is
+`PALOMAR_REMOTE_RESTART=1`. Its result is `{scheduled:true,timeoutSeconds:45}`;
+that envelope is flushed before Palomar invokes exactly
+`systemctl --user restart --no-block palomar.service`. The scheduled result is
 not a success claim. Clients report completion only after the connection drops,
-Foreman returns, and authentication succeeds again. The operation never targets
-Desktop Codex or any other service. Foreman rejects restart while a session is
+Palomar returns, and authentication succeeds again. The operation never targets
+Desktop Codex or any other service. Palomar rejects restart while a session is
 active or waiting, or while an approval or input request is pending, so volatile
 request state is not deliberately discarded.
 
@@ -260,7 +260,7 @@ activity, command/tool item events, and bounded `thread/tokenUsage/updated`
 snapshots. Token usage exposes only numeric `total`, `last`, and
 `modelContextWindow` fields. Clients calculate current context occupancy from
 `last.totalTokens`, never the cumulative `total.totalTokens`; usage events do
-not change session recency. Foreman retains at most 500 last-known numeric
+not change session recency. Palomar retains at most 500 last-known numeric
 session usage snapshots in its mode-0600 state file so context meters survive a
 service restart; archive/delete removes the associated snapshot. No prompt,
 message, or transcript content is stored with it.
@@ -278,7 +278,7 @@ contains a bounded `windows` collection. Every entry has a stable provider-scope
 `resetsAt`. Labels come from provider metadata or the reported duration; clients
 use the generic “Usage limit” when neither exists.
 
-Codex may return multiple metered buckets in `rateLimitsByLimitId`. Foreman
+Codex may return multiple metered buckets in `rateLimitsByLimitId`. Palomar
 flattens their primary/secondary windows into the collection using IDs scoped by
 the metered limit ID, while retaining the backward-compatible single-bucket
 aliases. A sparse `account/rateLimits/updated` notification updates only its
@@ -292,7 +292,7 @@ aliases by window ID. Sparse rolling updates merge by ID and merge fields within
 the changed window, so an unmentioned window or reset time is not cleared.
 
 Claude account limits come from an explicitly experimental Agent SDK method
-available only during a Foreman-managed Claude query, so the projection is
+available only during a Palomar-managed Claude query, so the projection is
 labeled experimental and last-observed. Both Codex and Claude retain their last
 bounded complete snapshots in the mode-0600 service state file and mark restored
 data stale until a successful refresh. Browser and Android clients independently
@@ -312,7 +312,7 @@ Approval support keeps protocol version 1. Authenticated clients use:
 - `approval.respond` with `{approvalId,decision}`;
 - `approval.requested`, `approval.updated`, and `approval.resolved` server events.
 
-Approval IDs are opaque Foreman IDs, never upstream JSON-RPC IDs. Projections are
+Approval IDs are opaque Palomar IDs, never upstream JSON-RPC IDs. Projections are
 bounded and include the request class, session/turn/item correlation, safe
 display details, and only available decisions. Command/file responses identify
 an advertised decision, including structured policy amendments. Permission
@@ -324,7 +324,7 @@ UI.
 
 Structured input is separate from approvals. Authenticated clients use
 `input.list`, `input.respond`, and the `input.requested`, `input.updated`, and
-`input.resolved` events. Input IDs are opaque `inp_…` Foreman IDs. Projections
+`input.resolved` events. Input IDs are opaque `inp_…` Palomar IDs. Projections
 contain only bounded labels/descriptions, verified normalized fields, options,
 validation bounds, correlation, source/server display data, support status, and
 valid decline/cancel actions. Accept uses
@@ -361,10 +361,10 @@ refetch the applicable provider scope, so external changes, reconnects, and
 service restarts converge on Codex's authoritative lists without replay.
 `session.delete` requires
 `confirm: true` and permanently deletes the inactive thread plus its spawned
-descendants. Foreman rejects both operations while a session is working or
+descendants. Palomar rejects both operations while a session is working or
 waiting for input. Per-session locks serialize this check and mutation with
 prompt, steer, interrupt, archive, restore, and delete requests from other
-connected Foreman clients. Archive, client-local Hide, host-state Forget, and
+connected Palomar clients. Archive, client-local Hide, host-state Forget, and
 permanent Delete remain distinct operations.
 
 `model.list` returns only picker fields from Codex's installed catalog.
@@ -372,22 +372,22 @@ permanent Delete remain distinct operations.
 profiles. `session.settings` accepts `sessionId` plus at least one of
 `accessLevel`, `model`, and `reasoningEffort`, validates the selection against
 the installed catalogs, and updates Codex's existing thread defaults for
-subsequent turns. Foreman accepts the mutation only while the session is idle,
+subsequent turns. Palomar accepts the mutation only while the session is idle,
 serializes the check with prompt/steer/interrupt operations, durably records the
 acknowledged session values, and returns the updated session projection with a
 monotonic `settingsRevision`. Working, stopping, approval-waiting, and
 structured-input-waiting turns keep their route immutable until they finish.
-`provider.session.settings` provides the equivalent Foreman-owned session
+`provider.session.settings` provides the equivalent Palomar-owned session
 defaults for the Claude model and permission mode without claiming an
 unsupported Claude SDK thread-settings mutation. Route events and refreshes
 carry the revision so a stale read cannot replace a newer acknowledged setting.
 For pre-migration Codex sessions whose app-server projection omits access,
-Foreman may recover the last verified permission profile from the bounded tail
+Palomar may recover the last verified permission profile from the bounded tail
 of that session's persisted Codex turn context, then stores the recovered value
 in the normal server-authoritative session record.
 A `turn.prompt` may include `accessLevel`, `model`, and `reasoningEffort` for
 older clients, but known durable session values remain authoritative and those
-fields only bootstrap values Foreman does not yet know. `turn.steer` keeps the
+fields only bootstrap values Palomar does not yet know. `turn.steer` keeps the
 active turn's route and rejects replacement route fields. Both accept up to
 four images:
 
@@ -396,5 +396,5 @@ four images:
 ```
 
 JPEG, PNG, and WebP payloads are accepted, with an 8 MiB combined encoded
-limit. Foreman converts them to Codex inline data-URL image items and does not
+limit. Palomar converts them to Codex inline data-URL image items and does not
 persist or log image bytes.

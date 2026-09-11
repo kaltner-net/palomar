@@ -5,7 +5,7 @@ import { normalizeReleaseUpdates } from "./update-status";
 import { forgetServerUpdateOperationId } from "./server-update";
 
 export type ColorMode = "system" | "light" | "dark";
-export type ThemeId = "foreman" | "harbor" | "grove" | "ember" | "dune" | "slate" | "high-contrast";
+export type ThemeId = "palomar" | "harbor" | "grove" | "ember" | "dune" | "slate" | "high-contrast";
 type LegacyAccentColor = "purple" | "blue" | "teal" | "green" | "orange" | "red" | "pink";
 export type { ActivityDetail } from "./activity-detail";
 export type StoredHostStatus = "connected" | "reconnecting" | "disconnected";
@@ -58,19 +58,19 @@ export interface CuratedTheme {
   preview: readonly [string, string, string, string];
 }
 
-const LEGACY_HOST_KEY = "foreman.host.v1";
-const HOSTS_KEY = "foreman.hosts.v2";
-const LEGACY_APPEARANCE_KEY = "foreman.appearance.v1";
-const APPEARANCE_KEY = "foreman.appearance.v2";
-const NOTIFICATIONS_KEY = "foreman.notifications.v1";
-const NOTIFICATION_PREFERENCES_KEY = "foreman.notification-preferences.v2";
-const DASHBOARD_KEY = "foreman.dashboard.v1";
-const SESSION_ORGANIZATION_KEY = "foreman.session-organization.v1";
-const SESSION_SEARCH_KEY = "foreman.session-search.v1";
-const COLLAPSED_REPOSITORIES_KEY = "foreman.collapsed-repositories.v1";
-const LAST_SESSION_KEY = "foreman.last-session.v1";
-const RELEASE_UPDATES_KEY = "foreman.release-updates.v1";
-const ACCOUNT_USAGE_KEY = "foreman.account-usage.v2";
+const LEGACY_HOST_KEY = "palomar.host.v1";
+const HOSTS_KEY = "palomar.hosts.v2";
+const LEGACY_APPEARANCE_KEY = "palomar.appearance.v1";
+const APPEARANCE_KEY = "palomar.appearance.v2";
+const NOTIFICATIONS_KEY = "palomar.notifications.v1";
+const NOTIFICATION_PREFERENCES_KEY = "palomar.notification-preferences.v2";
+const DASHBOARD_KEY = "palomar.dashboard.v1";
+const SESSION_ORGANIZATION_KEY = "palomar.session-organization.v1";
+const SESSION_SEARCH_KEY = "palomar.session-search.v1";
+const COLLAPSED_REPOSITORIES_KEY = "palomar.collapsed-repositories.v1";
+const LAST_SESSION_KEY = "palomar.last-session.v1";
+const RELEASE_UPDATES_KEY = "palomar.release-updates.v1";
+const ACCOUNT_USAGE_KEY = "palomar.account-usage.v2";
 const HOST_SCOPED_KEYS = [
   LEGACY_APPEARANCE_KEY,
   APPEARANCE_KEY,
@@ -86,15 +86,15 @@ const HOST_SCOPED_KEYS = [
 ];
 export const DEFAULT_APPEARANCE: Appearance = {
   colorMode: "system",
-  themeId: "foreman",
+  themeId: "palomar",
   activityDetail: "focused",
   groupSessionsByRepository: true,
 };
 export const CURATED_THEMES: readonly CuratedTheme[] = [
   {
-    id: "foreman",
-    name: "Foreman",
-    description: "The signature violet Foreman palette.",
+    id: "palomar",
+    name: "Palomar",
+    description: "The signature violet Palomar palette.",
     preview: ["#f5f3fa", "#ffffff", "#6b3fb5", "#d9c8f2"],
   },
   {
@@ -141,7 +141,7 @@ export function themeIdForLegacyAccent(value: unknown): ThemeId {
   if (accent === "blue" || accent === "teal") return "harbor";
   if (accent === "green") return "grove";
   if (accent === "orange" || accent === "red" || accent === "pink") return "ember";
-  return "foreman";
+  return "palomar";
 }
 
 export function loadHostRegistry(storage: Storage = localStorage): HostRegistry {
@@ -196,9 +196,9 @@ export function suggestedHostDisplayName(rawHost: string): string {
     .replace(/\/$/, "")
     .replace(/^\[|\]$/g, "");
   if (["localhost", "127.0.0.1", "::1"].includes(host.toLowerCase())) {
-    return "Local Foreman";
+    return "Local Palomar";
   }
-  return host || "Foreman host";
+  return host || "Palomar host";
 }
 
 export function addStoredHost(registry: HostRegistry, host: StoredHost): HostRegistry {

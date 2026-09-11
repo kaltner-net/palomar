@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
-import type { ForemanRelease, ReleaseUpdateSnapshot } from "./protocol";
+import type { PalomarRelease, ReleaseUpdateSnapshot } from "./protocol";
 import { compareSemVer, componentUpdateStatus, normalizeReleaseUpdates, parseSemVer } from "./update-status";
 
-function release(version: string, artifactAvailable = true): ForemanRelease {
+function release(version: string, artifactAvailable = true): PalomarRelease {
   return {
     version,
     tag: `v${version}`,
-    title: `Foreman ${version}`,
+    title: `Palomar ${version}`,
     publishedAt: "2026-08-29T04:47:19Z",
-    releaseNotesUrl: `https://github.com/mkaltner/foreman/releases/tag/v${version}`,
+    releaseNotesUrl: `https://github.com/kaltner-net/palomar/releases/tag/v${version}`,
     artifactAvailable,
   };
 }
 
-function snapshot(supported: ForemanRelease | null, newest = supported): ReleaseUpdateSnapshot {
+function snapshot(supported: PalomarRelease | null, newest = supported): ReleaseUpdateSnapshot {
   return {
     observedAt: "2026-08-30T00:00:00Z",
     stale: false,

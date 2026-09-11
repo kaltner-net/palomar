@@ -26,7 +26,7 @@ from codex import (  # noqa: E402
     SHARED_DESKTOP_LIVE_STATUS_AVAILABLE,
     SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE,
 )
-from foreman_service import Foreman  # noqa: E402
+from palomar_service import Palomar  # noqa: E402
 from state import State  # noqa: E402
 
 
@@ -365,7 +365,7 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.base = Path(self.temporary.name)
         self.socket_path = self.base / "control.sock"
-        self.fallback_socket_path = self.base / "foreman-fallback.sock"
+        self.fallback_socket_path = self.base / "palomar-fallback.sock"
         self.log_path = self.base / "requests.log"
         self.executable = self.base / "fake-codex"
         self.executable.write_text(FAKE_CODEX, encoding="utf-8")
@@ -441,8 +441,8 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
                 self.fallback_socket_path,
             )
 
-        def app() -> Foreman:
-            return Foreman(
+        def app() -> Palomar:
+            return Palomar(
                 "127.0.0.1",
                 0,
                 repository_root,
@@ -452,9 +452,9 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
             )
 
         first = app()
-        second: Foreman | None = None
+        second: Palomar | None = None
         try:
-            with patch("foreman_service.time.time", return_value=1_900_000_000):
+            with patch("palomar_service.time.time", return_value=1_900_000_000):
                 await first.start()
                 await server.settle()
                 await first.flush_session_timestamp_persistence()
@@ -500,7 +500,7 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
 
             await first.stop()
             second = app()
-            with patch("foreman_service.time.time", return_value=1_900_000_100):
+            with patch("palomar_service.time.time", return_value=1_900_000_100):
                 await second.start()
                 await server.settle()
                 await second.flush_session_timestamp_persistence()
@@ -513,7 +513,7 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
             )
 
             # Reconnect reconciliation repeats the same mixed ordering.
-            with patch("foreman_service.time.time", return_value=1_900_000_200):
+            with patch("palomar_service.time.time", return_value=1_900_000_200):
                 await second.codex._refresh_and_subscribe()
                 await server.settle()
             self.assertEqual(
@@ -532,7 +532,7 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
                 second.session_overlays["thread-older"]["lastActivity"],
                 expected["thread-older"],
             )
-            with patch("foreman_service.time.time", return_value=1_900_000_300):
+            with patch("palomar_service.time.time", return_value=1_900_000_300):
                 await server.emit(
                     "turn/started",
                     {
@@ -541,7 +541,7 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
                     },
                 )
                 await asyncio.sleep(0)
-            with patch("foreman_service.time.time", return_value=1_900_000_310):
+            with patch("palomar_service.time.time", return_value=1_900_000_310):
                 await server.emit(
                     "turn/completed",
                     {
@@ -608,7 +608,7 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
             self.socket_path,
             self.fallback_socket_path,
         )
-        with self.assertRaisesRegex(CodexError, "exists but Foreman could not attach"):
+        with self.assertRaisesRegex(CodexError, "exists but Palomar could not attach"):
             await adapter.start()
         try:
             self.assertIsNone(adapter.process)
@@ -741,7 +741,7 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
                 self.fallback_socket_path,
             )
 
-        app = Foreman(
+        app = Palomar(
             "127.0.0.1",
             0,
             repository_root,
@@ -822,7 +822,7 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
         def factory(executable: str, event: Any) -> Codex:
             return Codex(executable, event, self.socket_path, self.fallback_socket_path)
 
-        app = Foreman(
+        app = Palomar(
             "127.0.0.1", 0, repository_root, state, "missing-codex", codex_factory=factory
         )
         await app.start()

@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Foreman" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.Palomar" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:colorAccent">#6C2BD9</item>
         <item name="android:windowBackground">@color/app_background</item>
     </style>
 
-    <style name="Theme.Foreman.Starting" parent="Theme.SplashScreen">
+    <style name="Theme.Palomar.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/app_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/foreman_logo</item>
-        <item name="postSplashScreenTheme">@style/Theme.Foreman</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/palomar_mark</item>
+        <item name="postSplashScreenTheme">@style/Theme.Palomar</item>
         <item name="isLightTheme">true</item>
     </style>
 </resources>

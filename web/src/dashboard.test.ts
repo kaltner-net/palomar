@@ -22,7 +22,7 @@ import {
 const now = 1_720_000_000_000;
 const base: SessionSummary = {
   id: "one",
-  repository: "/projects/foreman",
+  repository: "/projects/palomar",
   title: "Build dashboard",
   status: "idle",
 };
@@ -43,13 +43,13 @@ describe("dashboard projections", () => {
 
   it("groups repositories by canonical path without merging equal display names", () => {
     const groups = repositoryGroups([
-      { ...base, id: "a", repository: "/work/foreman", status: "working", lastActivity: 10, activityLabel: "Running tests" },
-      { ...base, id: "b", repository: "/archive/foreman", status: "waiting", lastActivity: 20 },
-      { ...base, id: "c", repository: "/work/foreman", status: "failed", terminalAt: now / 1000 },
+      { ...base, id: "a", repository: "/work/palomar", status: "working", lastActivity: 10, activityLabel: "Running tests" },
+      { ...base, id: "b", repository: "/archive/palomar", status: "waiting", lastActivity: 20 },
+      { ...base, id: "c", repository: "/work/palomar", status: "failed", terminalAt: now / 1000 },
     ], now);
     expect(groups).toHaveLength(2);
-    expect(groups.map((group) => group.id)).toContain("/work/foreman");
-    expect(groups.find((group) => group.id === "/work/foreman"))
+    expect(groups.map((group) => group.id)).toContain("/work/palomar");
+    expect(groups.find((group) => group.id === "/work/palomar"))
       .toEqual(expect.objectContaining({ active: 1, failed: 1, currentActivity: "Running tests" }));
   });
 
@@ -219,7 +219,7 @@ describe("dashboard projections", () => {
 
   it("classifies waiting, failure, disconnect, and conservative stale attention", () => {
     const service = {
-      foremanVersion: "test", connected: true, uptimeSeconds: 1,
+      palomarVersion: "test", connected: true, uptimeSeconds: 1,
       codex: { connected: true, mode: "shared" as const, runtimeStatus: "available" },
       listeners: { tcpPort: 1 }, repositoryRoot: "/work",
     };
@@ -245,10 +245,10 @@ describe("dashboard projections", () => {
 
   it("separates discovered repositories from unscoped workspaces", () => {
     const groups = repositoryGroups([
-      { ...base, id: "repo", repository: "/work/foreman/packages/web" },
+      { ...base, id: "repo", repository: "/work/palomar/packages/web" },
       { ...base, id: "home", repository: "/home/operator" },
-    ], now, [{ id: "foreman", name: "foreman", path: "foreman", branch: "main", dirty: false }], "/work");
-    expect(groups.find((group) => group.id === "/work/foreman")?.kind).toBe("repository");
+    ], now, [{ id: "palomar", name: "palomar", path: "palomar", branch: "main", dirty: false }], "/work");
+    expect(groups.find((group) => group.id === "/work/palomar")?.kind).toBe("repository");
     expect(groups.find((group) => group.id === "/home/operator")?.kind).toBe("workspace");
   });
 

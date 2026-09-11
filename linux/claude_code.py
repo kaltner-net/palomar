@@ -1,4 +1,4 @@
-"""Optional Linux lifecycle adapter for the Foreman Claude Code bridge."""
+"""Optional Linux lifecycle adapter for the Palomar Claude Code bridge."""
 
 from __future__ import annotations
 
@@ -86,7 +86,7 @@ def unavailable_status(limitation: str) -> dict[str, Any]:
 
 
 class ClaudeCode:
-    """One optional Node bridge process per Foreman service."""
+    """One optional Node bridge process per Palomar service."""
 
     def __init__(
         self,
@@ -128,9 +128,9 @@ class ClaudeCode:
         self.desired = True
         self.stopping = False
         if sys.platform != "linux":
-            self.runtime_status = unavailable_status("The Foreman Claude Code adapter is Linux-only.")
+            self.runtime_status = unavailable_status("The Palomar Claude Code adapter is Linux-only.")
             return self.runtime_status
-        claude_executable = self.env.get("FOREMAN_CLAUDE_EXECUTABLE", "claude")
+        claude_executable = self.env.get("PALOMAR_CLAUDE_EXECUTABLE", "claude")
         if shutil.which(claude_executable, path=self.env.get("PATH")) is None:
             self.runtime_status = unavailable_status("The native claude executable is unavailable.")
             return self.runtime_status

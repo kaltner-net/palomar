@@ -1,4 +1,4 @@
-import { ForemanWebClient, parseEndpoint, type ClientHooks, type ConnectionState, type Endpoint } from "./client";
+import { PalomarWebClient, parseEndpoint, type ClientHooks, type ConnectionState, type Endpoint } from "./client";
 import {
   applySessionSummaryEvent,
   providerUsableForTasks,
@@ -47,7 +47,7 @@ export class UnifiedHostConnections {
 
   constructor(
     private readonly onSnapshot: (snapshot: HostOverviewSnapshot) => void,
-    private readonly clientFactory: (hooks: ClientHooks) => OverviewClient = (hooks) => new ForemanWebClient(hooks),
+    private readonly clientFactory: (hooks: ClientHooks) => OverviewClient = (hooks) => new PalomarWebClient(hooks),
   ) {}
 
   start(hosts: StoredHost[], activeHostId: string | null): void {

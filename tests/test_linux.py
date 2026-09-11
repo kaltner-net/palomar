@@ -48,11 +48,11 @@ from approvals import (  # noqa: E402
     PendingApproval,
     bounded_approval_params,
 )
-from foreman_service import (  # noqa: E402
+from palomar_service import (  # noqa: E402
     AccessError,
     CapabilityError,
     Client,
-    Foreman,
+    Palomar,
     PairingLimiter,
     environment_flag,
     image_payloads,
@@ -64,7 +64,7 @@ from state import State  # noqa: E402
 THREAD = {
     "id": "thread-1",
     "cwd": "/projects/example",
-    "preview": "Hello Foreman",
+    "preview": "Hello Palomar",
     "name": None,
     "status": {"type": "idle"},
     "updatedAt": 123,
@@ -111,7 +111,7 @@ class FakeCodex:
             {
                 **THREAD,
                 "id": "thread-archived",
-                "preview": "Archived Foreman session",
+                "preview": "Archived Palomar session",
                 "recencyAt": 90,
             }
         ]
@@ -219,9 +219,9 @@ class FakeCodex:
             "cwd": cwd,
             "turns": [],
             "status": {"type": "idle"},
-            "_foremanModel": model_id,
-            "_foremanReasoningEffort": effort,
-            "_foremanAccessLevel": selected_access_level,
+            "_palomarModel": model_id,
+            "_palomarReasoningEffort": effort,
+            "_palomarAccessLevel": selected_access_level,
         }
 
     async def resume_thread(self, thread_id: str) -> dict[str, Any]:
@@ -595,7 +595,7 @@ class StateTests(unittest.TestCase):
             self.assertIsNotNone(token)
             self.assertIsNone(state.pair(key, "Second phone"))
             self.assertTrue(state.authenticate(token or ""))
-            self.assertFalse(state.authenticate("fmt_wrong"))
+            self.assertFalse(state.authenticate("pmt_wrong"))
             raw = Path(directory, "state.json").read_text(encoding="utf-8")
             self.assertNotIn(key, raw)
             self.assertNotIn(token or "", raw)
@@ -838,7 +838,7 @@ class SessionPresenceTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
         root = Path(self.temporary_directory.name)
-        self.app = Foreman(
+        self.app = Palomar(
             "127.0.0.1",
             0,
             root,
@@ -945,7 +945,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
             def status(self, operation_id=None):
                 return {
                     "operation": {
-                        "id": "fmu_1234567890abcdef",
+                        "id": "pmu_1234567890abcdef",
                         "phase": "activationScheduled",
                     }
                 }
@@ -953,7 +953,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             FakeClaude.instances.clear()
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -982,7 +982,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1059,7 +1059,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             FakeClaude.instances.clear()
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1087,7 +1087,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             state = State(root / "state")
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1126,7 +1126,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
             state.set_provider_enabled("codex", True)
             state.set_provider_enabled("claude-code", False)
 
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1149,7 +1149,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
             state.set_provider_enabled("codex", True)
             state.set_provider_enabled("claude-code", True)
 
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1172,7 +1172,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 [(True, True), (False, False)],
             )
 
-            restarted = Foreman(
+            restarted = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1190,7 +1190,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             state = State(root / "state")
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1210,7 +1210,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
     async def test_concurrent_provider_disables_preserve_one_usable_provider(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1246,7 +1246,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             state = State(root / "state")
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1342,7 +1342,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
             root = Path(directory)
             state = State(root / "state")
             state.set_provider_enabled("codex", False)
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1368,7 +1368,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             FakeClaude.instances.clear()
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1542,7 +1542,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(interrupted["accepted"])
             self.assertEqual(claude.interrupts, ["external-session"])
 
-            with patch("foreman_service.time.time", return_value=1_900_004_000):
+            with patch("palomar_service.time.time", return_value=1_900_004_000):
                 await app.claude_event(
                     {
                         "provider": "claude-code",
@@ -1607,7 +1607,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 28,
             )
             await app.flush_session_timestamp_persistence()
-            restored = Foreman(
+            restored = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1726,7 +1726,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
             root = Path(directory)
             FakeClaude.instances.clear()
             state = State(root / "state")
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1800,7 +1800,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
                 repository = root / f"repository-{index}"
                 repository.mkdir()
                 subprocess.run(["git", "init", "-q", str(repository)], check=True)
-            app = Foreman(
+            app = Palomar(
                 "127.0.0.1",
                 0,
                 root,
@@ -1835,8 +1835,8 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
 
             claude.discover = delayed_discover  # type: ignore[method-assign]
             started_at = time.monotonic()
-            with patch("foreman_service.CLAUDE_DISCOVERY_DEADLINE_SECONDS", 0.08), patch(
-                "foreman_service.CLAUDE_DISCOVERY_CONCURRENCY", 3
+            with patch("palomar_service.CLAUDE_DISCOVERY_DEADLINE_SECONDS", 0.08), patch(
+                "palomar_service.CLAUDE_DISCOVERY_CONCURRENCY", 3
             ):
                 sessions = await app.discover_claude_sessions()
             self.assertLess(time.monotonic() - started_at, 1)
@@ -1848,7 +1848,7 @@ class ClaudeLifecycleTests(unittest.IsolatedAsyncioTestCase):
 class DiagnosticBufferTests(unittest.TestCase):
     def test_ring_is_bounded_and_projection_excludes_sensitive_data(self) -> None:
         diagnostics = DiagnosticBuffer(100)
-        secret = "fmt_secret token=abc 123456 /home/user/private command prompt"
+        secret = "pmt_secret token=abc 123456 /home/user/private command prompt"
         for index in range(125):
             diagnostics.record(
                 "request.failed",
@@ -1888,7 +1888,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
             self.calls.append("runner")
             return 0
 
-        self.app = Foreman(
+        self.app = Palomar(
             "127.0.0.1",
             0,
             Path(self.temporary.name),
@@ -1911,7 +1911,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
 
         class RestartClient:
             authenticated = True
-            device_id = "fmc_test"
+            device_id = "pmc_test"
             websocket = None
             writer = None
 
@@ -1937,7 +1937,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
         self.app.clients.add(
             Client(None, "redacted", websocket=StalledWebsocket())  # type: ignore[arg-type]
         )
-        with patch("foreman_service.SHUTDOWN_TIMEOUT_SECONDS", 0.01):
+        with patch("palomar_service.SHUTDOWN_TIMEOUT_SECONDS", 0.01):
             await asyncio.wait_for(self.app.stop(), 0.5)
 
         self.assertTrue(self.app.stopping)
@@ -1978,7 +1978,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
             async def send(self, message: dict[str, Any]) -> None:
                 self.message = message
 
-        secret = "fmt_secret 123456 /home/private prompt command approval"
+        secret = "pmt_secret 123456 /home/private prompt command approval"
         rejected = RejectClient()
         await self.app.handle_request(
             rejected,  # type: ignore[arg-type]
@@ -2026,7 +2026,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
 
             async def start(self, request_id=None, authorization_principal="local"):
                 self.authorization_principal = authorization_principal
-                return {"id": "fmu_1234567890abcdef", "phase": "downloading"}
+                return {"id": "pmu_1234567890abcdef", "phase": "downloading"}
 
         self.app.update_manager = FakeUpdateManager()  # type: ignore[assignment]
         request = {"version": 1, "type": "update.start", "payload": {"requestId": "android_1"}}
@@ -2038,12 +2038,12 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
             None,
             "remote",
             authenticated=True,
-            device_id="fmc_authorized",
+            device_id="pmc_authorized",
             access="full",
         )
         result = await self.app.dispatch(full_client, request)
-        self.assertEqual(result["operation"]["id"], "fmu_1234567890abcdef")
-        self.assertEqual(self.app.update_manager.authorization_principal, "device:fmc_authorized")
+        self.assertEqual(result["operation"]["id"], "pmu_1234567890abcdef")
+        self.assertEqual(self.app.update_manager.authorization_principal, "device:pmc_authorized")
 
         self.app.codex.approvals = [{"id": "approval-secret", "command": "do not expose"}]
         self.app.codex.inputs = [{"id": "input-secret", "prompt": "do not expose"}]
@@ -2066,7 +2066,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
             def status(self, operation_id=None):
                 return {
                     "operation": {
-                        "id": "fmu_1234567890abcdef",
+                        "id": "pmu_1234567890abcdef",
                         "phase": "activationScheduled",
                     }
                 }
@@ -2091,8 +2091,8 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
                 "params": {
                     "threadId": "thread-1",
                     "status": {"type": "idle"},
-                    "_foremanReconciled": True,
-                    "_foremanActivityAt": 124,
+                    "_palomarReconciled": True,
+                    "_palomarActivityAt": 124,
                 },
             }
         )
@@ -2145,7 +2145,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
             last_activity=1_900_000_100,
             activity_source="live",
         )
-        restored = Foreman(
+        restored = Palomar(
             "127.0.0.1",
             0,
             Path(self.temporary.name),
@@ -2230,7 +2230,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
             )
         await self.app.flush_session_timestamp_persistence()
 
-        restored = Foreman(
+        restored = Palomar(
             "127.0.0.1",
             0,
             Path(self.temporary.name),
@@ -2288,10 +2288,10 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
     async def test_approval_and_input_activity_survive_service_recreation(
         self,
     ) -> None:
-        with patch("foreman_service.time.time", return_value=1_700_000_100):
+        with patch("palomar_service.time.time", return_value=1_700_000_100):
             await self.app.codex_event(
                 {
-                    "method": "foreman/approval/requested",
+                    "method": "palomar/approval/requested",
                     "params": {
                         "approval": {
                             "id": "approval-1",
@@ -2302,10 +2302,10 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
                     },
                 },
             )
-        with patch("foreman_service.time.time", return_value=1_700_003_700):
+        with patch("palomar_service.time.time", return_value=1_700_003_700):
             await self.app.codex_event(
                 {
-                    "method": "foreman/input/requested",
+                    "method": "palomar/input/requested",
                     "params": {
                         "input": {
                             "id": "input-1",
@@ -2318,7 +2318,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
             )
         await self.app.flush_session_timestamp_persistence()
 
-        restored = Foreman(
+        restored = Palomar(
             "127.0.0.1",
             0,
             Path(self.temporary.name),
@@ -2357,7 +2357,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
         self.app.state.remember_session_timestamps(
             "claude-code", "shared-id", last_activity=1_600_000_100
         )
-        restored = Foreman(
+        restored = Palomar(
             "127.0.0.1",
             0,
             Path(self.temporary.name),
@@ -2467,7 +2467,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
             "remember_session_timestamp_batch",
             side_effect=fail_once,
         ):
-            with patch("foreman_service.time.time", return_value=1_700_000_321):
+            with patch("palomar_service.time.time", return_value=1_700_000_321):
                 await self.app.codex_event(
                     {
                         "method": "turn/started",
@@ -2485,7 +2485,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
             self.app.diagnostics.entries()[0]["category"],
             "state.timestamp_persist_failed",
         )
-        restored = Foreman(
+        restored = Palomar(
             "127.0.0.1",
             0,
             Path(self.temporary.name),
@@ -2523,7 +2523,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
             }
         )
 
-        restored = Foreman(
+        restored = Palomar(
             "127.0.0.1",
             0,
             Path(self.temporary.name),
@@ -2541,7 +2541,7 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_remote_restart_gate_defaults_off_and_parses_explicit_opt_in(self) -> None:
-        default = Foreman(
+        default = Palomar(
             "127.0.0.1",
             0,
             Path(self.temporary.name),
@@ -2554,22 +2554,22 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(environment_flag("1"))
         self.assertTrue(environment_flag("YES"))
 
-    async def test_restart_command_targets_only_foreman_user_service(self) -> None:
+    async def test_restart_command_targets_only_palomar_user_service(self) -> None:
         class Process:
             async def wait(self) -> int:
                 return 0
 
         with patch(
-            "foreman_service.asyncio.create_subprocess_exec",
+            "palomar_service.asyncio.create_subprocess_exec",
             return_value=Process(),
         ) as create:
-            self.assertEqual(await Foreman.systemd_restart(), 0)
+            self.assertEqual(await Palomar.systemd_restart(), 0)
         create.assert_awaited_once_with(
             "systemctl",
             "--user",
             "restart",
             "--no-block",
-            "foreman.service",
+            "palomar.service",
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL,
@@ -2581,19 +2581,19 @@ class HostOperationsTests(unittest.IsolatedAsyncioTestCase):
 class MappingTests(unittest.TestCase):
     def test_compacts_prompt_previews_into_scan_friendly_titles(self) -> None:
         prompt = (
-            "Build Foreman’s monitoring dashboard. Repository: "
-            "/home/operator/projects/foreman GitHub: https://example.test/foreman"
+            "Build Palomar’s monitoring dashboard. Repository: "
+            "/home/operator/projects/palomar GitHub: https://example.test/palomar"
         )
         self.assertEqual(
             compact_session_title(prompt),
-            "Build Foreman monitoring dashboard",
+            "Build Palomar monitoring dashboard",
         )
         self.assertEqual(
             compact_session_title(
-                "Build Foreman’s monitoring dashboard. Repository:\n"
-                "/home/mkaltner/projects/foreman GitHub: https://example.test/foreman"
+                "Build Palomar’s monitoring dashboard. Repository:\n"
+                "/home/mkaltner/projects/palomar GitHub: https://example.test/palomar"
             ),
-            "Build Foreman monitoring dashboard",
+            "Build Palomar monitoring dashboard",
         )
         self.assertEqual(
             compact_session_title("# Fix reconnect behavior\n\nDetails"),
@@ -2749,7 +2749,7 @@ Tighten up this layout, please.
         )
         self.assertEqual(thread_id, "thread-1")
         self.assertEqual(event["kind"], "metadata")
-        self.assertNotIn("_foremanAdvancesActivity", event)
+        self.assertNotIn("_palomarAdvancesActivity", event)
 
         _, status_event = normalize_event(
             {
@@ -2760,7 +2760,7 @@ Tighten up this layout, please.
                 },
             }
         )
-        self.assertFalse(status_event["_foremanAdvancesActivity"])
+        self.assertFalse(status_event["_palomarAdvancesActivity"])
 
     def test_maps_bounded_account_rate_limits(self) -> None:
         snapshot = rate_limit_snapshot(
@@ -2836,7 +2836,7 @@ Tighten up this layout, please.
 
     def test_sparse_account_usage_event_preserves_other_window(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            foreman = Foreman(
+            palomar = Palomar(
                 "127.0.0.1",
                 8765,
                 Path(directory),
@@ -2844,7 +2844,7 @@ Tighten up this layout, please.
                 "codex",
                 FakeCodex,
             )
-            foreman.account_usage = {
+            palomar.account_usage = {
                 "available": True,
                 "rateLimits": rate_limit_snapshot(
                     {
@@ -2854,7 +2854,7 @@ Tighten up this layout, please.
                 ),
             }
             asyncio.run(
-                foreman.codex_event(
+                palomar.codex_event(
                     {
                         "method": "account/rateLimits/updated",
                         "params": {
@@ -2875,7 +2875,7 @@ Tighten up this layout, please.
                 )
             )
             asyncio.run(
-                foreman.codex_event(
+                palomar.codex_event(
                     {
                         "method": "account/rateLimits/updated",
                         "params": {
@@ -2890,9 +2890,9 @@ Tighten up this layout, please.
             )
 
         self.assertEqual(
-            foreman.account_usage["rateLimits"]["primary"]["usedPercent"], 4
+            palomar.account_usage["rateLimits"]["primary"]["usedPercent"], 4
         )
-        windows = foreman.account_usage["rateLimits"]["windows"]
+        windows = palomar.account_usage["rateLimits"]["windows"]
         self.assertEqual(
             [window["id"] for window in windows],
             ["codex:primary", "codex_bengalfox:primary", "codex_bengalfox:secondary"],
@@ -2919,7 +2919,7 @@ Tighten up this layout, please.
                     },
                 },
             )
-            restored = Foreman(
+            restored = Palomar(
                 "127.0.0.1",
                 8765,
                 root,
@@ -3105,9 +3105,9 @@ Tighten up this layout, please.
 
     def test_live_turn_start_uses_notification_time_when_codex_omits_timestamp(self) -> None:
         with tempfile.TemporaryDirectory() as directory, patch(
-            "foreman_service.time.time", return_value=1_700_000_123
+            "palomar_service.time.time", return_value=1_700_000_123
         ):
-            foreman = Foreman(
+            palomar = Palomar(
                 "127.0.0.1",
                 8765,
                 Path(directory),
@@ -3116,7 +3116,7 @@ Tighten up this layout, please.
                 FakeCodex,
             )
             asyncio.run(
-                foreman.codex_event(
+                palomar.codex_event(
                     {
                         "method": "turn/started",
                         "params": {
@@ -3127,7 +3127,7 @@ Tighten up this layout, please.
                 )
             )
         self.assertEqual(
-            foreman.session_overlays["thread-1"]["activeTurnStartedAt"],
+            palomar.session_overlays["thread-1"]["activeTurnStartedAt"],
             1_700_000_123,
         )
 
@@ -3264,7 +3264,7 @@ class CodexAdapterTests(unittest.IsolatedAsyncioTestCase):
             )
             for thread_id, (_, expected, _) in routes.items():
                 projected = adapter._with_route({**THREAD, "id": thread_id})
-                self.assertEqual(projected["_foremanAccessLevel"], expected)
+                self.assertEqual(projected["_palomarAccessLevel"], expected)
 
     async def test_partial_resume_does_not_replace_known_route_with_ask(self) -> None:
         adapter = Codex("unused", AsyncMock())
@@ -3273,9 +3273,9 @@ class CodexAdapterTests(unittest.IsolatedAsyncioTestCase):
 
         resumed = adapter._remember_route({"thread": THREAD})
 
-        self.assertEqual(resumed["_foremanModel"], "gpt-known")
-        self.assertEqual(resumed["_foremanReasoningEffort"], "high")
-        self.assertEqual(resumed["_foremanAccessLevel"], "full")
+        self.assertEqual(resumed["_palomarModel"], "gpt-known")
+        self.assertEqual(resumed["_palomarReasoningEffort"], "high")
+        self.assertEqual(resumed["_palomarAccessLevel"], "full")
 
     async def test_reads_account_rate_limits_without_account_identity(self) -> None:
         adapter = Codex("unused", AsyncMock())
@@ -3427,8 +3427,8 @@ class CodexAdapterTests(unittest.IsolatedAsyncioTestCase):
         adapter = Codex("unused", on_event)
         await adapter._emit_reconciled(THREAD)
 
-        self.assertTrue(events[0]["params"]["_foremanReconciled"])
-        self.assertEqual(events[0]["params"]["_foremanActivityAt"], 124)
+        self.assertTrue(events[0]["params"]["_palomarReconciled"])
+        self.assertEqual(events[0]["params"]["_palomarActivityAt"], 124)
 
     async def test_server_request_params_are_bounded_before_storage(self) -> None:
         params = bounded_approval_params(
@@ -3462,7 +3462,7 @@ class CodexAdapterTests(unittest.IsolatedAsyncioTestCase):
         events: list[dict[str, Any]] = []
 
         async def on_event(event: dict[str, Any]) -> None:
-            if event["method"] == "foreman/approval/requested":
+            if event["method"] == "palomar/approval/requested":
                 self.assertEqual(len(adapter.list_approvals()), 1)
             events.append(event)
 
@@ -3521,7 +3521,7 @@ class CodexAdapterTests(unittest.IsolatedAsyncioTestCase):
                 self.sent.append(value)
 
         async def on_event(event: dict[str, Any]) -> None:
-            if event["method"] == "foreman/approval/updated":
+            if event["method"] == "palomar/approval/updated":
                 await adapter._approval_lifecycle(
                     {
                         "method": "serverRequest/resolved",
@@ -3917,9 +3917,9 @@ output = pathlib.Path(sys.argv[-1])
             "approvalPolicy": "on-request",
             "approvalsReviewer": "auto_review",
         })])
-        self.assertEqual(started["_foremanModel"], "gpt-test")
-        self.assertEqual(started["_foremanReasoningEffort"], "high")
-        self.assertEqual(started["_foremanAccessLevel"], "auto")
+        self.assertEqual(started["_palomarModel"], "gpt-test")
+        self.assertEqual(started["_palomarReasoningEffort"], "high")
+        self.assertEqual(started["_palomarAccessLevel"], "auto")
 
     async def test_updates_existing_thread_settings_for_subsequent_turns(self) -> None:
         adapter = Codex("unused", lambda _: asyncio.sleep(0))
@@ -3977,7 +3977,7 @@ class TcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
         (self.repository / "new.txt").write_text("dirty\n", encoding="utf-8")
         self.state = State(base / "state")
         self.pairing_key, _ = self.state.create_pairing()
-        self.app = Foreman(
+        self.app = Palomar(
             "127.0.0.1",
             0,
             self.repository_root,
@@ -4080,7 +4080,7 @@ class TcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "session.settings",
             {"sessionId": "thread-2", "accessLevel": "ask"},
         )
-        restored = Foreman(
+        restored = Palomar(
             "127.0.0.1",
             0,
             self.repository_root,
@@ -4124,7 +4124,7 @@ class TcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             "pair",
             {"pairingKey": self.pairing_key, "deviceName": "Test phone"},
         )
-        self.assertTrue(paired["deviceToken"].startswith("fmt_"))
+        self.assertTrue(paired["deviceToken"].startswith("pmt_"))
         diagnostics = await self.request("diagnostics.list")
         self.assertLessEqual(len(diagnostics["events"]), diagnostics["limit"])
         self.assertTrue(
@@ -4146,14 +4146,14 @@ class TcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.app.started_monotonic -= 12
         service_status = await self.request("service.status")
         self.assertEqual(
-            service_status["foremanVersion"],
-            (ROOT / "release.properties").read_text(encoding="utf-8")
-            .split("foremanVersion=", 1)[1]
+            service_status["palomarVersion"],
+            (ROOT / "palomar-release.properties").read_text(encoding="utf-8")
+            .split("palomarVersion=", 1)[1]
             .splitlines()[0],
         )
         self.assertEqual(
-            service_status["foremanReleaseBuild"],
-            "releaseBuild=true" in (ROOT / "release.properties").read_text(encoding="utf-8"),
+            service_status["palomarReleaseBuild"],
+            "releaseBuild=true" in (ROOT / "palomar-release.properties").read_text(encoding="utf-8"),
         )
         self.assertEqual(
             set(service_status["releaseUpdates"]["components"]),
@@ -4168,7 +4168,7 @@ class TcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(service_status["codex"]["attachedAt"].endswith("+00:00"))
         self.assertEqual(service_status["codex"]["loadedThreadCount"], 2)
         self.assertEqual(service_status["codex"]["subscribedThreadCount"], 1)
-        self.assertFalse(service_status["codex"]["ownedByForeman"])
+        self.assertFalse(service_status["codex"]["ownedByPalomar"])
         self.assertIsNone(service_status["codex"]["appServerPid"])
         self.assertEqual(service_status["activeTcpConnections"], 1)
         self.assertEqual(service_status["activeBrowserConnections"], 0)
@@ -4189,11 +4189,11 @@ class TcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
         owned = type("OwnedProcess", (), {"pid": 321, "returncode": None})()
         self.app.codex.process = owned
         owned_status = await self.request("service.status")
-        self.assertTrue(owned_status["codex"]["ownedByForeman"])
+        self.assertTrue(owned_status["codex"]["ownedByPalomar"])
         self.assertEqual(owned_status["codex"]["appServerPid"], 321)
         self.app.codex.runtime_status = "SHARED_DESKTOP_LIVE_STATUS_AVAILABLE"
         shared_status = await self.request("service.status")
-        self.assertFalse(shared_status["codex"]["ownedByForeman"])
+        self.assertFalse(shared_status["codex"]["ownedByPalomar"])
         self.assertIsNone(shared_status["codex"]["appServerPid"])
         self.app.codex.runtime_status = "SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE"
         self.app.codex.process = None
@@ -4246,7 +4246,7 @@ class TcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             return descriptor
 
         try:
-            with patch("foreman_service.os.open", side_effect=racing_open):
+            with patch("palomar_service.os.open", side_effect=racing_open):
                 with self.assertRaisesRegex(ValueError, "outside configured root"):
                     self.app.read_workspace_file(str(race_file))
         finally:
@@ -4255,7 +4255,7 @@ class TcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             if saved_directory.exists():
                 saved_directory.rename(race_directory)
         sessions = (await self.request("session.list"))["sessions"]
-        self.assertEqual(sessions[0]["title"], "Hello Foreman")
+        self.assertEqual(sessions[0]["title"], "Hello Palomar")
         self.assertNotIn("messages", sessions[0])
         conversation = (
             await self.request("session.read", {"sessionId": "thread-1"})
@@ -4670,7 +4670,7 @@ class TcpIntegrationTests(unittest.IsolatedAsyncioTestCase):
             ]
 
         self.app.codex.list_threads = search_threads
-        title = await self.request("session.search", {"query": "foreman"})
+        title = await self.request("session.search", {"query": "palomar"})
         self.assertEqual(title["results"][0]["matches"][0]["kind"], "title")
         transcript = await self.request(
             "session.search",
@@ -5047,19 +5047,24 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
         subprocess.run(["git", "init", "-q", str(repository)], check=True)
         self.web_root = base / "web"
         (self.web_root / "assets").mkdir(parents=True)
-        (self.web_root / "index.html").write_text("<main>Foreman</main>", encoding="utf-8")
+        (self.web_root / "index.html").write_text("<main>Palomar</main>", encoding="utf-8")
         (self.web_root / "assets" / "app.js").write_text("export {};", encoding="utf-8")
         (self.web_root / "sw.js").write_text(
             'self.addEventListener("notificationclick", () => {});',
             encoding="utf-8",
         )
-        (self.web_root / "favicon.svg").write_text(
+        (self.web_root / "palomar-mark.svg").write_text(
             '<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8"
         )
-        (self.web_root / "foreman-logo.png").write_bytes(b"\x89PNG\r\n\x1a\nlogo")
+        (self.web_root / "palomar-maskable.svg").write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8"
+        )
+        (self.web_root / "manifest.webmanifest").write_text(
+            '{"name":"Palomar"}', encoding="utf-8"
+        )
         self.state = State(base / "state")
         self.web_pairing_key, _ = self.state.create_pairing()
-        self.app = Foreman(
+        self.app = Palomar(
             "127.0.0.1",
             0,
             repository_root,
@@ -5171,22 +5176,22 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_serves_static_assets_health_and_validates_origin(self) -> None:
         status, headers, body = await self.http_get("/")
         self.assertIn("200", status)
-        self.assertEqual(body, b"<main>Foreman</main>")
+        self.assertEqual(body, b"<main>Palomar</main>")
         self.assertEqual(headers["cache-control"], "no-store")
         self.assertIn("default-src 'self'", headers["content-security-policy"])
 
         status, headers, body = await self.http_get("/sessions/thread-1")
         self.assertIn("200", status)
         self.assertEqual(headers["cache-control"], "no-store")
-        self.assertEqual(body, b"<main>Foreman</main>")
+        self.assertEqual(body, b"<main>Palomar</main>")
 
         status, _, body = await self.http_get("/settings")
         self.assertIn("200", status)
-        self.assertEqual(body, b"<main>Foreman</main>")
+        self.assertEqual(body, b"<main>Palomar</main>")
 
         status, _, body = await self.http_get("/dashboard")
         self.assertIn("200", status)
-        self.assertEqual(body, b"<main>Foreman</main>")
+        self.assertEqual(body, b"<main>Palomar</main>")
 
         status, headers, body = await self.http_get("/assets/app.js")
         self.assertIn("200", status)
@@ -5199,22 +5204,28 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("javascript", headers["content-type"])
         self.assertIn(b"notificationclick", body)
 
-        status, headers, body = await self.http_get("/favicon.svg")
+        status, headers, body = await self.http_get("/palomar-mark.svg")
         self.assertIn("200", status)
         self.assertEqual(headers["cache-control"], "no-store")
         self.assertIn("image/svg+xml", headers["content-type"])
         self.assertIn(b"<svg", body)
 
-        status, headers, body = await self.http_get("/foreman-logo.png")
+        status, headers, body = await self.http_get("/palomar-maskable.svg")
         self.assertIn("200", status)
         self.assertEqual(headers["cache-control"], "no-store")
-        self.assertIn("image/png", headers["content-type"])
-        self.assertEqual(body, b"\x89PNG\r\n\x1a\nlogo")
+        self.assertIn("image/svg+xml", headers["content-type"])
+        self.assertIn(b"<svg", body)
+
+        status, headers, body = await self.http_get("/manifest.webmanifest")
+        self.assertIn("200", status)
+        self.assertEqual(headers["cache-control"], "no-store")
+        self.assertIn("manifest", headers["content-type"])
+        self.assertEqual(json.loads(body), {"name": "Palomar"})
 
         status, _, body = await self.http_get("/health")
         self.assertIn("200", status)
         health = json.loads(body)
-        self.assertTrue(health["foremanConnected"])
+        self.assertTrue(health["palomarConnected"])
         self.assertTrue(health["fallbackRuntimeActive"])
         self.assertEqual(
             health["codexRuntime"], "SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE"
@@ -5514,7 +5525,7 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
             paired = await tcp_exchange(
                 "pair", {"pairingKey": android_key, "deviceName": "Android admin"}
             )
-            self.assertTrue(paired["payload"]["deviceToken"].startswith("fmt_"))
+            self.assertTrue(paired["payload"]["deviceToken"].startswith("pmt_"))
             listed = await tcp_exchange("client.list")
             clients = listed["payload"]["clients"]
             android = next(client for client in clients if client["name"] == "Android admin")

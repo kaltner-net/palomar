@@ -15,17 +15,17 @@ require_archive_entry() {
 
 python3 scripts/verify_release_assets.py --tag "$release_tag" --directory "$asset_directory"
 
-expected_cert="$(sed -n 's/^androidSigningCertificateSha256=//p' release.properties)"
-actual_cert="$(openssl x509 -in "$asset_directory/foreman-release-cert.pem" -outform DER | sha256sum | cut -d' ' -f1)"
-[[ "$actual_cert" == "$expected_cert" ]] || fail "Release signing certificate does not match release.properties"
-openssl x509 -in "$asset_directory/foreman-release-cert.pem" -pubkey -noout > "$asset_directory/.release-public-key.pem"
+expected_cert="$(sed -n 's/^androidSigningCertificateSha256=//p' palomar-release.properties)"
+actual_cert="$(openssl x509 -in "$asset_directory/palomar-release-cert.pem" -outform DER | sha256sum | cut -d' ' -f1)"
+[[ "$actual_cert" == "$expected_cert" ]] || fail "Release signing certificate does not match palomar-release.properties"
+openssl x509 -in "$asset_directory/palomar-release-cert.pem" -pubkey -noout > "$asset_directory/.release-public-key.pem"
 openssl dgst -sha256 -verify "$asset_directory/.release-public-key.pem" \
-  -signature "$asset_directory/SHA256SUMS.sig" "$asset_directory/SHA256SUMS" \
+  -signature "$asset_directory/palomar-SHA256SUMS.sig" "$asset_directory/palomar-SHA256SUMS" \
   >/dev/null || fail "Release manifest signature verification failed"
 rm -f -- "$asset_directory/.release-public-key.pem"
 
-apk="$asset_directory/foreman-${release_tag}.apk"
-archive="$asset_directory/foreman-linux-${release_tag}.tar.gz"
+apk="$asset_directory/palomar-${release_tag}.apk"
+archive="$asset_directory/palomar-linux-${release_tag}.tar.gz"
 PYTHONPATH=linux python3 - "$archive" <<'PY'
 from pathlib import Path
 import sys
@@ -42,11 +42,11 @@ aapt2_path="$(find "$sdk_root/build-tools" -type f -name aapt2 | sort -V | tail 
 [[ -x "$apksigner_path" ]] || fail "Android apksigner was not found"
 [[ -x "$aapt2_path" ]] || fail "Android aapt2 was not found"
 
-expected_version="$(sed -n 's/^foremanVersion=//p' release.properties)"
-expected_code="$(sed -n 's/^androidVersionCode=//p' release.properties)"
+expected_version="$(sed -n 's/^palomarVersion=//p' palomar-release.properties)"
+expected_code="$(sed -n 's/^androidVersionCode=//p' palomar-release.properties)"
 badging="$("$aapt2_path" dump badging "$apk" | sed -n '1p')"
-grep -Fq "versionName='$expected_version'" <<<"$badging" || fail "APK version name does not match release.properties"
-grep -Fq "versionCode='$expected_code'" <<<"$badging" || fail "APK version code does not match release.properties"
+grep -Fq "versionName='$expected_version'" <<<"$badging" || fail "APK version name does not match palomar-release.properties"
+grep -Fq "versionCode='$expected_code'" <<<"$badging" || fail "APK version code does not match palomar-release.properties"
 signing="$("$apksigner_path" verify --verbose --print-certs "$apk")"
 grep -Fq 'Verifies' <<<"$signing" || fail "APK signature verification failed"
 python3 scripts/verify_apk_certificate.py --expected "$expected_cert" <<<"$signing"
@@ -55,15 +55,19 @@ python3 scripts/verify_apk_legal_assets.py "$apk"
 archive_listing="$(tar -tzf "$archive")"
 require_archive_entry 'linux/vendor/websockets-16.1.1.dist-info/licenses/LICENSE'
 require_archive_entry 'web/dist/index.html'
-require_archive_entry 'release.properties'
+require_archive_entry 'palomar-release.properties'
 require_archive_entry 'LICENSE'
+require_archive_entry 'NOTICE'
 require_archive_entry 'THIRD_PARTY_NOTICES.md'
+require_archive_entry 'linux/palomar'
+require_archive_entry 'linux/palomar.service'
+require_archive_entry 'linux/palomar_uninstall'
 require_archive_entry 'linux/claude_code.py'
 require_archive_entry 'linux/release_updates.py'
 require_archive_entry 'linux/server_update.py'
 require_archive_entry 'linux/update_cli.py'
-require_archive_entry 'linux/foreman_updater.py'
-require_archive_entry 'linux/foreman-update-recovery.service'
+require_archive_entry 'linux/palomar_updater.py'
+require_archive_entry 'linux/palomar-update-recovery.service'
 require_archive_entry 'linux/claude_bridge/bridge.mjs'
 require_archive_entry 'linux/claude_bridge/package-lock.json'
 require_archive_entry 'linux/claude_bridge/node_modules/@anthropic-ai/claude-agent-sdk/package.json'

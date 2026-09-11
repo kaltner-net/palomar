@@ -22,7 +22,7 @@ export interface HostOverviewSnapshot {
   hostId: string;
   observedAt: number;
   connection: ConnectionState;
-  foremanVersion: string | null;
+  palomarVersion: string | null;
   codexVersion: string | null;
   runtimeMode: "shared" | "fallback" | "unavailable" | null;
   runtimeConnected: boolean;
@@ -124,7 +124,7 @@ export function projectHostSnapshot(
     hostId,
     observedAt,
     connection,
-    foremanVersion: status?.foremanVersion ?? null,
+    palomarVersion: status?.palomarVersion ?? null,
     codexVersion: status?.codex.version ?? null,
     runtimeMode: status?.codex.mode ?? null,
     runtimeConnected: status?.codex.connected === true,

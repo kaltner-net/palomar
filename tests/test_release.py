@@ -50,22 +50,23 @@ class ApkCertificateTests(unittest.TestCase):
 class ApkLegalAssetsTests(unittest.TestCase):
     def test_accepts_bundled_license_and_notices(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            apk = Path(directory) / "foreman.apk"
+            apk = Path(directory) / "palomar.apk"
             with zipfile.ZipFile(apk, "w") as archive:
                 archive.writestr("assets/LICENSE", "Apache License 2.0")
+                archive.writestr("assets/NOTICE", "Copyright 2026 Michael Kaltner")
                 archive.writestr("assets/THIRD_PARTY_NOTICES.md", "Notices")
 
             self.assertEqual(missing_legal_assets(apk), set())
 
     def test_reports_each_missing_legal_asset(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            apk = Path(directory) / "foreman.apk"
+            apk = Path(directory) / "palomar.apk"
             with zipfile.ZipFile(apk, "w") as archive:
                 archive.writestr("assets/LICENSE", "Apache License 2.0")
 
             self.assertEqual(
                 missing_legal_assets(apk),
-                {"assets/THIRD_PARTY_NOTICES.md"},
+                {"assets/NOTICE", "assets/THIRD_PARTY_NOTICES.md"},
             )
 
 

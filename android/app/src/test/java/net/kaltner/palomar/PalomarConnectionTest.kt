@@ -1,0 +1,2603 @@
+package net.kaltner.palomar
+
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.net.ServerSocket
+import java.util.Calendar
+import java.util.concurrent.Executors
+import kotlin.math.pow
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
+import org.junit.Test
+
+class PalomarConnectionTest {
+    @Test
+    fun reopeningSessionRestoresPendingRequestsWithoutOverwritingLiveEvents() {
+        val stale =
+            ApprovalRequest(
+                id = "stale",
+                sessionId = "target",
+                type = "command",
+                title = "Stale",
+                createdAt = 1,
+                status = "pending",
+            )
+        val removedAfterResolution = stale.copy(id = "removed", title = "Removed")
+        val changed = stale.copy(id = "changed", title = "Changed")
+        val resolvedDuringRefresh = changed.copy(status = "resolved")
+        val arrivedDuringRefresh = stale.copy(id = "new-live", title = "New live")
+        val otherSession = stale.copy(id = "other", sessionId = "other-session")
+        val restored = stale.copy(id = "restored", title = "Restored")
+
+        assertEquals(
+            listOf(otherSession, restored, resolvedDuringRefresh, arrivedDuringRefresh),
+            reconcileSessionApprovals(
+                current = listOf(otherSession, stale, resolvedDuringRefresh, arrivedDuringRefresh),
+                refreshed = listOf(removedAfterResolution, restored, changed),
+                sessionId = "target",
+                baseline = listOf(removedAfterResolution, stale, changed),
+            ),
+        )
+
+        val input =
+            InputRequest(
+                id = "input",
+                sessionId = "target",
+                source = "codex",
+                title = "Choose",
+                supported = true,
+                createdAt = 1,
+                status = "pending",
+            )
+        assertEquals(
+            listOf(input),
+            reconcileSessionInputs(
+                current = emptyList(),
+                refreshed = listOf(input),
+                sessionId = "target",
+                baseline = emptyList(),
+            ),
+        )
+    }
+
+    @Test
+    fun collapsedRepositoriesRemainScopedByHostAcrossNavigation() {
+        var collapsed = toggleCollapsedRepository(emptyMap(), "home", "/projects/palomar")
+        collapsed = toggleCollapsedRepository(collapsed, "work", "/projects/other")
+
+        assertEquals(setOf("/projects/palomar"), collapsed["home"])
+        assertEquals(setOf("/projects/other"), collapsed["work"])
+        assertFalse(toggleCollapsedRepository(collapsed, "home", "/projects/palomar").containsKey("home"))
+    }
+
+    @Test
+    fun focusedSessionPresenceIsProviderAwareAndOnlyPublishedFromVisibleDetail() {
+        val codex = SessionSummary("same", "/repo", "Codex", "working")
+        val claude = codex.copy(provider = PROVIDER_CLAUDE_CODE)
+
+        assertEquals(
+            providerSessionKey(PROVIDER_CODEX, "same"),
+            focusedSessionPresenceKey(true, Screen.Detail, codex),
+        )
+        assertEquals(
+            providerSessionKey(PROVIDER_CLAUDE_CODE, "same"),
+            focusedSessionPresenceKey(true, Screen.Detail, claude),
+        )
+        assertNull(focusedSessionPresenceKey(false, Screen.Detail, codex))
+        assertNull(focusedSessionPresenceKey(true, Screen.Sessions, codex))
+        assertNull(focusedSessionPresenceKey(true, Screen.Detail, null))
+    }
+
+    @Test
+    fun presencePublisherKeepsAQueuedBackgroundClearPending() {
+        val focused = providerSessionKey(PROVIDER_CODEX, "same")
+
+        assertFalse(sessionPresenceSyncPending(true, focused, focused))
+        assertTrue(sessionPresenceSyncPending(true, focused, null))
+        assertTrue(sessionPresenceSyncPending(false, null, null))
+    }
+
+    @Test
+    fun focusedApprovalsRemainPendingWithoutRealertingAfterFocusChanges() {
+        val session = providerSessionKey(PROVIDER_CODEX, "same")
+        val ledger = AttentionNotificationLedger()
+        val request = explicitAttentionRequest("approval", "approval-1", session)
+
+        ledger.record(request)
+        assertTrue(
+            eligibleAttentionRequests(ledger.pendingRequests(), setOf(session), setOf(session)).isEmpty(),
+        )
+
+        val visible = eligibleAttentionRequests(ledger.pendingRequests(), setOf(session), emptySet())
+        assertEquals(setOf(request.key), ledger.claimAlerts(visible))
+        assertTrue(ledger.claimAlerts(visible).isEmpty())
+
+        assertTrue(
+            eligibleAttentionRequests(ledger.pendingRequests(), setOf(session), setOf(session)).isEmpty(),
+        )
+        assertTrue(ledger.claimAlerts(visible).isEmpty())
+        assertEquals(listOf(request), ledger.clearSession(session))
+        assertTrue(ledger.pendingRequests().isEmpty())
+    }
+
+    @Test
+    fun focusedSessionProjectionRejectsMalformedOrUnknownEntries() {
+        val sessions =
+            buildJsonArray {
+                add(
+                    buildJsonObject {
+                        put("provider", PROVIDER_CODEX)
+                        put("sessionId", "one")
+                    },
+                )
+                add(
+                    buildJsonObject {
+                        put("provider", PROVIDER_CODEX)
+                        put("sessionId", "one")
+                    },
+                )
+                add(
+                    buildJsonObject {
+                        put("provider", PROVIDER_CLAUDE_CODE)
+                        put("sessionId", "two")
+                    },
+                )
+                add(
+                    buildJsonObject {
+                        put("provider", "unknown")
+                        put("sessionId", "ignored")
+                    },
+                )
+                add(
+                    buildJsonObject {
+                        put("provider", PROVIDER_CODEX)
+                        put("sessionId", "")
+                    },
+                )
+            }
+
+        assertEquals(
+            setOf(
+                providerSessionKey(PROVIDER_CODEX, "one"),
+                providerSessionKey(PROVIDER_CLAUDE_CODE, "two"),
+            ),
+            focusedSessionKeys(sessions),
+        )
+    }
+
+    @Test
+    fun focusedActivityCollapsesMixedOutcomesAndPreservesOrderStatusAndExitCodes() {
+        val activity =
+            listOf(
+                ConversationItem("command", "command", description = "git status", status = "completed", exitCode = 0),
+                ConversationItem("search", "command", description = "rg needle", status = "failed", exitCode = 1),
+                ConversationItem("tool", "tool", description = "Read file", status = "completed"),
+                ConversationItem("build", "command", description = "gradle test", status = "failed", exitCode = 7),
+            )
+
+        val focused = conversationBlocks(activity, ActivityDetail.Focused)
+
+        assertEquals(1, focused.size)
+        assertTrue(focused.single().collapsedActivity)
+        assertEquals(activity, focused.single().items)
+        assertEquals(listOf(0, 1, null, 7), focused.single().items.map { it.exitCode })
+        assertEquals(listOf("completed", "failed", "completed", "failed"), focused.single().items.map { it.status })
+        assertEquals("3 commands · 1 tool · 2 non-zero", formatActivitySummary(activity))
+        assertEquals("Failed · Exited 1", formatActivityOutcome(activity[1]))
+        assertEquals("Failed · Exited 7", formatActivityOutcome(activity[3]))
+    }
+
+    @Test
+    fun focusedActivityCollapsesAllNonzeroWithoutInferringCommandIntent() {
+        val activity =
+            listOf(
+                ConversationItem("build", "command", description = "build production", status = "failed", exitCode = 2),
+                ConversationItem("search", "command", description = "rg optional", status = "failed", exitCode = 1),
+            )
+
+        val blocks = conversationBlocks(activity, ActivityDetail.Focused)
+
+        assertEquals(activity, blocks.single().items)
+        assertTrue(blocks.single().collapsedActivity)
+        assertEquals("2 commands · 2 non-zero", formatActivitySummary(activity))
+    }
+
+    @Test
+    fun focusedActivityKeepsActiveErrorsInterruptedAndBlockedDistinct() {
+        val activity =
+            listOf(
+                ConversationItem("done", "tool", status = "completed", exitCode = 1),
+                ConversationItem("running", "command", status = "inProgress"),
+                ConversationItem("error", "command", status = "executionError", exitCode = 127),
+                ConversationItem("unresolved", "command", status = "failed"),
+                ConversationItem("interrupted", "tool", status = "interrupted"),
+                ConversationItem("blocked", "tool", status = "denied"),
+            )
+
+        val blocks = conversationBlocks(activity, ActivityDetail.Focused)
+
+        assertEquals(
+            listOf(
+                listOf("done"),
+                listOf("running"),
+                listOf("error"),
+                listOf("unresolved"),
+                listOf("interrupted"),
+                listOf("blocked"),
+            ),
+            blocks.map { block -> block.items.map { it.id } },
+        )
+        assertEquals(listOf(true, false, false, false, false, false), blocks.map { it.collapsedActivity })
+        assertEquals(ActivityStatusTone.Active, activityStatusTone(activity[1]))
+        assertEquals(
+            List(4) { ActivityStatusTone.Attention },
+            activity.drop(2).map(::activityStatusTone),
+        )
+        assertEquals("Execution error · Exited 127", formatActivityOutcome(activity[2]))
+    }
+
+    @Test
+    fun focusedActivityKeepsProtectedAndSearchHighlightedItemsReachable() {
+        val activity =
+            listOf(
+                ConversationItem("before", "command", status = "completed", exitCode = 1),
+                ConversationItem("protected", "tool", status = "completed"),
+                ConversationItem("after", "command", status = "completed", exitCode = 0),
+            )
+
+        val blocks = conversationBlocks(activity, ActivityDetail.Focused, setOf("protected"))
+
+        assertEquals(
+            listOf(listOf("before"), listOf("protected"), listOf("after")),
+            blocks.map { block -> block.items.map { it.id } },
+        )
+        assertEquals(listOf(true, false, true), blocks.map { it.collapsedActivity })
+    }
+
+    @Test
+    fun fullActivityRemainsCompleteAndChronological() {
+        val messages =
+            listOf(
+                ConversationItem("user", "user", text = "Please test"),
+                ConversationItem("nonzero", "command", status = "completed", exitCode = 1),
+                ConversationItem("running", "tool", status = "running"),
+                ConversationItem("assistant", "assistant", text = "Done"),
+            )
+
+        val blocks = conversationBlocks(messages, ActivityDetail.Full, setOf("nonzero"))
+
+        assertEquals(messages, blocks.map { it.items.single() })
+        assertTrue(blocks.none { it.collapsedActivity })
+    }
+
+    @Test
+    fun androidDashboardProjectsLiveAttentionAndRecentWork() {
+        val now = 2_000_000_000_000L
+        val working =
+            SessionSummary(
+                "working",
+                "/repo",
+                "Working",
+                "working",
+                lastActivity = (now - 5_000) / 1000,
+                activeTurnStartedAt = (now - 60_000) / 1000,
+            )
+        val waiting =
+            SessionSummary(
+                "waiting",
+                "/repo",
+                "Waiting",
+                "waiting",
+                lastActivity = (now - 2_000) / 1000,
+                activeTurnStartedAt = (now - 120_000) / 1000,
+            )
+        val failed =
+            SessionSummary(
+                "failed",
+                "/repo",
+                "Failed",
+                "failed",
+                lastActivity = (now - 1_000) / 1000,
+                terminalAt = (now - 1_000) / 1000,
+            )
+        val interrupted =
+            SessionSummary(
+                "interrupted",
+                "/repo",
+                "Interrupted",
+                "interrupted",
+                lastActivity = now - 3_000,
+                terminalAt = now - 3_000,
+            )
+        val oldCompletion =
+            SessionSummary(
+                "old",
+                "/repo",
+                "Old",
+                "completed",
+                terminalAt = now - ANDROID_DASHBOARD_RECENT_WINDOW_MS - 1,
+            )
+        val pendingRequest =
+            SessionSummary(
+                "pending-request",
+                "/repo",
+                "Request",
+                "idle",
+                lastActivity = now - 500,
+            )
+
+        val dashboard =
+            projectAndroidDashboard(
+                listOf(working, waiting, failed, interrupted, oldCompletion, pendingRequest),
+                now,
+                requestSessionIds = setOf(pendingRequest.id),
+            )
+
+        assertEquals(listOf("working"), dashboard.active.map { it.id })
+        assertEquals(listOf("pending-request", "failed", "waiting"), dashboard.attention.map { it.id })
+        assertEquals(listOf("failed", "interrupted"), dashboard.recent.map { it.id })
+        assertEquals(2, dashboard.waitingCount)
+        assertEquals(1, dashboard.failedCount)
+        assertEquals("waiting", dashboard.oldestTurn?.id)
+    }
+
+    @Test
+    fun dashboardDestinationSurvivesReconnectUnlessOpeningAConversation() {
+        assertEquals(Screen.Overview, dashboardBackDestination())
+        assertEquals(Screen.Dashboard, reconnectDestination(Screen.Dashboard, null))
+        assertEquals(Screen.Sessions, reconnectDestination(Screen.Overview, null))
+        assertEquals(Screen.Detail, reconnectDestination(Screen.Dashboard, "thread-1"))
+
+        val synchronized =
+            UiState(screen = Screen.Dashboard, loading = true)
+                .withSynchronizedSessions(emptyList(), emptyList(), null, null)
+        assertEquals(Screen.Dashboard, synchronized.screen)
+        assertFalse(synchronized.loading)
+    }
+
+    @Test
+    fun rememberedSessionSurvivesRecreationAndValidatesAfterSynchronization() {
+        val target = rememberedSessionTarget(PROVIDER_CLAUDE_CODE, "claude-thread")
+        val session = SessionSummary(
+            id = "claude-thread",
+            repository = "/repo",
+            title = "Claude thread",
+            status = "idle",
+            provider = PROVIDER_CLAUDE_CODE,
+        )
+        val providers = listOf(
+            ProviderInfo(PROVIDER_CODEX, "Codex", enabled = true, available = true),
+            ProviderInfo(PROVIDER_CLAUDE_CODE, "Claude Code", enabled = true, available = true),
+        )
+
+        assertEquals(Screen.Detail, restorationDestination(target))
+        assertEquals(session, restorableSessionSummary(requireNotNull(target), providers, listOf(session)))
+        assertEquals(target, rememberedSessionForEntry(target, true, providers, listOf(session)))
+        assertNull(restorableSessionSummary(target, providers, emptyList()))
+        assertNull(rememberedSessionForEntry(target, true, providers, emptyList()))
+        assertEquals(target, rememberedSessionForEntry(target, false, emptyList(), emptyList()))
+        assertNull(restorableSessionSummary(target, providers.map {
+            if (it.id == PROVIDER_CLAUDE_CODE) it.copy(enabled = false) else it
+        }, listOf(session)))
+        val unavailableProviders = providers.map {
+            if (it.id == PROVIDER_CLAUDE_CODE) it.copy(available = false) else it
+        }
+        assertEquals(
+            target,
+            rememberedSessionForEntry(target, true, unavailableProviders, emptyList()),
+        )
+        assertEquals(
+            target,
+            rememberedSessionForEntry(
+                target,
+                true,
+                providers,
+                emptyList(),
+                setOf(PROVIDER_CLAUDE_CODE),
+            ),
+        )
+        assertNull(rememberedSessionTarget("future-provider", "thread"))
+    }
+
+    @Test
+    fun rememberedTargetsRemainProviderAndHostSpecific() {
+        val home = rememberedSessionTarget(PROVIDER_CODEX, "same")
+        val work = rememberedSessionTarget(PROVIDER_CLAUDE_CODE, "same")
+
+        assertEquals(RememberedSessionTarget(PROVIDER_CODEX, "same"), home)
+        assertEquals(RememberedSessionTarget(PROVIDER_CLAUDE_CODE, "same"), work)
+        assertFalse(home == work)
+    }
+
+    @Test
+    fun failedProviderListsDoNotEraseItsPersistedSessionPreferences() {
+        val listedCodex = providerSessionKey(PROVIDER_CODEX, "listed")
+        val staleCodex = providerSessionKey(PROVIDER_CODEX, "stale")
+        val retainedClaude = providerSessionKey(PROVIDER_CLAUDE_CODE, "retry")
+
+        assertEquals(
+            setOf(listedCodex, retainedClaude),
+            retainedSessionPreferenceIds(
+                listedSessionIds = setOf(listedCodex),
+                persistedSessionIds = setOf(staleCodex, retainedClaude),
+                nonAuthoritativeProviders = setOf(PROVIDER_CLAUDE_CODE),
+            ),
+        )
+    }
+
+    @Test
+    fun unavailableEnabledProvidersHaveNoAuthoritativeSessionList() {
+        val providers = listOf(
+            ProviderInfo(PROVIDER_CODEX, "Codex", enabled = true, available = true),
+            ProviderInfo(PROVIDER_CLAUDE_CODE, "Claude Code", enabled = true, available = false),
+        )
+
+        assertEquals(
+            setOf(PROVIDER_CLAUDE_CODE),
+            sessionProvidersWithoutAuthoritativeLists(providers, emptySet()),
+        )
+        assertEquals(
+            setOf(PROVIDER_CODEX),
+            sessionProvidersWithoutAuthoritativeLists(
+                providers.map {
+                    if (it.id == PROVIDER_CLAUDE_CODE) it.copy(enabled = false) else it
+                },
+                setOf(PROVIDER_CODEX),
+            ),
+        )
+    }
+
+    @Test
+    fun reconnectAndRecreationRetainUnavailableProviderSessionsWithoutRelabeling() {
+        val claude = SessionSummary(
+            id = "claude-history",
+            repository = "/repo",
+            title = "Claude history",
+            status = "completed",
+            provider = PROVIDER_CLAUDE_CODE,
+            capabilities = listOf("session.read", "session.delete"),
+        )
+        val codex = SessionSummary("codex-live", "/repo", "Codex", "idle")
+
+        val retained = retainNonAuthoritativeProviderSessions(
+            previous = listOf(claude),
+            incoming = listOf(codex),
+            nonAuthoritativeProviders = setOf(PROVIDER_CLAUDE_CODE),
+        )
+
+        assertEquals(listOf(codex, claude), retained)
+        assertEquals("completed", retained.last().status)
+        assertEquals(PROVIDER_CLAUDE_CODE, sessionProvider(retained.last()))
+        assertEquals(
+            retained,
+            retainNonAuthoritativeProviderSessions(retained, listOf(codex), setOf(PROVIDER_CLAUDE_CODE)),
+        )
+    }
+
+    @Test
+    fun unifiedOverviewBackTargetPreservesTheScreenOpenedByHome() {
+        assertEquals(
+            OverviewReturnTarget("host-a", Screen.Sessions),
+            overviewReturnTarget(Screen.Sessions, "host-a", null),
+        )
+        assertEquals(
+            OverviewReturnTarget("host-a", Screen.Dashboard),
+            overviewReturnTarget(Screen.Dashboard, "host-a", null),
+        )
+        assertEquals(
+            OverviewReturnTarget("host-a", Screen.Detail, "thread-1"),
+            overviewReturnTarget(Screen.Detail, "host-a", "thread-1"),
+        )
+        assertEquals(
+            OverviewReturnTarget("host-a", Screen.Sessions),
+            overviewReturnTarget(Screen.Detail, "host-a", null),
+        )
+        assertNull(overviewReturnTarget(Screen.Sessions, null, null))
+        assertNull(overviewReturnTarget(Screen.Overview, "host-a", null))
+        assertNull(overviewReturnTarget(Screen.Setup, "host-a", null))
+        assertNull(overviewReturnTarget(Screen.Diagnostics, "host-a", null))
+    }
+
+    @Test
+    fun sessionsHomeBackReturnsToSessionsWithoutCreatingALoop() {
+        val navigation = OverviewNavigationState()
+
+        navigation.capture(Screen.Sessions, "host-a", null)
+
+        assertEquals(
+            OverviewReturnTarget("host-a", Screen.Sessions),
+            navigation.consume("host-a"),
+        )
+        assertNull(navigation.consume("host-a"))
+        assertFalse(navigation.hasReturnTarget())
+    }
+
+    @Test
+    fun dashboardHomeBackReturnsToDashboardWithoutCreatingALoop() {
+        val navigation = OverviewNavigationState()
+
+        navigation.capture(Screen.Dashboard, "host-a", null)
+
+        assertEquals(
+            OverviewReturnTarget("host-a", Screen.Dashboard),
+            navigation.consume("host-a"),
+        )
+        assertNull(navigation.consume("host-a"))
+    }
+
+    @Test
+    fun sessionsHomeDashboardBackReturnsHomeThenSessions() {
+        val navigation = OverviewNavigationState()
+        navigation.capture(Screen.Sessions, "host-a", null)
+
+        // Dashboard Back only reveals Home; it must not consume Home's origin.
+        assertTrue(navigation.hasReturnTarget())
+
+        assertEquals(
+            OverviewReturnTarget("host-a", Screen.Sessions),
+            navigation.consume("host-a"),
+        )
+        assertFalse(navigation.hasReturnTarget())
+    }
+
+    @Test
+    fun dashboardHomeDashboardBackPreservesTheNormalBackStackOnce() {
+        val navigation = OverviewNavigationState()
+        navigation.capture(Screen.Dashboard, "host-a", null)
+
+        // Dashboard Back returns to Home without consuming the original Dashboard entry.
+        assertTrue(navigation.hasReturnTarget())
+
+        assertEquals(
+            OverviewReturnTarget("host-a", Screen.Dashboard),
+            navigation.consume("host-a"),
+        )
+        assertFalse(navigation.hasReturnTarget())
+    }
+
+    @Test
+    fun detailHomeBackReturnsToTheSameProviderSessionWhenItStillExists() {
+        val session =
+            SessionSummary(
+                id = "claude-thread",
+                repository = "/repo",
+                title = "Claude thread",
+                status = "idle",
+                provider = PROVIDER_CLAUDE_CODE,
+            )
+        val target =
+            requireNotNull(
+                overviewReturnTarget(
+                    Screen.Detail,
+                    "host-a",
+                    session.id,
+                    PROVIDER_CLAUDE_CODE,
+                ),
+            )
+
+        assertEquals(target, validatedOverviewReturnTarget(target, listOf(session)))
+        assertEquals(
+            OverviewReturnTarget("host-a", Screen.Sessions),
+            validatedOverviewReturnTarget(target, emptyList()),
+        )
+    }
+
+    @Test
+    fun homeSessionsChoiceTargetsTheActiveConnectedHostImmediately() {
+        val navigation = HostNavigationState()
+
+        val choice = navigation.choose("host-a", Screen.Sessions)
+
+        assertEquals(
+            HostNavigationAction.Show,
+            hostNavigationAction("host-a", activeHostConnected = true, requestedHostId = "host-a"),
+        )
+        assertEquals(Screen.Sessions, choice.screen)
+        assertEquals("host-a", choice.hostId)
+        assertEquals(choice, navigation.current("host-a"))
+    }
+
+    @Test
+    fun homeSessionsChoiceSwitchesToADifferentConnectedHost() {
+        val navigation = HostNavigationState()
+        navigation.choose("host-a", Screen.Overview)
+
+        val choice = navigation.choose("host-b", Screen.Sessions)
+
+        assertEquals(
+            HostNavigationAction.Switch,
+            hostNavigationAction("host-a", activeHostConnected = true, requestedHostId = "host-b"),
+        )
+        assertEquals(Screen.Sessions, choice.screen)
+        assertEquals(choice, navigation.current("host-b"))
+        assertNull(navigation.current("host-a"))
+    }
+
+    @Test
+    fun activeDisconnectedHostReconnectKeepsTheExplicitSessionsDestination() {
+        val navigation = HostNavigationState()
+
+        val requestedBeforeReconnect = navigation.choose("host-b", Screen.Sessions)
+
+        assertEquals(
+            HostNavigationAction.Reconnect,
+            hostNavigationAction("host-b", activeHostConnected = false, requestedHostId = "host-b"),
+        )
+        assertEquals(requestedBeforeReconnect, navigation.current("host-b"))
+        assertEquals(Screen.Sessions, navigation.current("host-b")?.screen)
+        assertNull(navigation.current("host-b")?.sessionId)
+    }
+
+    @Test
+    fun differentDisconnectedHostKeepsSessionsDestinationThroughSwitchAndReconnect() {
+        val navigation = HostNavigationState()
+
+        val requestedBeforeSwitch = navigation.choose("host-b", Screen.Sessions)
+
+        assertEquals(
+            HostNavigationAction.Switch,
+            hostNavigationAction("host-a", activeHostConnected = false, requestedHostId = "host-b"),
+        )
+        assertEquals(requestedBeforeSwitch, navigation.current("host-b"))
+        assertEquals(Screen.Sessions, navigation.current("host-b")?.screen)
+    }
+
+    @Test
+    fun notificationNavigationKeepsTheExactHostProviderAndSessionThroughReconnect() {
+        val navigation = HostNavigationState()
+
+        val choice =
+            navigation.choose(
+                hostId = "host-b",
+                screen = Screen.Detail,
+                sessionId = "claude-thread",
+                provider = PROVIDER_CLAUDE_CODE,
+                focusedApprovalId = "approval-1",
+            )
+
+        assertEquals(choice, navigation.current("host-b"))
+        assertEquals(Screen.Detail, choice.screen)
+        assertEquals("claude-thread", choice.sessionId)
+        assertEquals(PROVIDER_CLAUDE_CODE, choice.provider)
+        assertEquals("approval-1", choice.focusedApprovalId)
+    }
+
+    @Test
+    fun newerNavigationChoiceWinsOverAnOlderReconnectResult() {
+        val navigation = HostNavigationState()
+        val olderReconnect = navigation.choose("host-b", Screen.Sessions)
+
+        val newerChoice = navigation.choose("host-b", Screen.Dashboard)
+
+        assertFalse(navigation.isCurrent(olderReconnect))
+        assertTrue(navigation.isCurrent(newerChoice))
+
+        val selectedByOlderReconnect =
+            SessionSummary("old", "/repo", "Old selection", "idle", provider = PROVIDER_CODEX)
+        val currentSelection =
+            SessionSummary("new", "/repo", "New selection", "idle", provider = PROVIDER_CODEX)
+        val afterStaleSync =
+            UiState(screen = Screen.Detail, selected = currentSelection)
+                .withSynchronizedSessions(
+                    sessions = listOf(selectedByOlderReconnect, currentSelection),
+                    repositories = emptyList(),
+                    selectedSessionId = selectedByOlderReconnect.id,
+                    selectedSession = selectedByOlderReconnect,
+                    applySelection = false,
+                )
+
+        assertEquals(Screen.Detail, afterStaleSync.screen)
+        assertEquals(currentSelection, afterStaleSync.selected)
+    }
+
+    @Test
+    fun unifiedOverviewReturnLifecycleIsHostBoundAndConsumedOnce() {
+        val navigation = OverviewNavigationState()
+
+        navigation.capture(Screen.Detail, "host-a", "thread-1")
+        assertTrue(navigation.hasReturnTarget())
+        assertEquals(
+            OverviewReturnTarget("host-a", Screen.Detail, "thread-1"),
+            navigation.consume("host-a"),
+        )
+        assertFalse(navigation.hasReturnTarget())
+        assertNull(navigation.consume("host-a"))
+
+        navigation.capture(Screen.Sessions, "host-a", null)
+        navigation.invalidateForHost("host-b")
+        assertFalse(navigation.hasReturnTarget())
+        assertNull(navigation.consume("host-b"))
+
+        navigation.capture(Screen.Sessions, "host-a", null)
+        assertNull(navigation.consume("host-b"))
+        assertFalse(navigation.hasReturnTarget())
+
+        navigation.capture(Screen.Sessions, "host-a", null)
+        navigation.capture(Screen.Dashboard, "host-a", null)
+        assertEquals(
+            OverviewReturnTarget("host-a", Screen.Dashboard),
+            navigation.consume("host-a"),
+        )
+
+        navigation.capture(Screen.Sessions, "host-a", null)
+        navigation.clear()
+        assertFalse(navigation.hasReturnTarget())
+    }
+
+    @Test
+    fun restartIsBlockedForActiveSessionsAndPendingInput() {
+        assertFalse(restartBlocked(UiState()))
+        assertTrue(
+            restartBlocked(
+                UiState(sessions = listOf(SessionSummary("thread-1", "/repo", "Active", "working", 1))),
+            ),
+        )
+        assertTrue(
+            restartBlocked(
+                UiState(
+                    inputs =
+                        listOf(
+                            InputRequest(
+                                id = "input-1",
+                                sessionId = "thread-1",
+                                source = "codex",
+                                title = "Choose",
+                                supported = true,
+                                createdAt = 1,
+                                status = "pending",
+                            ),
+                        ),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun zeroFieldMcpConfirmationUsesExplicitAllowAction() {
+        val input =
+            InputRequest(
+                id = "inp-confirm",
+                sessionId = "thread-1",
+                source = "mcp",
+                title = "Confirmation requested",
+                message = "Allow GitHub to create a pull request?",
+                fields = emptyList(),
+                supported = true,
+                canDecline = true,
+                canCancel = true,
+                createdAt = 1,
+                status = "pending",
+            )
+
+        assertEquals("Allow", inputSubmitLabel(input))
+        assertEquals("Waiting for user input", inputAttentionLabel(input))
+    }
+
+    @Test
+    fun sessionSettingsPayloadUpdatesExistingThreadRoute() {
+        val payload =
+            sessionSettingsPayload(
+                sessionId = "thread-1",
+                accessLevel = "full",
+                model = "gpt-test",
+                effort = "high",
+            )
+
+        assertEquals("thread-1", payload.getValue("sessionId").jsonPrimitive.content)
+        assertEquals("full", payload.getValue("accessLevel").jsonPrimitive.content)
+        assertEquals("gpt-test", payload.getValue("model").jsonPrimitive.content)
+        assertEquals("high", payload.getValue("reasoningEffort").jsonPrimitive.content)
+    }
+
+    @Test
+    fun unifiedOverviewAggregatesFiveHostsAndIsolatesSessionCollisions() {
+        fun session(id: String, status: String, startedAt: Long) =
+            SessionSummary(
+                id = id,
+                repository = "/work/$id",
+                title = id,
+                status = status,
+                activeTurnStartedAt = startedAt,
+                lastActivity = startedAt + 10,
+                terminalAt = if (status in setOf("completed", "failed")) startedAt + 20 else null,
+            )
+        val home = projectHostOverview("home", listOf(session("same", "working", 100)), emptyList(), "connected")
+        val work = projectHostOverview("work", listOf(session("same", "failed", 200)), emptyList(), "checked")
+        val snapshots = mapOf("home" to home, "work" to work)
+        val totals = aggregateHostOverviews(listOf("home", "work", "three", "four", "five"), snapshots)
+
+        assertEquals(5, totals.hosts)
+        assertEquals(1, totals.connectedHosts)
+        assertEquals(4, totals.staleHosts)
+        assertEquals(1, totals.active)
+        assertEquals(1, totals.failed)
+        assertEquals("home", totals.oldestTurn?.hostId)
+        assertEquals("work", totals.latestCompletion?.hostId)
+        assertFalse(
+            globalSessionKey(GlobalSessionIdentity("home", "same")) ==
+                globalSessionKey(GlobalSessionIdentity("work", "same")),
+        )
+        assertEquals("work", work.attention.single().hostId)
+    }
+
+    @Test
+    fun hostOverviewPersistsOnlyThatHostsUsableProviderProjection() {
+        val both = projectHostOverview(
+            "both",
+            emptyList(),
+            emptyList(),
+            "connected",
+            usableProviders = listOf(PROVIDER_CODEX, PROVIDER_CLAUDE_CODE, PROVIDER_CODEX),
+        )
+        val claudeOnly = projectHostOverview(
+            "claude",
+            emptyList(),
+            emptyList(),
+            "connected",
+            usableProviders = listOf(PROVIDER_CLAUDE_CODE),
+        )
+
+        assertEquals(listOf(PROVIDER_CODEX, PROVIDER_CLAUDE_CODE), both.usableProviders)
+        assertEquals(listOf(PROVIDER_CLAUDE_CODE), claudeOnly.usableProviders)
+        assertTrue(projectHostOverview("legacy", emptyList(), emptyList(), "checked").usableProviders.isEmpty())
+    }
+
+    @Test
+    fun unifiedAttentionKeepsExactHostSessionAndApprovalNavigationIdentity() {
+        val approval =
+            ApprovalRequest(
+                id = "apr-1",
+                sessionId = "same",
+                type = "command",
+                title = "Approve",
+                createdAt = 300,
+                status = "pending",
+            )
+        val snapshot = projectHostOverview(
+            "work",
+            listOf(SessionSummary("same", "/work/repo", "Collision", "waiting")),
+            listOf(approval),
+            "connected",
+        )
+        assertEquals("work", snapshot.attention.single().hostId)
+        assertEquals("same", snapshot.attention.single().sessionId)
+        assertEquals("apr-1", snapshot.attention.single().approvalId)
+    }
+
+    @Test
+    fun unifiedAttentionDistinguishesStructuredInput() {
+        val input =
+            InputRequest(
+                id = "inp-1",
+                sessionId = "same",
+                source = "mcp",
+                title = "Input",
+                supported = false,
+                canDecline = true,
+                canCancel = true,
+                createdAt = 301,
+                status = "pending",
+            )
+        val snapshot = projectHostOverview(
+            "work",
+            listOf(SessionSummary("same", "/work/repo", "Collision", "waiting")),
+            emptyList(),
+            "connected",
+            inputs = listOf(input),
+        )
+        assertEquals("input", snapshot.attention.single().type)
+        assertEquals("inp-1", snapshot.attention.single().approvalId)
+        assertEquals("Waiting for unsupported user input", inputAttentionLabel(input))
+    }
+
+    @Test
+    fun androidOverviewLifecycleStopsProbesInBackgroundAndCapsConnections() {
+        val lifecycle = AndroidOverviewLifecycle()
+        assertEquals(2, MAX_ANDROID_HOST_CONNECTIONS)
+        assertEquals(60_000L, ANDROID_OVERVIEW_POLL_INTERVAL_MS)
+        assertFalse(lifecycle.beginProbe())
+        lifecycle.onForeground()
+        assertTrue(lifecycle.beginProbe())
+        assertFalse(lifecycle.beginProbe())
+        lifecycle.endProbe()
+        assertTrue(lifecycle.beginProbe())
+        lifecycle.onBackground()
+        assertFalse(lifecycle.foreground)
+        assertFalse(lifecycle.probeActive)
+        assertFalse(lifecycle.beginProbe())
+    }
+
+    @Test
+    fun wireMessagesAlwaysIncludeProtocolVersion() {
+        val encoded =
+            Json.encodeToString(
+                WireMessage(version = 1, id = "one", type = "hello"),
+            )
+        assertTrue(encoded.contains("\"version\":1"))
+    }
+
+    @Test
+    fun restartUiReportsSuccessOnlyAfterReconnectAndHasTimeoutState() {
+        assertEquals(
+            RestartPhase.Scheduled,
+            restartPhaseAfterConnection(RestartPhase.Scheduled, connected = true),
+        )
+        assertEquals(
+            RestartPhase.Reconnecting,
+            restartPhaseAfterConnection(RestartPhase.Scheduled, connected = false),
+        )
+        assertEquals(
+            RestartPhase.Succeeded,
+            restartPhaseAfterConnection(RestartPhase.Reconnecting, connected = true),
+        )
+        assertTrue(restartProgressLabel(RestartPhase.Scheduled).contains("waiting"))
+        assertTrue(restartProgressLabel(RestartPhase.Reconnecting).contains("reconnecting"))
+        assertTrue(restartProgressLabel(RestartPhase.Succeeded).contains("complete"))
+        assertTrue(restartProgressLabel(RestartPhase.TimedOut).contains("timed out"))
+    }
+
+    @Test
+    fun androidDiagnosticsCopyUsesOnlyTheSafeProjection() {
+        val text =
+            diagnosticsText(
+                listOf(
+                    DiagnosticEvent(
+                        timestamp = "2026-07-30T12:00:00+00:00",
+                        severity = "warning",
+                        category = "request.failed",
+                        message = "Request category failed",
+                        requestCategory = "service",
+                    ),
+                ),
+            )
+        assertTrue(text.contains("request.failed"))
+        assertTrue(text.contains("[service]"))
+        assertFalse(text.contains("prompt"))
+        assertFalse(text.contains("token"))
+        assertFalse(text.contains("/home/"))
+    }
+
+    @Test
+    fun parsesSupportedHostForms() {
+        assertEquals(HostPort("192.168.1.59", 8765), parseHost("192.168.1.59"))
+        assertEquals(HostPort("codex.local", 9999), parseHost("codex.local:9999"))
+        assertEquals(HostPort("::1", 8765), parseHost("[::1]"))
+        assertThrows(IllegalArgumentException::class.java) { parseHost("http://codex.local") }
+        assertThrows(IllegalArgumentException::class.java) { parseHost("codex.local:99999") }
+    }
+
+    @Test
+    fun savedHostsKeepStableIdentityPortsAndRedactTokens() {
+        val host =
+            SavedHost(
+                id = "host-home",
+                displayName = "Home server",
+                host = "2001:db8::1",
+                tcpPort = 9765,
+                webPort = 9766,
+                deviceToken = "pmt_secret",
+                pairedAt = 1_720_000_000_000,
+                lastConnectedAt = null,
+                lastKnownStatus = "disconnected",
+                runtimeMode = null,
+                isDefault = true,
+            )
+
+        assertEquals("[2001:db8::1]:9765", host.tcpEndpoint())
+        assertEquals("host-home", host.summary().id)
+        assertFalse(host.summary().toString().contains("pmt_secret"))
+        assertFalse(host.toString().contains("pmt_secret"))
+        assertTrue(host.toString().contains("<redacted>"))
+    }
+
+    @Test
+    fun hostDisplayNamesDescribeTheServerInsteadOfTheAndroidClient() {
+        assertEquals("Local Palomar", suggestedHostDisplayName("localhost"))
+        assertEquals("Local Palomar", suggestedHostDisplayName("127.0.0.1"))
+        assertEquals("Local Palomar", suggestedHostDisplayName("::1"))
+        assertEquals("workstation.local", suggestedHostDisplayName("workstation.local"))
+        assertEquals("192.168.1.59", suggestedHostDisplayName("192.168.1.59"))
+    }
+
+    @Test
+    fun curatedThemesShareStableIdentityAndProvideCompleteLightAndDarkRoles() {
+        assertEquals(
+            listOf("palomar", "harbor", "grove", "ember", "dune", "slate", "high-contrast"),
+            ThemeId.entries.map(ThemeId::id),
+        )
+        assertEquals(
+            listOf("Palomar", "Harbor", "Grove", "Ember", "Dune", "Slate", "High Contrast"),
+            ThemeId.entries.map(ThemeId::displayName),
+        )
+        assertEquals(ThemeId.Palomar, parseThemeId(null))
+        assertEquals(ThemeId.Palomar, parseThemeId("unsupported"))
+
+        assertEquals(
+            ThemeId.entries.size,
+            ThemeId.entries.map { palomarColorScheme(it, darkTheme = false).primary }.distinct().size,
+        )
+        ThemeId.entries.forEach { themeId ->
+            listOf(false, true).forEach { dark ->
+                val palette = palomarThemeVariant(themeId, dark)
+                val scheme = palomarColorScheme(themeId, dark)
+                assertEquals(palette.accent, scheme.primary)
+                assertEquals(palette.background, scheme.background)
+                assertEquals(palette.surface, scheme.surface)
+                assertEquals(palette.alternateSurface, scheme.surfaceVariant)
+                assertEquals(palette.border, scheme.outline)
+                assertEquals(palette.text, scheme.onSurface)
+                assertEquals(palette.mutedText, scheme.onSurfaceVariant)
+                assertTrue(contrastRatio(palette.text, palette.background) >= 7.0)
+                assertTrue(contrastRatio(palette.onAccent, palette.accent) >= 4.5)
+                with(palette.semantic) {
+                    listOf(
+                        success to successContainer,
+                        working to workingContainer,
+                        attention to attentionContainer,
+                        warning to warningContainer,
+                        failure to failureContainer,
+                        fullAccess to fullAccessContainer,
+                    ).forEach { (foreground, container) ->
+                        assertTrue(contrastRatio(foreground, container) >= 4.5)
+                    }
+                }
+                assertFalse(palette.semantic.fullAccess == palette.semantic.working)
+                assertFalse(palette.semantic.failure == palette.semantic.attention)
+                if (themeId == ThemeId.HighContrast) {
+                    assertTrue(contrastRatio(palette.mutedText, palette.background) >= 7.0)
+                    assertTrue(contrastRatio(palette.border, palette.background) >= 7.0)
+                    assertTrue(contrastRatio(palette.accent, palette.background) >= 7.0)
+                    assertTrue(contrastRatio(palette.disabledText, palette.disabledSurface) >= 4.5)
+                    with(palette.semantic) {
+                        listOf(
+                            success to successContainer,
+                            working to workingContainer,
+                            attention to attentionContainer,
+                            warning to warningContainer,
+                            failure to failureContainer,
+                            fullAccess to fullAccessContainer,
+                        ).forEach { (foreground, container) ->
+                            assertTrue(contrastRatio(foreground, container) >= 7.0)
+                        }
+                    }
+                }
+            }
+        }
+        listOf(false, true).forEach { dark ->
+            val themed = ThemeId.entries.filterNot { it == ThemeId.HighContrast }.map {
+                palomarThemeVariant(it, dark).semantic
+            }
+            assertEquals(themed.size, themed.map { it.working }.distinct().size)
+            assertEquals(themed.size, themed.map { it.success }.distinct().size)
+        }
+    }
+
+    @Test
+    fun everyLegacyAccentMigratesDeterministicallyAndMalformedValuesAreSafe() {
+        val expected = mapOf(
+            "Purple" to ThemeId.Palomar,
+            "Blue" to ThemeId.Harbor,
+            "Teal" to ThemeId.Harbor,
+            "Green" to ThemeId.Grove,
+            "Orange" to ThemeId.Ember,
+            "Red" to ThemeId.Ember,
+            "Pink" to ThemeId.Ember,
+        )
+        expected.forEach { (legacy, theme) ->
+            assertEquals(theme, migratedThemeId(1, null, legacy))
+        }
+        assertEquals(ThemeId.Palomar, migratedThemeId(null, null, null))
+        assertEquals(ThemeId.Palomar, migratedThemeId(2, "not-a-theme", "Teal"))
+        assertEquals(ThemeId.Grove, migratedThemeId(2, "grove", "Red"))
+    }
+    @Test
+    fun composerUsesConversationalKeyboardDefaults() {
+        assertEquals(KeyboardCapitalization.Sentences, composerKeyboardOptions.capitalization)
+        assertEquals(true, composerKeyboardOptions.autoCorrectEnabled)
+        assertEquals(KeyboardType.Text, composerKeyboardOptions.keyboardType)
+        assertTrue(UiPreferences().hapticsEnabled)
+        assertTrue(UiPreferences().groupSessionsByRepository)
+        assertTrue(UiPreferences().collapsedRepositoryIds.isEmpty())
+    }
+
+    @Test
+    fun composerDraftsPreserveIndependentTextForEachHostAndSession() {
+        var drafts = updateComposerDraft(emptyMap(), "host-home", "session-one", "First draft")
+        drafts = updateComposerDraft(drafts, "host-home", "session-two", "Second draft")
+        drafts = updateComposerDraft(drafts, "host-work", "session-one", "Work draft")
+
+        assertEquals("First draft", composerDraft(drafts, "host-home", "session-one"))
+        assertEquals("Second draft", composerDraft(drafts, "host-home", "session-two"))
+        assertEquals("Work draft", composerDraft(drafts, "host-work", "session-one"))
+    }
+
+    @Test
+    fun clearingSubmittedComposerDraftLeavesOtherDraftsIntact() {
+        var drafts = updateComposerDraft(emptyMap(), "host-home", "same-session", "Home draft")
+        drafts = updateComposerDraft(drafts, "host-work", "same-session", "Work draft")
+        drafts = updateComposerDraft(drafts, "host-home", "same-session", "")
+
+        assertEquals("", composerDraft(drafts, "host-home", "same-session"))
+        assertEquals("Work draft", composerDraft(drafts, "host-work", "same-session"))
+    }
+
+    @Test
+    fun forgettingConnectionClearsHostStateButPreservesUiPreferences() {
+        val forgotten =
+            UiState(
+                screen = Screen.Detail,
+                host = "palomar.local:8765",
+                pairingKey = "123456",
+                deviceName = "Work phone",
+                connected = true,
+                hasSavedConnection = true,
+                loading = true,
+                submitting = true,
+                error = "Old connection error",
+                archivedSessions = listOf(
+                    SessionSummary("archived", "/repo", "Archived", "idle", archived = true),
+                ),
+                archivedLoading = true,
+                archivedError = "Old archived error",
+                showNewSession = true,
+                themeMode = ThemeMode.Dark,
+                monitorActiveTurns = true,
+                pendingSessionAction =
+                    PendingSessionAction("session-1", "Example", SessionAction.Archive),
+                capabilities = setOf("archive", "delete"),
+            ).withForgottenConnection()
+
+        assertEquals(Screen.Setup, forgotten.screen)
+        assertEquals("", forgotten.host)
+        assertEquals("", forgotten.pairingKey)
+        assertEquals("Android", forgotten.deviceName)
+        assertFalse(forgotten.connected)
+        assertFalse(forgotten.hasSavedConnection)
+        assertFalse(forgotten.loading)
+        assertFalse(forgotten.submitting)
+        assertNull(forgotten.error)
+        assertTrue(forgotten.archivedSessions.isEmpty())
+        assertFalse(forgotten.archivedLoading)
+        assertNull(forgotten.archivedError)
+        assertFalse(forgotten.showNewSession)
+        assertNull(forgotten.pendingSessionAction)
+        assertTrue(forgotten.capabilities.isEmpty())
+        assertTrue(forgotten.pairedClients.isEmpty())
+        assertNull(forgotten.revokingClientId)
+        assertEquals(ThemeMode.Dark, forgotten.themeMode)
+        assertTrue(forgotten.monitorActiveTurns)
+    }
+
+    @Test
+    fun pairedDeviceInventoryIsStableConnectedFirstAndUsesSharedTerminology() {
+        val offline = PairedClient("offline", "Alpha", "android", connected = false)
+        val connectedLater = PairedClient("connected-z", "Zulu", "browser", connected = true)
+        val connectedFirst = PairedClient(
+            "connected-a",
+            "Alpha",
+            "mixed",
+            pairedAt = "2026-09-10T12:00:00+00:00",
+            connected = true,
+            connectionCount = 3,
+            current = true,
+        )
+
+        assertEquals(
+            listOf(connectedFirst, connectedLater, offline),
+            sortPairedClients(listOf(offline, connectedLater, connectedFirst)),
+        )
+        assertEquals("Browser", pairedClientTypeLabel("browser"))
+        assertEquals("Android", pairedClientTypeLabel("android"))
+        assertEquals("Browser and Android", pairedClientTypeLabel("mixed"))
+        assertEquals("Connected · 3 live connections", pairedClientConnectionLabel(connectedFirst))
+        assertEquals("Connected", pairedClientConnectionLabel(connectedLater))
+        assertEquals("Offline", pairedClientConnectionLabel(offline))
+        assertTrue(
+            pairedAtLabel("2026-09-10T12:00:00+00:00", now = 1_789_041_660_000)
+                .startsWith("Paired 1m ago ·"),
+        )
+    }
+
+    @Test
+    fun sessionHapticsOnlyFireForActiveTerminalTransitions() {
+        assertEquals(SessionHapticEvent.Completed, sessionHapticEvent("working", "completed"))
+        assertEquals(SessionHapticEvent.Completed, sessionHapticEvent("working", "idle"))
+        assertEquals(SessionHapticEvent.Attention, sessionHapticEvent("working", "waiting"))
+        assertEquals(SessionHapticEvent.Failed, sessionHapticEvent("working", "failed"))
+        assertEquals(SessionHapticEvent.Failed, sessionHapticEvent("waiting", "failed"))
+
+        assertNull(sessionHapticEvent(null, "failed"))
+        assertNull(sessionHapticEvent("completed", "failed"))
+        assertNull(sessionHapticEvent("working", "working"))
+        assertNull(sessionHapticEvent("working", "interrupted"))
+    }
+
+    @Test
+    fun framingRoundTripsAndRejectsOversizeInput() {
+        assertEquals(16 * 1024 * 1024, MAX_FRAME_BYTES)
+        val output = ByteArrayOutputStream()
+        FrameCodec.write(output, """{"version":1}""")
+        assertEquals(
+            """{"version":1}""",
+            FrameCodec.read(ByteArrayInputStream(output.toByteArray())),
+        )
+        assertThrows(java.io.IOException::class.java) {
+            FrameCodec.read(ByteArrayInputStream("12345\n".toByteArray()), maximum = 4)
+        }
+    }
+
+    @Test
+    fun imageSizingAndEncodedLimitsAreDeterministic() {
+        assertEquals(1600 to 900, scaledImageSize(1600, 900))
+        assertEquals(2048 to 1024, scaledImageSize(4096, 2048))
+        assertEquals(4, imageSampleSize(10_000, 5_000))
+        assertEquals(
+            8,
+            encodedImageBytes(
+                listOf(
+                    ImagePayload("image/jpeg", "YWJj"),
+                    ImagePayload("image/png", "ZGVm"),
+                ),
+            ),
+        )
+        assertEquals(6, maximumDecodedImageBytes(8))
+        val bounded = BoundedImageOutputStream(3)
+        bounded.write(byteArrayOf(1, 2, 3))
+        assertThrows(ImageBudgetExceeded::class.java) {
+            bounded.write(4)
+        }
+        assertEquals(3, bounded.size())
+    }
+
+    @Test
+    fun routeSelectionKeepsOnlySupportedEffortAndUsesServerSessionSettings() {
+        val model =
+            ModelInfo(
+                id = "gpt-test",
+                displayName = "GPT Test",
+                reasoningEfforts = listOf("low", "high"),
+                defaultReasoningEffort = "high",
+                inputModalities = listOf("text", "image"),
+            )
+        assertEquals("low", compatibleEffort(model, "low"))
+        assertEquals("high", compatibleEffort(model, "ultra"))
+        val session =
+            SessionSummary(
+                id = "thread-1",
+                repository = "/projects/example",
+                title = "Example",
+                status = "idle",
+            )
+        val payload =
+            turnPayload(
+                session,
+                "Inspect",
+                listOf(ImagePayload("image/jpeg", "YWJj")),
+                steering = false,
+                accessLevel = "auto",
+                model = model.id,
+                effort = "high",
+            )
+        assertFalse(payload.containsKey("model"))
+        assertFalse(payload.containsKey("reasoningEffort"))
+        assertFalse(payload.containsKey("accessLevel"))
+        assertEquals(
+            "YWJj",
+            payload.getValue("images").jsonArray.single().jsonObject
+                .getValue("data").jsonPrimitive.content,
+        )
+
+        val steering =
+            turnPayload(
+                session.copy(status = "working", activeTurnId = "turn-1"),
+                "",
+                listOf(ImagePayload("image/png", "YWJj")),
+                steering = true,
+                accessLevel = "full",
+                model = model.id,
+                effort = "high",
+            )
+        assertEquals("turn-1", steering.getValue("turnId").jsonPrimitive.content)
+        assertFalse(steering.containsKey("model"))
+        assertFalse(steering.containsKey("reasoningEffort"))
+        assertFalse(steering.containsKey("accessLevel"))
+
+        val accessLevels =
+            listOf(
+                AccessLevelInfo("ask", "Ask for approval"),
+                AccessLevelInfo("auto", "Approve for me"),
+                AccessLevelInfo("full", "Full access"),
+            )
+        val routed =
+            UiState(composerAccessLevel = "ask")
+                .withAccessLevelsAndSessionAccess(
+                    accessLevels,
+                    session.copy(accessLevel = "full"),
+                )
+        assertEquals("full", routed.composerAccessLevel)
+        val unknownExisting =
+            UiState(composerAccessLevel = "ask", newSessionAccessLevel = "ask")
+                .withAccessLevelsAndSessionAccess(accessLevels, session)
+        assertNull(unknownExisting.composerAccessLevel)
+        assertEquals("ask", unknownExisting.newSessionAccessLevel)
+        assertEquals("ask", UiState(composerAccessLevel = "ask").withAccessLevelsAndSessionAccess(accessLevels, null).composerAccessLevel)
+        assertTrue(sessionRouteEditable(session))
+        assertFalse(sessionRouteEditable(session.copy(status = "working")))
+        assertFalse(sessionRouteEditable(session.copy(status = "waiting")))
+        assertFalse(sessionRouteEditable(session.copy(status = "stopping")))
+        assertTrue(sessionRouteEditable(session.copy(status = "idle")))
+        assertFalse(sessionRouteEditable(session.copy(archived = true, readOnly = true)))
+    }
+
+    @Test
+    fun newerLiveSessionSettingsWinOverStaleRefreshAndRemainIsolated() {
+        val newer =
+            SessionSummary(
+                id = "thread-1",
+                repository = "/projects/example",
+                title = "Example",
+                status = "idle",
+                model = "gpt-new",
+                reasoningEffort = "high",
+                accessLevel = "full",
+                settingsRevision = 5,
+            )
+        val stale =
+            newer.copy(
+                model = "gpt-old",
+                reasoningEffort = "low",
+                accessLevel = "ask",
+                settingsRevision = 4,
+            )
+
+        assertEquals(newer, reconcileSessionSettings(newer, stale))
+        assertEquals(stale.copy(id = "thread-2"), reconcileSessionSettings(newer, stale.copy(id = "thread-2")))
+        val synchronized =
+            UiState(sessions = listOf(newer), selected = newer).withSynchronizedSessions(
+                sessions = listOf(stale, stale.copy(id = "thread-2")),
+                repositories = emptyList(),
+                selectedSessionId = newer.id,
+                selectedSession = stale,
+            )
+        assertEquals("full", synchronized.sessions.first { it.id == "thread-1" }.accessLevel)
+        assertEquals("ask", synchronized.sessions.first { it.id == "thread-2" }.accessLevel)
+        assertEquals("full", synchronized.selected?.accessLevel)
+    }
+
+    @Test
+    fun pairsOverRawTcp() = runBlocking {
+        val json = Json { ignoreUnknownKeys = true }
+        val server = ServerSocket(0)
+        val executor = Executors.newSingleThreadExecutor()
+        executor.submit {
+            server.accept().use { socket ->
+                repeat(2) {
+                    val request =
+                        json.decodeFromString<WireMessage>(
+                            FrameCodec.read(socket.getInputStream())!!,
+                        )
+                    val payload =
+                        if (request.type == "pair") {
+                            buildJsonObject { put("deviceToken", "pmt_test") }
+                        } else {
+                            buildJsonObject {
+                                put("server", "Palomar")
+                                put(
+                                    "capabilities",
+                                    buildJsonObject {
+                                        put("archive", true)
+                                        put("delete", false)
+                                    },
+                                )
+                            }
+                        }
+                    FrameCodec.write(
+                        socket.getOutputStream(),
+                        json.encodeToString(
+                            WireMessage(
+                                version = 1,
+                                id = request.id,
+                                type = "${request.type}.result",
+                                payload = payload,
+                            ),
+                        ),
+                    )
+                }
+            }
+        }
+        val client = PalomarClient(this, {}, {})
+        try {
+            assertEquals(
+                "pmt_test",
+                client.pair("127.0.0.1:${server.localPort}", "pmp_test", "Phone"),
+            )
+            assertEquals(setOf("archive"), client.capabilities)
+        } finally {
+            client.close()
+            server.close()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun authenticationRejectionPreservesTheUnauthorizedReasonForCredentialCleanup() = runBlocking {
+        val json = Json { ignoreUnknownKeys = true }
+        val server = ServerSocket(0)
+        val executor = Executors.newSingleThreadExecutor()
+        executor.submit {
+            server.accept().use { socket ->
+                val hello = json.decodeFromString<WireMessage>(FrameCodec.read(socket.getInputStream())!!)
+                FrameCodec.write(
+                    socket.getOutputStream(),
+                    json.encodeToString(
+                        WireMessage(
+                            version = 1,
+                            id = hello.id,
+                            type = "hello.result",
+                            payload = buildJsonObject {
+                                put("server", "Palomar")
+                                put("capabilities", buildJsonObject {})
+                            },
+                        ),
+                    ),
+                )
+                val authenticate = json.decodeFromString<WireMessage>(FrameCodec.read(socket.getInputStream())!!)
+                FrameCodec.write(
+                    socket.getOutputStream(),
+                    json.encodeToString(
+                        WireMessage(
+                            version = 1,
+                            id = authenticate.id,
+                            type = "error",
+                            payload = buildJsonObject {
+                                put("code", "unauthorized")
+                                put("message", "device token is invalid")
+                            },
+                        ),
+                    ),
+                )
+            }
+        }
+        val client = PalomarClient(this, {}, {})
+        try {
+            val failure = runCatching {
+                client.authenticate("127.0.0.1:${server.localPort}", "pmt_revoked")
+            }.exceptionOrNull()
+            assertTrue(failure is PalomarRequestException)
+            failure as PalomarRequestException
+            assertEquals("unauthorized", failure.code)
+            assertEquals("device token is invalid", failure.message)
+        } finally {
+            client.close()
+            server.close()
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun mapsSessionListPayload() {
+        val json = Json { ignoreUnknownKeys = true }
+        val session =
+            json.decodeFromString<SessionSummary>(
+                """
+                {
+                  "id":"thread-1",
+                  "repository":"/projects/example",
+                  "title":"First prompt",
+                  "status":"working",
+                  "lastActivity":123,
+                  "attention":false,
+                  "archived":true,
+                  "readOnly":true,
+                  "capabilities":["session.read","session.restore"]
+                }
+                """.trimIndent(),
+            )
+        assertEquals("thread-1", session.id)
+        assertEquals("working", session.status)
+        assertTrue(session.archived)
+        assertTrue(session.readOnly)
+        assertEquals(listOf("session.read", "session.restore"), session.capabilities)
+        assertEquals(emptyList<ConversationItem>(), session.messages)
+        assertEquals("", session.activityLabel)
+        assertEquals("", session.activityText)
+    }
+
+    @Test
+    fun observationTimeIsNeverImplicitSessionActivity() {
+        val metadata = buildJsonObject { put("observedAt", 1_900_000_000) }
+        val work =
+            buildJsonObject {
+                put("activityAt", 1_700_000_100)
+                put("observedAt", 1_900_000_000)
+            }
+
+        assertNull(activityTimestamp(metadata))
+        assertEquals(1_700_000_100L, activityTimestamp(work))
+    }
+
+    @Test
+    fun relaunchConsumesRestoredServerTimesWithoutUsingObservationTime() {
+        val json = Json { ignoreUnknownKeys = true }
+        val payload =
+            """
+            [
+              {"id":"older","repository":"/repo","title":"Older","status":"idle","lastActivity":1700000100,"observedAt":1900000000},
+              {"id":"newer","repository":"/repo","title":"Newer","status":"idle","lastActivity":1700003700,"observedAt":1900000000}
+            ]
+            """.trimIndent()
+        val restored = json.decodeFromString<List<SessionSummary>>(payload)
+        val relaunched = json.decodeFromString<List<SessionSummary>>(payload)
+
+        fun ordered(sessions: List<SessionSummary>) =
+            filterSessions(
+                sessions,
+                SessionSearchFilters(),
+                emptySet(),
+                emptySet(),
+                emptyList(),
+                emptyList(),
+                "",
+            ).map { it.session.id }
+
+        assertEquals(listOf("newer", "older"), ordered(restored))
+        assertEquals(listOf("newer", "older"), ordered(relaunched))
+        assertEquals(
+            listOf(1_700_003_700L, 1_700_000_100L),
+            relaunched.mapNotNull { it.lastActivity }.sortedDescending(),
+        )
+    }
+
+    @Test
+    fun sessionDisplayTitleUsesTheCodexTitleInsteadOfTheRepositoryName() {
+        val session =
+            SessionSummary(
+                id = "thread-1",
+                repository = "/home/user",
+                title = "Fix the Palomar header",
+                status = "working",
+            )
+
+        assertEquals("Fix the Palomar header", sessionDisplayTitle(session))
+        assertEquals("Untitled session", sessionDisplayTitle(session.copy(title = "")))
+        assertEquals("Session", sessionDisplayTitle(null))
+        assertEquals(
+            "Build Palomar monitoring dashboard",
+            sessionDisplayTitle(session.copy(title = "Build Palomar monitoring dashboard")),
+        )
+    }
+
+    @Test
+    fun parsesSupportedMarkdownBlocksAndRejectsUnsafeLinks() {
+        val blocks =
+            parseMarkdown(
+                """
+                # Heading
+
+                A **bold** paragraph.
+
+                - first
+                2. second
+
+                ```kotlin
+                val answer = 42
+                ```
+                """.trimIndent(),
+            )
+
+        assertEquals(MarkdownBlock.Heading(1, "Heading"), blocks[0])
+        assertEquals(MarkdownBlock.Paragraph("A **bold** paragraph."), blocks[1])
+        assertEquals(MarkdownBlock.ListItem("\u2022", "first"), blocks[2])
+        assertEquals(MarkdownBlock.ListItem("2.", "second"), blocks[3])
+        assertEquals(MarkdownBlock.Code("kotlin", "val answer = 42"), blocks[4])
+        assertEquals("https://example.com/docs", safeMarkdownUrl("https://example.com/docs"))
+        assertNull(safeMarkdownUrl("file:///etc/passwd"))
+        assertNull(safeMarkdownUrl("javascript:alert(1)"))
+        assertNull(safeMarkdownUrl("intent://settings"))
+    }
+
+    @Test
+    fun groupsMultiParagraphBlockquotesWithoutRenderingEmptySeparators() {
+        val blocks =
+            parseMarkdown(
+                """
+                > First quoted paragraph.
+                >
+                > Second quoted paragraph.
+                > Continued on another quoted line.
+
+                Outside the quote.
+
+                >
+                """.trimIndent(),
+            )
+
+        assertEquals(
+            listOf(
+                MarkdownBlock.Quote(
+                    "First quoted paragraph.\n\nSecond quoted paragraph.\nContinued on another quoted line.",
+                ),
+                MarkdownBlock.Paragraph("Outside the quote."),
+            ),
+            blocks,
+        )
+    }
+
+    @Test
+    fun parsesGfmTablesAndTaskLists() {
+        val blocks =
+            parseMarkdown(
+                """
+                | Component | Status |
+                | --- | --- |
+                | Web | Ready |
+                | Android | Working |
+
+                - [x] Finished
+                - [ ] Device verification
+                """.trimIndent(),
+            )
+
+        assertEquals(
+            MarkdownBlock.Table(
+                headers = listOf("Component", "Status"),
+                rows = listOf(listOf("Web", "Ready"), listOf("Android", "Working")),
+            ),
+            blocks[0],
+        )
+        assertEquals(MarkdownBlock.TaskItem(true, "Finished"), blocks[1])
+        assertEquals(MarkdownBlock.TaskItem(false, "Device verification"), blocks[2])
+    }
+
+    @Test
+    fun parsesSupportedAppDirectivesWithoutLeakingThemIntoMarkdown() {
+        val blocks =
+            parseMarkdown(
+                """
+                Validation passed.
+
+                ::git-commit{cwd="/home/user/projects/palomar"}
+                ::git-push{cwd="/home/user/projects/palomar" branch="agent/android"}
+                """.trimIndent(),
+            )
+
+        assertEquals(MarkdownBlock.Paragraph("Validation passed."), blocks[0])
+        assertEquals(
+            MarkdownBlock.AppDirective("git-commit", mapOf("cwd" to "/home/user/projects/palomar")),
+            blocks[1],
+        )
+        assertEquals(
+            MarkdownBlock.AppDirective(
+                "git-push",
+                mapOf("cwd" to "/home/user/projects/palomar", "branch" to "agent/android"),
+            ),
+            blocks[2],
+        )
+    }
+
+    @Test
+    fun preservesUnsupportedAppDirectivesAsMarkdown() {
+        assertEquals(
+            listOf(MarkdownBlock.Paragraph("::unknown{value=\"safe\"}")),
+            parseMarkdown("::unknown{value=\"safe\"}"),
+        )
+    }
+
+    @Test
+    fun stylesInlineMarkdownForCompactLiveStatus() {
+        val rendered =
+            styledInlineMarkdown(
+                "**Implementing bulk session insertion helper**",
+                color = Color.White,
+                linkColor = Color.Blue,
+                codeColor = Color.Gray,
+            )
+
+        assertEquals("Implementing bulk session insertion helper", rendered.text)
+        assertTrue(
+            rendered.spanStyles.any {
+                it.item.fontWeight == FontWeight.Bold &&
+                    rendered.text.substring(it.start, it.end) ==
+                    "Implementing bulk session insertion helper"
+            },
+        )
+    }
+
+    @Test
+    fun linkifiesBareWebUrlsWithoutSwallowingPunctuationOrUnsafeSchemes() {
+        val rendered =
+            styledInlineMarkdown(
+                "Open HTTPS://example.com/docs, not javascript:alert(1).",
+                color = Color.White,
+                linkColor = Color.Blue,
+                codeColor = Color.Gray,
+            )
+
+        assertEquals("Open HTTPS://example.com/docs, not javascript:alert(1).", rendered.text)
+        val links = rendered.getLinkAnnotations(0, rendered.length)
+        assertEquals(1, links.size)
+        assertEquals("HTTPS://example.com/docs", (links.single().item as LinkAnnotation.Url).url)
+        assertEquals("HTTPS://example.com/docs", rendered.text.substring(links.single().start, links.single().end))
+        assertEquals(
+            "https://en.wikipedia.org/wiki/Palomar_(software)",
+            trimTrailingUrlPunctuation("https://en.wikipedia.org/wiki/Palomar_(software)."),
+        )
+    }
+
+    @Test
+    fun opensAbsoluteWorkspaceMarkdownLinksAndRejectsUnsafeTargets() {
+        val target = WorkspaceFileTarget("/home/user/My Project/readme.md", 28)
+        assertEquals(target, workspaceFileTarget("/home/user/My%20Project/readme.md:28:4"))
+        assertEquals(WorkspaceFileTarget("/home/user/readme.md"), workspaceFileTarget("/home/user/readme.md"))
+        assertNull(workspaceFileTarget("docs/readme.md"))
+        assertNull(workspaceFileTarget("/home/user/readme.md:0"))
+        assertNull(workspaceFileTarget("/home/user/readme.md?raw=1"))
+        assertNull(workspaceFileTarget("/home/user/readme.md#section"))
+        assertNull(workspaceFileTarget("https://example.com/readme.md"))
+
+        var opened: WorkspaceFileTarget? = null
+        val rendered =
+            styledInlineMarkdown(
+                "Open [the document](/home/user/My%20Project/readme.md:28:4).",
+                color = Color.White,
+                linkColor = Color.Blue,
+                codeColor = Color.Gray,
+                onOpenWorkspaceFile = { opened = it },
+            )
+        val link = rendered.getLinkAnnotations(0, rendered.length).single().item
+        assertTrue(link is LinkAnnotation.Clickable)
+        (link as LinkAnnotation.Clickable).linkInteractionListener?.onClick(link)
+        assertEquals(target, opened)
+    }
+
+    @Test
+    fun activityEventsRestoreWorkingStatusAndActiveSessionsCannotBeManaged() {
+        assertTrue(eventShowsWorkingActivity("assistant.delta"))
+        assertTrue(eventShowsWorkingActivity("item"))
+        assertTrue(eventShowsWorkingActivity("activity"))
+        assertFalse(eventShowsWorkingActivity("status"))
+        assertFalse(sessionCanBeManaged("working"))
+        assertFalse(sessionCanBeManaged("waiting"))
+        assertTrue(sessionCanBeManaged("completed"))
+        assertTrue(sessionActionSupported(setOf("archive"), SessionAction.Archive))
+        assertFalse(sessionActionSupported(setOf("archive"), SessionAction.Delete))
+        assertFalse(sessionActionSupported(emptySet(), SessionAction.Archive))
+        assertTrue(sessionActionCanBeConfirmed(true, setOf("delete"), SessionAction.Delete))
+        assertFalse(sessionActionCanBeConfirmed(false, setOf("delete"), SessionAction.Delete))
+        assertFalse(sessionActionCanBeConfirmed(true, emptySet(), SessionAction.Delete))
+        val archived = SessionSummary(
+            id = "archived",
+            repository = "/repo",
+            title = "Archived",
+            status = "idle",
+            archived = true,
+            readOnly = true,
+            capabilities = listOf("session.read", "session.restore"),
+        )
+        assertTrue(sessionActionSupported(archived, emptySet(), SessionAction.Restore))
+        assertFalse(sessionActionSupported(archived, setOf("archive", "delete"), SessionAction.Archive))
+        assertFalse(sessionActionSupported(archived, setOf("archive", "delete"), SessionAction.Delete))
+    }
+
+    @Test
+    fun foregroundSynchronizationReplacesStaleOverviewAndSelectedStatus() {
+        val stale =
+            UiState(
+                screen = Screen.Detail,
+                loading = true,
+                sessions =
+                    listOf(
+                        SessionSummary(
+                            id = "thread-1",
+                            repository = "/projects/example",
+                            title = "Example",
+                            status = "idle",
+                        ),
+                    ),
+                selected =
+                    SessionSummary(
+                        id = "thread-1",
+                        repository = "/projects/example",
+                        title = "Example",
+                        status = "interrupted",
+                    ),
+            )
+        val working =
+            SessionSummary(
+                id = "thread-1",
+                repository = "/projects/example",
+                title = "Example",
+                status = "working",
+                activeTurnId = "turn-live",
+            )
+
+        val synchronized =
+            stale.withSynchronizedSessions(
+                sessions = listOf(working),
+                repositories = emptyList(),
+                selectedSessionId = working.id,
+                selectedSession = working,
+            )
+
+        assertEquals("working", synchronized.sessions.single().status)
+        assertEquals("working", synchronized.selected?.status)
+        assertEquals("turn-live", synchronized.selected?.activeTurnId)
+        assertEquals(Screen.Detail, synchronized.screen)
+        assertFalse(synchronized.loading)
+    }
+
+    @Test
+    fun foregroundSynchronizationPreservesLiveActivityMissingFromCanonicalHistory() {
+        val live =
+            SessionSummary(
+                id = "thread-1",
+                repository = "/projects/example",
+                title = "Example",
+                status = "working",
+                messages =
+                    listOf(
+                        ConversationItem("user", "user", text = "Run checks"),
+                        ConversationItem("read", "tool", status = "completed"),
+                        ConversationItem("failed", "command", status = "failed", exitCode = 1),
+                        ConversationItem("assistant", "assistant", text = "Working"),
+                    ),
+            )
+        val canonical =
+            live.copy(
+                status = "completed",
+                messages =
+                    listOf(
+                        ConversationItem("user", "user", text = "Run checks"),
+                        ConversationItem("assistant", "assistant", text = "Done"),
+                    ),
+            )
+
+        val synchronized =
+            UiState(screen = Screen.Detail, selected = live).withSynchronizedSessions(
+                sessions = listOf(canonical.copy(messages = emptyList())),
+                repositories = emptyList(),
+                selectedSessionId = canonical.id,
+                selectedSession = canonical,
+            )
+
+        assertEquals(listOf("user", "read", "failed", "assistant"), synchronized.selected?.messages?.map { it.id })
+        assertEquals("Done", synchronized.selected?.messages?.last()?.text)
+        val blocks = conversationBlocks(requireNotNull(synchronized.selected).messages, ActivityDetail.Focused)
+        val activity = blocks.single { it.collapsedActivity }.items
+        assertEquals(listOf("read", "failed"), activity.map { it.id })
+        assertEquals(listOf("completed", "failed"), activity.map { it.status })
+        assertEquals(listOf(null, 1), activity.map { it.exitCode })
+    }
+
+    @Test
+    fun foregroundSynchronizationKeepsRecoveredCanonicalMessagesBeforeNewerLiveActivity() {
+        val live =
+            SessionSummary(
+                id = "thread-1",
+                repository = "/projects/example",
+                title = "Example",
+                status = "working",
+                messages = listOf(ConversationItem("new-command", "command", status = "completed", turnId = "new-turn")),
+            )
+        val canonical =
+            live.copy(
+                status = "completed",
+                messages = listOf(ConversationItem("older-user", "user", text = "Earlier prompt", turnId = "old-turn")),
+            )
+
+        val reconciled = reconcileSelectedSession(live, canonical)
+
+        assertEquals(listOf("older-user", "new-command"), reconciled?.messages?.map { it.id })
+    }
+
+    @Test
+    fun unknownStatusDiscoversSessionsWithoutReplacingLiveRows() {
+        val live =
+            SessionSummary(
+                id = "thread-live",
+                repository = "/projects/example",
+                title = "Live",
+                status = "working",
+            )
+        val external =
+            SessionSummary(
+                id = "thread-desktop",
+                repository = "/projects/example",
+                title = "Desktop",
+                status = "working",
+            )
+        val state = UiState(connected = true, sessions = listOf(live))
+
+        assertTrue(state.shouldDiscoverSession(external.id, "status"))
+        assertFalse(state.shouldDiscoverSession(external.id, "activity"))
+        assertFalse(state.shouldDiscoverSession(live.id, "status"))
+
+        val discovered =
+            state.withDiscoveredSessions(
+                listOf(live.copy(status = "idle"), external),
+            )
+        assertEquals(listOf(external.id, live.id), discovered.sessions.map { it.id })
+        assertEquals("working", discovered.sessions.last().status)
+        assertFalse(discovered.shouldDiscoverSession(external.id, "status"))
+    }
+
+    @Test
+    fun concurrentSessionDiscoveriesRemainQueued() {
+        val queue = SessionDiscoveryQueue()
+        queue.enqueue("thread-first")
+        val firstRequest = queue.targets()
+
+        queue.enqueue("thread-second")
+        queue.recordAttempt(firstRequest, setOf("thread-first"))
+
+        assertEquals(setOf("thread-second"), queue.targets())
+        repeat(3) {
+            val request = queue.targets()
+            queue.recordAttempt(request, emptySet())
+            assertEquals(setOf("thread-second"), queue.targets())
+        }
+        queue.recordAttempt(queue.targets(), emptySet())
+        assertTrue(queue.targets().isEmpty())
+    }
+
+    @Test
+    fun choosesCompactLiveActivityLabels() {
+        val base =
+            SessionSummary(
+                id = "thread-1",
+                repository = "/projects/example",
+                title = "Example",
+                status = "working",
+            )
+        assertEquals("Thinking", liveActivityLabel(base))
+        assertEquals(
+            "Planning",
+            liveActivityLabel(base.copy(activityLabel = "Planning")),
+        )
+        assertEquals(
+            "Running command",
+            liveActivityLabel(
+                base.copy(
+                    messages =
+                        listOf(
+                            ConversationItem(
+                                id = "command-1",
+                                kind = "command",
+                                description = "git status",
+                                status = "inProgress",
+                            ),
+                        ),
+                ),
+            ),
+        )
+        assertEquals(
+            "Searching",
+            liveActivityLabel(
+                base.copy(
+                    messages =
+                        listOf(
+                            ConversationItem(
+                                id = "search-1",
+                                kind = "tool",
+                                description = "Web search",
+                                status = "inProgress",
+                            ),
+                        ),
+                ),
+            ),
+        )
+        assertEquals(
+            "Planning direct main update strategy",
+            liveActivityMessage(
+                base.copy(
+                    activityText =
+                        "Checking repository state\nPlanning direct main update strategy",
+                ),
+            ),
+        )
+        assertNull(liveActivityMessage(base))
+    }
+
+    @Test
+    fun mapsOnlyAttentionAndTerminalStatusesToNotifications() {
+        assertEquals(
+            "Palomar needs your attention",
+            monitorOutcome("waiting")?.title,
+        )
+        assertEquals("Palomar turn completed", monitorOutcome("completed")?.title)
+        assertEquals("Palomar turn failed", monitorOutcome("failed")?.title)
+        assertEquals("Palomar turn interrupted", monitorOutcome("interrupted")?.title)
+        assertEquals(null, monitorOutcome("working"))
+        assertEquals(null, monitorOutcome("unknown"))
+    }
+
+    @Test
+    fun notificationPreferencesCoverDefaultsEveryToggleAndRepositoryInheritance() {
+        val defaults = NotificationPreferences()
+        assertTrue(defaults.eventEnabled(NotificationEvent.Approval, "/repo"))
+        assertTrue(defaults.eventEnabled(NotificationEvent.Failure, "/repo"))
+        assertTrue(defaults.eventEnabled(NotificationEvent.Completion, "/repo"))
+        assertFalse(defaults.eventEnabled(NotificationEvent.Interruption, "/repo"))
+        assertFalse(defaults.eventEnabled(NotificationEvent.LongRunning, "/repo"))
+
+        val toggled = defaults.copy(
+            notifyApprovals = false,
+            notifyFailures = false,
+            notifyCompletions = false,
+            notifyInterruptions = true,
+            notifyLongRunning = true,
+            repositoryOverrides = mapOf(
+                "/repo" to RepositoryNotificationOverride(
+                    notifyCompletions = true,
+                    notifyInterruptions = false,
+                ),
+            ),
+        )
+        assertFalse(toggled.eventEnabled(NotificationEvent.Approval, "/other"))
+        assertFalse(toggled.eventEnabled(NotificationEvent.Failure, "/other"))
+        assertFalse(toggled.eventEnabled(NotificationEvent.Completion, "/other"))
+        assertTrue(toggled.eventEnabled(NotificationEvent.Interruption, "/other"))
+        assertTrue(toggled.eventEnabled(NotificationEvent.LongRunning, "/other"))
+        assertTrue(toggled.eventEnabled(NotificationEvent.Completion, "/repo"))
+        assertFalse(toggled.eventEnabled(NotificationEvent.Interruption, "/repo"))
+    }
+
+    @Test
+    fun notificationQuietHoursSupportOvernightRangesAndCriticalBypass() {
+        val preferences = NotificationPreferences(
+            quietHoursEnabled = true,
+            quietStart = "22:00",
+            quietEnd = "07:00",
+            notifyInterruptions = true,
+        )
+        val late = Calendar.getInstance().apply {
+            set(2026, Calendar.JULY, 30, 23, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val morning = Calendar.getInstance().apply {
+            set(2026, Calendar.JULY, 31, 7, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        assertTrue(preferences.isQuietTime(late))
+        assertFalse(preferences.isQuietTime(morning))
+        assertFalse(preferences.shouldNotify(NotificationEvent.Failure, "/repo", late))
+        val bypass = preferences.copy(criticalBypassQuietHours = true)
+        assertTrue(bypass.shouldNotify(NotificationEvent.Approval, "/repo", late))
+        assertTrue(bypass.shouldNotify(NotificationEvent.Failure, "/repo", late))
+        assertFalse(bypass.shouldNotify(NotificationEvent.Interruption, "/repo", late))
+    }
+
+    @Test
+    fun notificationPreferencesSurviveProcessRecreationSerialization() {
+        val saved = NotificationPreferences(
+            notifyInterruptions = true,
+            notifyLongRunning = true,
+            longRunningMinutes = 27,
+            quietHoursEnabled = true,
+            repositoryOverrides = mapOf(
+                "/workspace/palomar" to RepositoryNotificationOverride(notifyCompletions = false),
+            ),
+        )
+        val restored = decodeNotificationPreferences(encodeNotificationPreferences(saved))
+        assertEquals(saved, restored)
+        assertEquals(NotificationPreferences(), decodeNotificationPreferences("corrupt"))
+    }
+
+    @Test
+    fun monitorLifecycleRequiresActiveConfirmationBeforeCompleting() {
+        val lifecycle = MonitorLifecycle()
+
+        lifecycle.monitor("session-1", active = false)
+        assertNull(lifecycle.status("session-1", "completed"))
+        assertTrue(lifecycle.contains("session-1"))
+
+        lifecycle.monitor("session-1", active = true)
+        lifecycle.monitor("session-1", active = false)
+        assertEquals(
+            "Palomar turn completed",
+            lifecycle.status("session-1", "completed")?.title,
+        )
+        assertTrue(lifecycle.isEmpty())
+    }
+
+    @Test
+    fun monitorLifecycleDiscoversExternallyStartedActiveTurns() {
+        val lifecycle = MonitorLifecycle()
+
+        assertFalse(lifecycle.monitorActive("session-1", "completed"))
+        assertFalse(lifecycle.contains("session-1"))
+        assertTrue(lifecycle.monitorActive("session-1", "working"))
+        assertFalse(lifecycle.monitorActive("session-1", "working"))
+        assertEquals(
+            "Palomar turn completed",
+            lifecycle.status("session-1", "completed")?.title,
+        )
+        assertTrue(lifecycle.isEmpty())
+    }
+
+    @Test
+    fun standaloneOutcomesKeepAProviderScopedIdentityOutsideForegroundMonitoring() {
+        val codex = outcomeNotificationId("host", providerSessionKey(PROVIDER_CODEX, "session"))
+        val claude = outcomeNotificationId("host", providerSessionKey(PROVIDER_CLAUDE_CODE, "session"))
+
+        assertTrue(codex != FOREGROUND_NOTIFICATION_ID)
+        assertTrue(claude != FOREGROUND_NOTIFICATION_ID)
+        assertTrue(codex != claude)
+    }
+
+    @Test
+    fun globalMonitoringFiltersProvidersAndDiscoversOnlyMonitorableTurns() {
+        val providers = buildJsonArray {
+            add(buildJsonObject { put("id", PROVIDER_CODEX); put("enabled", true); put("available", true) })
+            add(buildJsonObject { put("id", PROVIDER_CLAUDE_CODE); put("enabled", false); put("available", true) })
+            add(buildJsonObject { put("id", PROVIDER_CLAUDE_CODE); put("enabled", true); put("available", false) })
+            add(buildJsonObject { put("id", "other"); put("enabled", true); put("available", true) })
+        }
+        assertEquals(setOf(PROVIDER_CODEX), usableMonitorProviders(providers))
+
+        val codexSessions = buildJsonArray {
+            add(buildJsonObject { put("id", "working"); put("status", "working"); put("repository", "/repo") })
+            add(buildJsonObject { put("id", "waiting"); put("status", "waiting") })
+            add(buildJsonObject { put("id", "old"); put("status", "completed") })
+        }
+        val candidates = globalTurnCandidates(PROVIDER_CODEX, codexSessions)
+        assertEquals(listOf("working", "waiting"), candidates.map { it.sessionId })
+        assertEquals(NotificationEvent.Approval, monitorOutcome(candidates.last().status)?.event)
+
+        val claudeSessions = buildJsonArray {
+            add(buildJsonObject { put("id", "managed"); put("status", "working"); put("source", "managed") })
+            add(buildJsonObject { put("id", "external"); put("status", "working"); put("source", "external") })
+        }
+        assertEquals(
+            listOf("managed"),
+            globalTurnCandidates(PROVIDER_CLAUDE_CODE, claudeSessions).map { it.sessionId },
+        )
+    }
+
+    @Test
+    fun globalStatusEnrollmentRequiresWatchingAnEnabledProviderAndActiveStatus() {
+        val enabled = setOf(PROVIDER_CODEX, PROVIDER_CLAUDE_CODE)
+
+        assertTrue(shouldEnrollGlobalTurn(true, enabled, PROVIDER_CODEX, "working"))
+        assertTrue(shouldEnrollGlobalTurn(true, enabled, PROVIDER_CLAUDE_CODE, "waiting"))
+        assertFalse(shouldEnrollGlobalTurn(false, enabled, PROVIDER_CODEX, "working"))
+        assertFalse(shouldEnrollGlobalTurn(true, setOf(PROVIDER_CODEX), PROVIDER_CLAUDE_CODE, "working"))
+        assertFalse(shouldEnrollGlobalTurn(true, enabled, PROVIDER_CODEX, "completed"))
+    }
+
+    @Test
+    fun promptFailureCancellationPreventsLateStaleNotifications() {
+        val lifecycle = MonitorLifecycle()
+
+        lifecycle.monitor("session-1", active = false)
+        assertTrue(lifecycle.cancel("session-1"))
+        assertNull(lifecycle.status("session-1", "working"))
+        assertNull(lifecycle.status("session-1", "completed"))
+        assertFalse(lifecycle.contains("session-1"))
+    }
+
+    @Test
+    fun monitorLifecycleKeepsWaitingApprovalSessionsUntilTerminal() {
+        val lifecycle = MonitorLifecycle()
+        lifecycle.monitor("session-1", active = true)
+        lifecycle.monitor("session-2", active = true)
+
+        assertEquals(
+            "Palomar needs your attention",
+            lifecycle.status("session-1", "waiting")?.title,
+        )
+        assertTrue(lifecycle.contains("session-1"))
+        assertTrue(lifecycle.contains("session-2"))
+        assertEquals(setOf("session-1", "session-2"), lifecycle.sessionIds())
+        lifecycle.status("session-1", "completed")
+        assertEquals(setOf("session-2"), lifecycle.sessionIds())
+    }
+
+    @Test
+    fun approvalPermissionSelectionBuildsOnlyTheChosenSubset() {
+        val approval =
+            ApprovalRequest(
+                id = "apr-safe",
+                sessionId = "session-1",
+                type = "permission",
+                title = "Permissions requested",
+                createdAt = 1,
+                status = "pending",
+                requestedPermissions =
+                    buildJsonObject {
+                        put(
+                            "fileSystem",
+                            buildJsonObject {
+                                put("write", kotlinx.serialization.json.buildJsonArray {
+                                    add(kotlinx.serialization.json.JsonPrimitive("/workspace/one"))
+                                    add(kotlinx.serialization.json.JsonPrimitive("/workspace/two"))
+                                })
+                            },
+                        )
+                        put("network", buildJsonObject { put("enabled", true) })
+                    },
+            )
+        val choices = permissionChoices(approval)
+        assertEquals(listOf("write-0", "write-1", "network"), choices.map { it.id })
+        val selected = selectedPermissions(approval, choices, setOf("write-0"))
+        assertEquals(
+            listOf("/workspace/one"),
+            selected["fileSystem"]!!.jsonObject["write"]!!.jsonArray.map { it.jsonPrimitive.content },
+        )
+        assertNull(selected["network"])
+    }
+
+    @Test
+    fun approvalLabelsAndNotificationTextArePrivacySafe() {
+        assertEquals("Waiting for command approval", approvalAttentionLabel("command"))
+        assertEquals("Waiting for file-change approval", approvalAttentionLabel("fileChange"))
+        assertEquals("Waiting for permission grant", approvalAttentionLabel("permission"))
+        val notification = approvalNotificationText()
+        assertEquals("Palomar needs your attention", notification.title)
+        assertEquals("A monitored session needs approval or input.", notification.detail)
+        assertFalse(notification.detail.contains("/private"))
+        assertFalse(notification.detail.contains("command"))
+    }
+
+    @Test
+    fun reconnectBackoffCapsAndResetsDeterministically() {
+        val lifecycle = MonitorLifecycle()
+
+        assertEquals(
+            listOf(2_000L, 4_000L, 8_000L, 16_000L, 30_000L, 30_000L),
+            List(6) { lifecycle.nextReconnectDelay() },
+        )
+        lifecycle.resetReconnectDelay()
+        assertEquals(2_000L, lifecycle.nextReconnectDelay())
+    }
+
+    @Test
+    fun sessionSearchCombinesTranscriptRepositoryStatusAndDateFilters() {
+        val repositories = listOf(
+            RepositoryInfo("palomar", "palomar", "palomar", "main", false),
+        )
+        val active = SessionSummary(
+            id = "active",
+            repository = "/projects/palomar/src",
+            title = "Build socket support",
+            status = "working",
+            lastActivity = 1_700_000_300,
+        )
+        val waiting = SessionSummary(
+            id = "waiting",
+            repository = "/home/operator",
+            title = "Review release",
+            status = "waiting",
+            lastActivity = 1_700_000_200,
+        )
+        val filters = SessionSearchFilters(
+            query = "websocket",
+            repository = "/projects/palomar",
+            status = SessionSearchStatus.Active,
+            dateRange = SessionDateRange.Custom,
+            dateFrom = "2023-11-14",
+            dateTo = "2023-11-15",
+            pinnedOnly = true,
+        )
+        val visible = filterSessions(
+            sessions = listOf(active, waiting),
+            filters = filters,
+            pinnedIds = setOf("active"),
+            hiddenIds = emptySet(),
+            results = listOf(
+                SessionSearchResult(
+                    active,
+                    listOf(SessionSearchMatch("user", "Add a WebSocket endpoint")),
+                ),
+            ),
+            repositories = repositories,
+            repositoryRoot = "/projects",
+            nowMillis = 1_700_000_400_000,
+        )
+        assertEquals(listOf("active"), visible.map { it.session.id })
+        assertEquals("Add a WebSocket endpoint", visible.single().matches.single().snippet)
+    }
+
+    @Test
+    fun archivedScopeStaysDisjointAndComposesProviderRepositoryDateSearchAndGrouping() {
+        val repositories = listOf(RepositoryInfo("palomar", "palomar", "palomar", "main", false))
+        val normal = SessionSummary(
+            id = "normal",
+            repository = "/projects/palomar",
+            title = "Socket work",
+            status = "idle",
+            lastActivity = 1_700_000_100,
+            provider = PROVIDER_CODEX,
+        )
+        val archived = normal.copy(
+            id = "archived",
+            title = "Archived socket work",
+            lastActivity = 1_700_000_200,
+            archived = true,
+            readOnly = true,
+            capabilities = listOf("session.read", "session.restore"),
+        )
+        assertEquals(
+            listOf("normal"),
+            filterSessions(
+                listOf(normal, archived),
+                SessionSearchFilters(),
+                emptySet(),
+                emptySet(),
+                emptyList(),
+                repositories,
+                "/projects",
+            ).map { it.session.id },
+        )
+
+        val filters = SessionSearchFilters(
+            query = "socket",
+            scope = SessionDiscoveryScope.Archived,
+            provider = PROVIDER_CODEX,
+            repository = "/projects/palomar",
+            status = SessionSearchStatus.Completed,
+            dateRange = SessionDateRange.Custom,
+            dateFrom = "2023-11-14",
+            dateTo = "2023-11-15",
+        )
+        val visible = filterSessions(
+            listOf(normal, archived),
+            filters,
+            emptySet(),
+            emptySet(),
+            emptyList(),
+            repositories,
+            "/projects",
+            nowMillis = 1_700_000_400_000,
+        )
+        assertEquals(listOf("archived"), visible.map { it.session.id })
+        assertEquals("archived", repositorySessionGroups(visible, repositories, "/projects").single().sessions.single().session.id)
+    }
+
+    @Test
+    fun sessionSearchKeepsPinsFirstAndHiddenSessionsRestorable() {
+        val sessions = listOf(
+            SessionSummary("active", "/repo", "Active", "working", 300),
+            SessionSummary("waiting", "/repo", "Waiting", "waiting", 200),
+            SessionSummary("done", "/repo", "Done", "idle", 100),
+        )
+        val visible = filterSessions(
+            sessions,
+            SessionSearchFilters(),
+            setOf("done"),
+            setOf("waiting"),
+            emptyList(),
+            emptyList(),
+            "",
+        )
+        assertEquals(listOf("done", "active"), visible.map { it.session.id })
+        val hidden = filterSessions(
+            sessions,
+            SessionSearchFilters(hiddenOnly = true),
+            emptySet(),
+            setOf("waiting"),
+            emptyList(),
+            emptyList(),
+            "",
+        )
+        assertEquals(listOf("waiting"), hidden.map { it.session.id })
+    }
+
+    @Test
+    fun repositoryGroupsBubbleActiveSessionsAheadOfPinnedHistory() {
+        val repositories = listOf(RepositoryInfo("palomar", "palomar", "palomar", "main", false))
+        val sessions = listOf(
+            SessionSummary("done", "/projects/palomar", "Done", "idle", 300),
+            SessionSummary("active", "/projects/palomar/src", "Active", "working", 200),
+            SessionSummary("other", "/workspace/other", "Other", "idle", 100),
+        )
+        val visible = filterSessions(
+            sessions,
+            SessionSearchFilters(),
+            setOf("done"),
+            emptySet(),
+            emptyList(),
+            repositories,
+            "/projects",
+        )
+        val groups = repositorySessionGroups(visible, repositories, "/projects")
+        assertEquals(listOf("Repository: palomar", "Workspace: /workspace/other"), groups.map { it.repository.label })
+        assertEquals(listOf("active", "done"), groups.first().sessions.map { it.session.id })
+    }
+
+    @Test
+    fun repositoryAndWorkspaceGroupsStayNaturallyAlphabeticalAsActivityChanges() {
+        val repositories = listOf(
+            RepositoryInfo("zeta", "zeta", "zeta", "main", false),
+            RepositoryInfo("alpha-10", "alpha10", "alpha10", "main", false),
+            RepositoryInfo("alpha-2", "Alpha2", "Alpha2", "main", false),
+            RepositoryInfo("alpha-2-lower", "alpha2", "alpha2-lower", "main", false),
+        )
+        val sessions = listOf(
+            SessionSummary("zeta", "/projects/zeta", "Zeta", "waiting", 500),
+            SessionSummary("workspace-zeta", "/workspace/zeta", "Workspace zeta", "working", 400),
+            SessionSummary("alpha-10", "/projects/alpha10", "Alpha ten", "idle", 100),
+            SessionSummary("workspace-alpha", "/workspace/alpha", "Workspace alpha", "idle", 50),
+            SessionSummary("alpha-2", "/projects/Alpha2", "Alpha two", "idle", 25),
+            SessionSummary("alpha-2-lower", "/projects/alpha2-lower", "Alpha two lower", "idle", 20),
+        )
+        fun labels(source: List<SessionSummary>) = repositorySessionGroups(
+            filterSessions(
+                source,
+                SessionSearchFilters(),
+                emptySet(),
+                emptySet(),
+                emptyList(),
+                repositories,
+                "/projects",
+            ),
+            repositories,
+            "/projects",
+        ).map { it.repository.label }
+        val expected = listOf(
+            "Repository: Alpha2",
+            "Repository: alpha2",
+            "Repository: alpha10",
+            "Repository: zeta",
+            "Workspace: /workspace/alpha",
+            "Workspace: /workspace/zeta",
+        )
+        assertEquals(expected, labels(sessions))
+        assertEquals(
+            expected,
+            labels(sessions.map {
+                if (it.id == "alpha-2") it.copy(status = "working", lastActivity = 900)
+                else it.copy(status = "idle")
+            }),
+        )
+    }
+
+    @Test
+    fun sessionCardsHideIdentityOnlyInsideTheirMatchingEnabledGroup() {
+        val repositories = listOf(RepositoryInfo("palomar", "palomar", "palomar", "main", false))
+        val repositorySession = SessionSummary("repo", "/projects/palomar/src", "Repository", "working", 200)
+        val workspaceSession = SessionSummary("workspace", "/workspace/other", "Workspace", "idle", 100)
+
+        assertNull(
+            sessionCardRepositoryLabel(
+                repositorySession,
+                repositories,
+                "/projects",
+                SessionCardRenderContext(true, "/projects/palomar"),
+            ),
+        )
+        assertNull(
+            sessionCardRepositoryLabel(
+                workspaceSession,
+                repositories,
+                "/projects",
+                SessionCardRenderContext(true, "/workspace/other"),
+            ),
+        )
+        assertEquals(
+            "Repository: palomar",
+            sessionCardRepositoryLabel(
+                repositorySession,
+                repositories,
+                "/projects",
+                SessionCardRenderContext(true, "/projects/other"),
+            ),
+        )
+        assertEquals(
+            "Repository: palomar",
+            sessionCardRepositoryLabel(
+                repositorySession,
+                repositories,
+                "/projects",
+                SessionCardRenderContext(false, "/projects/palomar"),
+            ),
+        )
+        assertEquals(
+            "Workspace: /workspace/other",
+            sessionCardRepositoryLabel(
+                workspaceSession,
+                repositories,
+                "/projects",
+                SessionCardRenderContext(),
+            ),
+        )
+        val filtered = filterSessions(
+            listOf(repositorySession),
+            SessionSearchFilters(query = "Repository"),
+            setOf(repositorySession.id),
+            emptySet(),
+            emptyList(),
+            repositories,
+            "/projects",
+        ).single()
+        assertEquals(
+            "Repository: palomar",
+            sessionCardRepositoryLabel(
+                filtered.session,
+                repositories,
+                "/projects",
+                SessionCardRenderContext(),
+            ),
+        )
+    }
+
+    @Test
+    fun liveStatusChangesEnterAndLeaveAndroidFilters() {
+        val session = SessionSummary("one", "/repo", "Live", "working", 100)
+        val filters = SessionSearchFilters(status = SessionSearchStatus.Waiting)
+        assertTrue(filterSessions(listOf(session), filters, emptySet(), emptySet(), emptyList(), emptyList(), "").isEmpty())
+        val waiting = session.copy(status = "waiting", attention = true)
+        assertEquals(
+            listOf("one"),
+            filterSessions(listOf(waiting), filters, emptySet(), emptySet(), emptyList(), emptyList(), "")
+                .map { it.session.id },
+        )
+    }
+
+    @Test
+    fun completedFilterIncludesCanonicalIdleSummaries() {
+        val completed = SessionSummary("done", "/repo", "Done", "idle", 100)
+        assertEquals(
+            listOf("done"),
+            filterSessions(
+                listOf(completed),
+                SessionSearchFilters(status = SessionSearchStatus.Completed),
+                emptySet(),
+                emptySet(),
+                emptyList(),
+                emptyList(),
+                "",
+            ).map { it.session.id },
+        )
+    }
+
+    @Test
+    fun clientOnlyOrganizationFiltersDoNotChangeTranscriptRequest() {
+        val base = SessionSearchFilters(query = "Socket", repository = "/repo")
+        assertEquals(
+            sessionSearchRequestKey(base),
+            sessionSearchRequestKey(base.copy(pinnedOnly = true, hiddenOnly = true)),
+        )
+        assertFalse(
+            sessionSearchRequestKey(base) ==
+                sessionSearchRequestKey(base.copy(status = SessionSearchStatus.Active)),
+        )
+        assertFalse(
+            sessionSearchRequestKey(base) ==
+                sessionSearchRequestKey(base.copy(scope = SessionDiscoveryScope.Archived)),
+        )
+        assertFalse(
+            sessionSearchRequestKey(base) ==
+                sessionSearchRequestKey(base.copy(provider = PROVIDER_CODEX)),
+        )
+    }
+}
+
+private fun contrastRatio(foreground: Color, background: Color): Double {
+    val lighter = maxOf(relativeLuminance(foreground), relativeLuminance(background))
+    val darker = minOf(relativeLuminance(foreground), relativeLuminance(background))
+    return (lighter + 0.05) / (darker + 0.05)
+}
+
+private fun relativeLuminance(color: Color): Double {
+    fun linear(value: Float): Double =
+        if (value <= 0.04045f) value / 12.92 else ((value + 0.055) / 1.055).pow(2.4)
+    return 0.2126 * linear(color.red) + 0.7152 * linear(color.green) + 0.0722 * linear(color.blue)
+}

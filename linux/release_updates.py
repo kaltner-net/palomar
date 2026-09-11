@@ -1,4 +1,4 @@
-"""Bounded, cached discovery of official Foreman GitHub releases."""
+"""Bounded, cached discovery of official Palomar GitHub releases."""
 
 from __future__ import annotations
 
@@ -16,9 +16,9 @@ from typing import Any, Callable, Mapping
 
 
 GITHUB_API_HOST = "api.github.com"
-GITHUB_RELEASES_PATH = "/repos/mkaltner/foreman/releases?per_page=20"
+GITHUB_RELEASES_PATH = "/repos/kaltner-net/palomar/releases?per_page=20"
 GITHUB_RELEASES_ENDPOINT = f"https://{GITHUB_API_HOST}{GITHUB_RELEASES_PATH}"
-GITHUB_RELEASE_URL_PREFIX = "https://github.com/mkaltner/foreman/releases/tag/"
+GITHUB_RELEASE_URL_PREFIX = "https://github.com/kaltner-net/palomar/releases/tag/"
 MAX_RELEASES = 20
 MAX_RESPONSE_BYTES = 512 * 1024
 MAX_ASSETS_PER_RELEASE = 50
@@ -31,8 +31,8 @@ MANUAL_REFRESH_SECONDS = 30
 MAX_RATE_LIMIT_DELAY_SECONDS = 24 * 60 * 60
 CACHE_SCHEMA = 1
 COMPONENT_ASSET = {
-    "server": "foreman-linux-v{version}.tar.gz",
-    "android": "foreman-v{version}.apk",
+    "server": "palomar-linux-v{version}.tar.gz",
+    "android": "palomar-v{version}.apk",
 }
 
 _SEMVER = re.compile(
@@ -223,9 +223,9 @@ def parse_release_response(body: bytes) -> dict[str, dict[str, Any]]:
             artifact = pattern.format(version=release["version"])
             complete = (
                 release["assets"].get(artifact) == 1
-                and release["assets"].get("SHA256SUMS") == 1
-                and release["assets"].get("SHA256SUMS.sig") == 1
-                and release["assets"].get("foreman-release-cert.pem") == 1
+                and release["assets"].get("palomar-SHA256SUMS") == 1
+                and release["assets"].get("palomar-SHA256SUMS.sig") == 1
+                and release["assets"].get("palomar-release-cert.pem") == 1
             )
             if newest is None:
                 newest = _release_projection(release, complete)
@@ -241,7 +241,7 @@ def parse_release_response(body: bytes) -> dict[str, dict[str, Any]]:
 def _default_fetch(etag: str | None) -> HttpResult:
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "Foreman-release-discovery",
+        "User-Agent": "Palomar-release-discovery",
         "X-GitHub-Api-Version": "2022-11-28",
     }
     if etag:

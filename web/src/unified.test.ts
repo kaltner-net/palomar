@@ -3,7 +3,7 @@ import type { ApprovalRequest, InputRequest, ServiceStatus, SessionSummary } fro
 import { aggregateHostSnapshots, liveBackgroundHostIds, projectHostSnapshot, sessionIdentityKey } from "./unified";
 
 const status: ServiceStatus = {
-  foremanVersion: "0.1.0",
+  palomarVersion: "0.1.0",
   connected: true,
   uptimeSeconds: 10,
   codex: { connected: true, mode: "shared", runtimeStatus: "ready", version: "1.2.3" },

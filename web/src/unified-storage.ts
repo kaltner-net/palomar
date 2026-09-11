@@ -1,6 +1,6 @@
 import type { HostOverviewSnapshot } from "./unified";
 
-const KEY = "foreman.unified-overview.v1";
+const KEY = "palomar.unified-overview.v1";
 
 export function loadHostSnapshots(storage: Storage = localStorage): Map<string, HostOverviewSnapshot> {
   try {

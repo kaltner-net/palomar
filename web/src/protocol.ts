@@ -204,8 +204,8 @@ export interface SessionSearchResult {
 
 export interface ServiceStatus {
   receivedAt?: number;
-  foremanVersion: string;
-  foremanReleaseBuild?: boolean;
+  palomarVersion: string;
+  palomarReleaseBuild?: boolean;
   releaseUpdates?: ReleaseUpdateSnapshot;
   serverUpdateOperation?: ServerUpdateOperation | null;
   connected: boolean;
@@ -222,7 +222,7 @@ export interface ServiceStatus {
     attachedAt?: string | null;
     loadedThreadCount?: number;
     subscribedThreadCount?: number;
-    ownedByForeman?: boolean;
+    ownedByPalomar?: boolean;
     appServerPid?: number | null;
     socketPath?: string | null;
   };
@@ -255,7 +255,7 @@ export interface ServerUpdateOperation {
   completedAt?: string;
   resultCode?: string;
   message?: string;
-  recoveryCommand?: "foreman update --recover";
+  recoveryCommand?: "palomar update --recover";
 }
 
 export interface ServerUpdateBlocker {
@@ -269,12 +269,12 @@ export interface ServerUpdateCheck {
   source: string;
   sourceUrl: string;
   updateAvailable: boolean;
-  target: ForemanRelease | null;
+  target: PalomarRelease | null;
   blockers: ServerUpdateBlocker[];
   operation: ServerUpdateOperation | null;
 }
 
-export interface ForemanRelease {
+export interface PalomarRelease {
   version: string;
   tag: string;
   title: string;
@@ -284,8 +284,8 @@ export interface ForemanRelease {
 }
 
 export interface ComponentReleaseUpdates {
-  supportedRelease: ForemanRelease | null;
-  newestRelease: ForemanRelease | null;
+  supportedRelease: PalomarRelease | null;
+  newestRelease: PalomarRelease | null;
 }
 
 export interface ReleaseUpdateSnapshot {
@@ -490,13 +490,13 @@ export function providerSessionKey(
   return `${provider.length}:${provider}${sessionId}`;
 }
 
-export class ForemanError extends Error {
+export class PalomarError extends Error {
   constructor(
     message: string,
     public readonly code = "requestFailed",
   ) {
     super(message);
-    this.name = "ForemanError";
+    this.name = "PalomarError";
   }
 }
 

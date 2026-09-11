@@ -1,6 +1,6 @@
 # Claude Code Linux adapter
 
-Foreman uses the official TypeScript Claude Agent SDK through one optional,
+Palomar uses the official TypeScript Claude Agent SDK through one optional,
 long-lived Node companion process. The production pin is
 `@anthropic-ai/claude-agent-sdk` `0.3.220`; the verified native Linux Claude Code
 version and the SDK-declared runtime version are both `2.1.220`. No terminal,
@@ -9,23 +9,23 @@ PTY, transcript parser, Remote Control endpoint, or process scraper is used.
 The production adapter supports installation/status detection, official session
 discovery and history, start, exact-ID resume, partial assistant text, bounded tool activity,
 permission callbacks and denials, model selection, the SDK permission modes, and
-`Query.interrupt()` for an active Foreman-owned query. Supported SDK modes are
+`Query.interrupt()` for an active Palomar-owned query. Supported SDK modes are
 `default`, `dontAsk`, `acceptEdits`, `plan`, `auto`, and
 `bypassPermissions`. `default` may pause for a callback; `dontAsk` denies an
 action that is not already allowed; `bypassPermissions` is high risk and is
 enabled only when explicitly selected. Modes are passed through without
-upgrades or Foreman-specific semantics.
+upgrades or Palomar-specific semantics.
 
-Claude owns transcripts and session persistence. Foreman stores only
+Claude owns transcripts and session persistence. Palomar stores only
 `{sessionId, cwd}` in `claude-code-sessions.json`. A new adapter process can
 resume the same session ID in its original directory. Sessions started or
-resumed through Foreman are `managed`; discovered CLI sessions are `resumable`
-until Foreman starts a new query for their exact ID. Recency is never projected
+resumed through Palomar are `managed`; discovered CLI sessions are `resumable`
+until Palomar starts a new query for their exact ID. Recency is never projected
 as live work. Pending approvals exist only in bridge memory and are denied and
 cleared on completion, interruption, crash, or shutdown.
 
 The production bridge uses bounded JSON messages over stdio with request IDs.
-It runs once per Foreman service, restarts with bounded backoff, never replays a
+It runs once per Palomar service, restarts with bounded backoff, never replays a
 query after failure, and shuts down its active SDK queries before exit. Safe
 events include assistant deltas/completion, tool start/bounded result status,
 permission request/denial, and query start/completion/failure/interruption. Raw
@@ -34,40 +34,40 @@ complete Bash output are not projected or persisted. Official history access is
 normalized only when a client opens one session; list discovery never fetches
 every transcript.
 
-During a Foreman-managed query, the bridge requests the Agent SDK's stable
+During a Palomar-managed query, the bridge requests the Agent SDK's stable
 context-usage breakdown and projects only total active-context tokens and the
 model window. It also defensively calls the SDK method explicitly named
 `usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET` to obtain every
 claude.ai utilization window returned by the SDK, including its 5-hour, 7-day,
 provider-defined, and per-model windows when present. Those account limits are
 labeled experimental and bounded to percentages, safe labels, durations, and
-reset timestamps. The last observed snapshot is kept in Foreman's private state
+reset timestamps. The last observed snapshot is kept in Palomar's private state
 so it survives restart. They remain unavailable
 until a managed query yields a snapshot. API-key and third-party-provider
 sessions may never expose plan limits. Compact-boundary history/events are projected without
 their summary text, allowing the UI to show count, trigger, before/after tokens,
 and duration when supplied.
 
-Claude can be the only provider on a Linux Foreman host or can run alongside
+Claude can be the only provider on a Linux Palomar host or can run alongside
 Codex. It requires an authenticated native `claude` executable, Node.js 20 or
-newer, and the pinned SDK dependency. Tagged Foreman Linux archives contain the
+newer, and the pinned SDK dependency. Tagged Palomar Linux archives contain the
 production dependency and notices. From a source checkout, the installer runs
 `npm ci --omit=dev --ignore-scripts` against the exact lockfile inside its
 disposable staging payload when the dependency is absent; this may require
 package-registry access. It never installs or authenticates the Claude CLI. A
 missing or failed Claude runtime aborts activation when Claude is the only
 provider, while a usable Codex provider may continue without Claude. Local
-status is available with `foreman claude-status`.
+status is available with `palomar claude-status`.
 
 The authenticated protocol-v1 provider catalog reports availability, CLI/SDK
 versions, capabilities, and explicit limitations. Web and Android sessions use
 the compound `hostId + provider + sessionId` identity for routes, selection,
 drafts, subscriptions, notifications, and local organization. Both clients can
 list/read/start/resume/delete sessions, stream text and safe
-Read/Bash/edit/search/other tool cards, interrupt a still-active Foreman-owned
+Read/Bash/edit/search/other tool cards, interrupt a still-active Palomar-owned
 query, and choose `sonnet`, `haiku`, or one exact SDK permission mode. Deletion
 uses the official SDK, validates the exact workspace, requires explicit
-confirmation, and is unavailable while a Foreman-owned query is active. Claude
+confirmation, and is unavailable while a Palomar-owned query is active. Claude
 Code has no SDK archive/unarchive operation, so clients do not show a fake
 Claude archive action. Pin and Hide remain client-local organization controls
 and use the full host/provider/session identity for Claude just as they do for
@@ -76,9 +76,9 @@ enumeration.
 
 The user-visible states are `working`, `completed`, `failed`, `interrupted`, and
 `resumable`; unavailable adapter entries use `unavailable`. `managed` means
-Foreman owns or has resumed the current query. An externally created session is
+Palomar owns or has resumed the current query. An externally created session is
 `external` and `resumable` until a user explicitly resumes it. Recency is
-never evidence of live work, so Foreman does not emit `external-active` without
+never evidence of live work, so Palomar does not emit `external-active` without
 official proof. Interrupt and other live controls are rejected for external or
 terminal sessions. An interrupted session keeps its exact ID and remains
 resumable.
@@ -102,7 +102,7 @@ python3 scripts/claude_web_proof.py --acknowledge-live-costs
 ```
 
 The first command validates the production adapter boundary. The second starts
-an ephemeral authenticated Foreman WebSocket service and validates provider
+an ephemeral authenticated Palomar WebSocket service and validates provider
 catalog, host pairing, list/read/start/resume, streaming, safe Read/Bash cards,
 interrupt, Sonnet/Haiku, `dontAsk`, and external-session limitations through the
 same transport used by the web client. Both commands create disposable Git
@@ -114,9 +114,9 @@ streaming, safe Read and Bash visibility, `dontAsk` denial with filesystem
 non-creation, interrupt, restart/resume, and discovery/resume of a CLI-created
 session. `sonnet` resolved to `claude-sonnet-5`; `haiku` resolved to
 `claude-haiku-4-5-20251001`. The authoritative
-limitation is unchanged: Foreman cannot subscribe to an already-running external
+limitation is unchanged: Palomar cannot subscribe to an already-running external
 Claude CLI process, stream it, answer its approval, interrupt it, or attach to
 Claude Remote Control. It can only discover the saved session and later resume
-it under a new Foreman-managed query.
+it under a new Palomar-managed query.
 
 Decision: `CLAUDE_ADAPTER_FEASIBLE_WITH_LIMITATIONS`

@@ -1,0 +1,89 @@
+package net.kaltner.palomar
+
+import java.io.File
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class AboutInformationTest {
+    @Test
+    fun clientVersionIsDerivedFromSharedReleaseProperties() {
+        val releaseFile =
+            generateSequence(File(requireNotNull(System.getProperty("user.dir")))) { it.parentFile }
+                .map { File(it, "palomar-release.properties") }
+                .first { it.isFile }
+        val releaseVersion =
+            releaseFile.readLines().first { it.startsWith("palomarVersion=") }.substringAfter('=')
+        val releaseBuild =
+            releaseFile.readLines().first { it.startsWith("releaseBuild=") }.substringAfter('=').toBooleanStrict()
+
+        assertEquals(releaseVersion, BuildConfig.VERSION_NAME)
+        assertEquals(releaseBuild, BuildConfig.PALOMAR_RELEASE_BUILD)
+        assertTrue(BuildConfig.PALOMAR_BUILD_COMMIT.isNotBlank())
+    }
+
+    @Test
+    fun disconnectedAboutStillContainsAndroidClientBuild() {
+        val information = aboutVersionInformation(null, false, "1.2.3", "abc123def456", false)
+
+        assertEquals("Unavailable while disconnected", information.server)
+        assertEquals("1.2.3 (development build) · abc123def456", information.client)
+    }
+
+    @Test
+    fun disconnectedAboutLabelsRetainedServerVersionAsLastConnected() {
+        val information = aboutVersionInformation("1.0.1", false, "1.0.2", "unknown", false)
+
+        assertEquals("1.0.1 (last connected)", information.server)
+        assertEquals("1.0.2 (development build)", information.client)
+    }
+
+    @Test
+    fun differingServerAndClientVersionsStayDistinct() {
+        val information = aboutVersionInformation("0.9.0", true, "1.0.2", "unknown", false)
+
+        assertEquals("0.9.0", information.server)
+        assertEquals("1.0.2 (development build)", information.client)
+        assertFalse(information.server == information.client)
+    }
+
+    @Test
+    fun officialReleaseBuildDoesNotUseDevelopmentLabel() {
+        assertEquals("1.0.2 · abc123def456", clientBuildDescription("1.0.2", "abc123def456", true))
+    }
+
+    @Test
+    fun aboutLinksUsePublicHttpsTargets() {
+        assertEquals(
+            listOf(
+                "GitHub repository" to "https://github.com/kaltner-net/palomar",
+                "Current releases" to "https://github.com/kaltner-net/palomar/releases",
+                "License" to "https://github.com/kaltner-net/palomar/blob/main/LICENSE",
+                "Third-party notices" to "https://github.com/kaltner-net/palomar/blob/main/THIRD_PARTY_NOTICES.md",
+            ),
+            palomarAboutLinks,
+        )
+        assertTrue(palomarAboutLinks.all { (_, url) -> url.startsWith("https://") })
+        assertEquals("https://kaltner.net", KALTNER_WEBSITE_URL)
+    }
+
+    @Test
+    fun productAndNotificationMarksUsePurposeBuiltCanonicalVariants() {
+        val project =
+            generateSequence(File(requireNotNull(System.getProperty("user.dir")))) { it.parentFile }
+                .first { File(it, "app/src/main/AndroidManifest.xml").isFile }
+        val manifest = File(project, "app/src/main/AndroidManifest.xml").readText()
+        val notification = File(project, "app/src/main/res/drawable/ic_notification.xml").readText()
+
+        val adaptive = File(project, "app/src/main/res/mipmap-anydpi-v33/ic_launcher.xml").readText()
+        val fullColor = File(project, "app/src/main/res/drawable/palomar_mark.xml").readText()
+
+        assertTrue(manifest.contains("@mipmap/ic_launcher"))
+        assertTrue(manifest.contains("@mipmap/ic_launcher_round"))
+        assertTrue(adaptive.contains("@drawable/palomar_launcher_monochrome"))
+        assertTrue(fullColor.contains("#FF7CE7E0"))
+        assertTrue(notification.contains("M3,15C3,8.37"))
+        assertFalse(notification.contains("M5,3h14.5"))
+    }
+}
