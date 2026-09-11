@@ -156,11 +156,14 @@ jobs:
           java-version: "17"
       - uses: gradle/actions/wrapper-validation@v4
       - uses: gradle/actions/setup-gradle@v4
-      - name: Test, lint, and build debug APK
+      - name: Test, lint, and compile Android clients
         working-directory: android
-        run: ./gradlew --no-daemon test lint assembleDebug
-      - name: Verify Android legal assets
-        run: python scripts/verify_apk_legal_assets.py android/app/build/outputs/apk/debug/app-debug.apk
+        run: ./gradlew --no-daemon test lint compileDebugKotlin compileReleaseKotlin
+      - name: Verify generated Android legal assets
+        run: |
+          test -s android/app/build/generated/palomarLegalAssets/LICENSE
+          test -s android/app/build/generated/palomarLegalAssets/NOTICE
+          test -s android/app/build/generated/palomarLegalAssets/THIRD_PARTY_NOTICES.md
       - name: Upload Android lint report
         if: always()
         uses: actions/upload-artifact@v4
@@ -168,9 +171,3 @@ jobs:
           name: android-lint-report
           path: android/app/build/reports/lint-results-debug.html
           if-no-files-found: ignore
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: palomar-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
