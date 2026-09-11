@@ -1,10 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
-  <title id="title">Palomar</title>
-  <desc id="desc">An abstract observatory dome above a connected control path.</desc>
-  <path fill="#171527" d="M14 2h36c6.63 0 12 5.37 12 12v36c0 6.63-5.37 12-12 12H14C7.37 62 2 56.63 2 50V14C2 7.37 7.37 2 14 2Z"/>
-  <path fill="none" stroke="#D7CCFF" stroke-linecap="round" stroke-width="6" d="M13 37c0-13.25 8.5-23 19-23s19 9.75 19 23M9 45h46"/>
-  <path fill="none" stroke="#7CE7E0" stroke-linecap="round" stroke-linejoin="round" stroke-width="5" d="m18 45 14-14 14 14"/>
-  <circle cx="18" cy="45" r="3.5" fill="#7CE7E0"/>
-  <circle cx="32" cy="31" r="3.5" fill="#7CE7E0"/>
-  <circle cx="46" cy="45" r="3.5" fill="#7CE7E0"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" >
+
+  <path d="M 9.080,36.550 C 9.080,23.892 19.342,13.630 32.000,13.630 C 44.658,13.630 54.920,23.892 54.920,36.550" fill="none" stroke="#CFC1FD" stroke-width="5.32"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 32.000,27.700 L 17.850,40.370" fill="none" stroke="#62F9F8" stroke-width="2.43"
+        stroke-linecap="round"/>
+  <path d="M 32.000,27.700 L 46.150,40.370" fill="none" stroke="#62F9F8" stroke-width="2.43"
+        stroke-linecap="round"/>
+  <path d="M 27.4300,27.7000 C 27.4300,25.1761 29.4761,23.1300 32.0000,23.1300 C 34.5239,23.1300 36.5700,25.1761 36.5700,27.7000 C 36.5700,30.2239 34.5239,32.2700 32.0000,32.2700 C 29.4761,32.2700 27.4300,30.2239 27.4300,27.7000 Z" fill="#CFC1FD"/>
+  <path d="M 13.8800,40.3700 C 13.8800,38.1774 15.6574,36.4000 17.8500,36.4000 C 20.0426,36.4000 21.8200,38.1774 21.8200,40.3700 C 21.8200,42.5626 20.0426,44.3400 17.8500,44.3400 C 15.6574,44.3400 13.8800,42.5626 13.8800,40.3700 Z" fill="#62F9F8"/>
+  <path d="M 42.1800,40.3700 C 42.1800,38.1774 43.9574,36.4000 46.1500,36.4000 C 48.3426,36.4000 50.1200,38.1774 50.1200,40.3700 C 50.1200,42.5626 48.3426,44.3400 46.1500,44.3400 C 43.9574,44.3400 42.1800,42.5626 42.1800,40.3700 Z" fill="#62F9F8"/>
+
 </svg>

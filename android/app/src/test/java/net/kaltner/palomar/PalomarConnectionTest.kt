@@ -1028,6 +1028,7 @@ class PalomarConnectionTest {
         )
         assertEquals(ThemeId.Palomar, parseThemeId(null))
         assertEquals(ThemeId.Palomar, parseThemeId("unsupported"))
+        assertEquals(ThemeId.Palomar, parseThemeId("foreman"))
 
         assertEquals(
             ThemeId.entries.size,
@@ -1046,6 +1047,12 @@ class PalomarConnectionTest {
                 assertEquals(palette.mutedText, scheme.onSurfaceVariant)
                 assertTrue(contrastRatio(palette.text, palette.background) >= 7.0)
                 assertTrue(contrastRatio(palette.onAccent, palette.accent) >= 4.5)
+                if (themeId == ThemeId.Palomar) {
+                    assertTrue(contrastRatio(palette.link, palette.background) >= 4.5)
+                    assertTrue(contrastRatio(palette.selectionText, palette.selection) >= 4.5)
+                    assertTrue(contrastRatio(palette.disabledText, palette.disabledSurface) >= 3.0)
+                    assertFalse(palette.usageFill == palette.contextFill)
+                }
                 with(palette.semantic) {
                     listOf(
                         success to successContainer,
@@ -1087,6 +1094,16 @@ class PalomarConnectionTest {
             assertEquals(themed.size, themed.map { it.working }.distinct().size)
             assertEquals(themed.size, themed.map { it.success }.distinct().size)
         }
+        with(palomarThemeVariant(ThemeId.Palomar, darkTheme = false)) {
+            assertEquals(Color(0xFFF7F5FC), background)
+            assertEquals(Color(0xFF171527), text)
+            assertEquals(Color(0xFF006E73), contextFill)
+        }
+        with(palomarThemeVariant(ThemeId.Palomar, darkTheme = true)) {
+            assertEquals(Color(0xFF171527), background)
+            assertEquals(Color(0xFFCFC1FD), accent)
+            assertEquals(Color(0xFF62F9F8), contextFill)
+        }
     }
 
     @Test
@@ -1105,6 +1122,7 @@ class PalomarConnectionTest {
         }
         assertEquals(ThemeId.Palomar, migratedThemeId(null, null, null))
         assertEquals(ThemeId.Palomar, migratedThemeId(2, "not-a-theme", "Teal"))
+        assertEquals(ThemeId.Palomar, migratedThemeId(2, "foreman", "Red"))
         assertEquals(ThemeId.Grove, migratedThemeId(2, "grove", "Red"))
     }
     @Test

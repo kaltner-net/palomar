@@ -28,19 +28,30 @@ describe("curated Palomar themes", () => {
     ]);
   });
 
-  it("uses the canonical SVG mark for web identity, PWA metadata, and browser chrome", () => {
+  it("uses the production asset family for web identity, metadata, and browser chrome", () => {
     const webLogo = readFileSync(join(process.cwd(), "public/palomar-mark.svg"), "utf8");
-    const repositoryLogo = readFileSync(join(process.cwd(), "../docs/assets/palomar-mark.svg"), "utf8");
+    const repositoryLogo = readFileSync(join(process.cwd(), "../docs/brand/palomar-mark.svg"), "utf8");
+    const favicon = readFileSync(join(process.cwd(), "public/palomar-mark-16px.svg"), "utf8");
+    const appIcon = readFileSync(join(process.cwd(), "public/palomar-app-icon.svg"), "utf8");
+    const socialPreview = readFileSync(join(process.cwd(), "public/palomar-social-preview.png"));
     const html = readFileSync(join(process.cwd(), "index.html"), "utf8");
     const manifest = JSON.parse(readFileSync(join(process.cwd(), "public/manifest.webmanifest"), "utf8"));
     expect(webLogo).toBe(repositoryLogo);
-    expect(webLogo).toContain("An abstract observatory dome above a connected control path");
-    expect(html).toContain('<link rel="icon" type="image/svg+xml" href="/palomar-mark.svg" />');
+    expect(favicon).toBe(readFileSync(join(process.cwd(), "../docs/brand/palomar-mark-16px.svg"), "utf8"));
+    expect(appIcon).toBe(readFileSync(join(process.cwd(), "../docs/brand/palomar-app-icon.svg"), "utf8"));
+    expect(socialPreview).toEqual(readFileSync(join(process.cwd(), "../docs/brand/palomar-social-preview.png")));
+    expect(webLogo).toContain("#CFC1FD");
+    expect(webLogo).toContain("#62F9F8");
+    expect(favicon).toContain('viewBox="0 0 16 16"');
+    expect(html).toContain('sizes="16x16" href="/palomar-mark-16px.svg"');
+    expect(html).toContain('sizes="any" href="/palomar-mark.svg"');
+    expect(html).toContain('property="og:image"');
+    expect(html).toContain("docs/brand/palomar-social-preview.png");
     expect(html).toContain('<link rel="manifest" href="/manifest.webmanifest" />');
     expect(manifest.name).toBe("Palomar");
     expect(manifest.icons.map(({ src }: { src: string }) => src)).toEqual([
-      "/palomar-mark.svg",
-      "/palomar-maskable.svg",
+      "/palomar-app-icon.svg",
+      "/palomar-app-icon.svg",
     ]);
   });
 
@@ -104,6 +115,12 @@ describe("curated Palomar themes", () => {
         const palette = { ...baseLight, ...(dark ? baseDark : {}), ...override };
         expect(contrast(palette["--text-primary"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} text`).toBeGreaterThanOrEqual(7);
         expect(contrast(palette["--on-accent"], palette["--accent-primary"]), `${id} ${dark ? "dark" : "light"} accent`).toBeGreaterThanOrEqual(4.5);
+        if (id === "palomar") {
+          expect(contrast(palette["--link"], palette["--app-background"]), `${id} ${dark ? "dark" : "light"} link`).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(palette["--on-accent-container"], palette["--accent-container"]), `${id} ${dark ? "dark" : "light"} selection`).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(palette["--disabled-text"], palette["--disabled-surface"]), `${id} ${dark ? "dark" : "light"} disabled`).toBeGreaterThanOrEqual(3);
+          expect(palette["--accent-primary"]).not.toBe(palette["--context-fill"]);
+        }
         for (const role of ["success", "working", "attention", "warning", "failure", "full-access"]) {
           expect(
             contrast(palette[`--${role}`], palette[`--${role}-container`]),
@@ -119,6 +136,16 @@ describe("curated Palomar themes", () => {
         }
       }
     }
+    expect(baseLight).toMatchObject({
+      "--app-background": "#f7f5fc",
+      "--text-primary": "#171527",
+      "--context-fill": "#006e73",
+    });
+    expect(baseDark).toMatchObject({
+      "--app-background": "#171527",
+      "--accent-primary": "#cfc1fd",
+      "--context-fill": "#62f9f8",
+    });
     for (const dark of [false, true]) {
       const palettes = CURATED_THEMES.filter(({ id }) => id !== "high-contrast").map(({ id }) => {
         const override = id === "palomar" ? {} : rule(

@@ -94,13 +94,13 @@ export const CURATED_THEMES: readonly CuratedTheme[] = [
   {
     id: "palomar",
     name: "Palomar",
-    description: "The signature violet Palomar palette.",
-    preview: ["#f5f3fa", "#ffffff", "#6b3fb5", "#d9c8f2"],
+    description: "Dark violet, lavender, and cyan production palette.",
+    preview: ["#171527", "#ffffff", "#CFC1FD", "#62F9F8"],
   },
   {
     id: "harbor",
     name: "Harbor",
-    description: "Calm ocean blue and teal surfaces.",
+    description: "Calm ocean blue and blue-green surfaces.",
     preview: ["#f1f7f8", "#ffffff", "#006b75", "#b8e4e8"],
   },
   {
@@ -325,7 +325,10 @@ export function withHostInSearch(search: string, hostId: string | null): string 
 export function loadAppearance(hostId?: string | null, storage: Storage = localStorage): Appearance {
   const currentKey = scopedKey(APPEARANCE_KEY, hostId);
   const current = parseAppearance(storage.getItem(currentKey));
-  if (current) return current;
+  if (current) {
+    if (current.migratedThemeId) saveAppearance(current.appearance, hostId, storage);
+    return current.appearance;
+  }
 
   const legacyKey = scopedKey(LEGACY_APPEARANCE_KEY, hostId);
   const migrated = migrateLegacyAppearance(storage.getItem(legacyKey));
@@ -336,12 +339,17 @@ export function loadAppearance(hostId?: string | null, storage: Storage = localS
   return migrated;
 }
 
-function parseAppearance(raw: string | null): Appearance | null {
+function parseAppearance(raw: string | null): { appearance: Appearance; migratedThemeId: boolean } | null {
   if (raw === null) return null;
   try {
-    const parsed = JSON.parse(raw) as (Partial<Appearance> & { version?: unknown }) | null;
+    const parsed = JSON.parse(raw) as (
+      Omit<Partial<Appearance>, "themeId"> & { themeId?: unknown; version?: unknown }
+    ) | null;
     if (!parsed || typeof parsed !== "object" || parsed.version !== 2) return null;
-    return normalizeAppearance(parsed);
+    return {
+      appearance: normalizeAppearance(parsed),
+      migratedThemeId: parsed.themeId === "foreman",
+    };
   } catch {
     return null;
   }
@@ -366,10 +374,14 @@ function migrateLegacyAppearance(raw: string | null): Appearance {
   }
 }
 
-function normalizeAppearance(parsed: Partial<Appearance>): Appearance {
+function normalizeAppearance(
+  parsed: Omit<Partial<Appearance>, "themeId"> & { themeId?: unknown },
+): Appearance {
   return {
     colorMode: isColorMode(parsed.colorMode) ? parsed.colorMode : DEFAULT_APPEARANCE.colorMode,
-    themeId: THEME_IDS.includes(parsed.themeId as ThemeId)
+    themeId: parsed.themeId === "foreman"
+      ? "palomar"
+      : THEME_IDS.includes(parsed.themeId as ThemeId)
       ? parsed.themeId as ThemeId
       : DEFAULT_APPEARANCE.themeId,
     activityDetail: parsed.activityDetail === "full" ? "full" : "focused",

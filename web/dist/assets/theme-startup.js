@@ -14,7 +14,9 @@
     const colorMode = current?.version === 2 && ["system", "light", "dark"].includes(current?.colorMode)
       ? current.colorMode
       : ["system", "light", "dark"].includes(legacy?.theme) ? legacy.theme : fallback.colorMode;
-    const themeId = current?.version === 2 && ["palomar", "harbor", "grove", "ember", "dune", "slate", "high-contrast"].includes(current?.themeId)
+    const themeId = current?.version === 2 && current?.themeId === "foreman"
+      ? "palomar"
+      : current?.version === 2 && ["palomar", "harbor", "grove", "ember", "dune", "slate", "high-contrast"].includes(current?.themeId)
       ? current.themeId
       : legacyThemes[legacy?.accent] || fallback.themeId;
     const resolved = colorMode === "system"
@@ -24,7 +26,7 @@
     root.dataset.palomarTheme = themeId;
     root.style.colorScheme = resolved;
     const chromeColors = {
-      palomar: { light: "#6b3fb5", dark: "#1d1926" },
+      palomar: { light: "#f7f5fc", dark: "#171527" },
       harbor: { light: "#006b75", dark: "#142226" },
       grove: { light: "#356a3f", dark: "#19231a" },
       ember: { light: "#8a3d61", dark: "#25191e" },
@@ -38,6 +40,6 @@
     root.dataset.colorMode = resolved;
     root.dataset.palomarTheme = fallback.themeId;
     root.style.colorScheme = resolved;
-    document.querySelector('meta[name="theme-color"]').content = resolved === "dark" ? "#1d1926" : "#6b3fb5";
+    document.querySelector('meta[name="theme-color"]').content = resolved === "dark" ? "#171527" : "#f7f5fc";
   }
 })();

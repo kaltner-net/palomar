@@ -2579,7 +2579,10 @@ class Palomar:
                 "sw.js",
                 "manifest.webmanifest",
                 "palomar-mark.svg",
-                "palomar-maskable.svg",
+                "palomar-mark-16px.svg",
+                "palomar-mark-monochrome-dark.svg",
+                "palomar-app-icon.svg",
+                "palomar-social-preview.png",
             )
             or relative.startswith("assets/")
         ):

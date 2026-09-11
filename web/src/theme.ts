@@ -1,7 +1,7 @@
 import type { Appearance } from "./storage";
 
 const THEME_CHROME_COLORS: Record<Appearance["themeId"], { light: string; dark: string }> = {
-  palomar: { light: "#6b3fb5", dark: "#1d1926" },
+  palomar: { light: "#f7f5fc", dark: "#171527" },
   harbor: { light: "#006b75", dark: "#142226" },
   grove: { light: "#356a3f", dark: "#19231a" },
   ember: { light: "#8a3d61", dark: "#25191e" },

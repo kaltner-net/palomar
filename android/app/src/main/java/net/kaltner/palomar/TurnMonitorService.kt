@@ -898,7 +898,7 @@ class TurnMonitorService : Service() {
         shouldAlert: Boolean,
     ): Notification =
         notificationBuilder(if (presentation.useAttentionChannel) RESULT_CHANNEL else MONITOR_CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.palomar_notification_mask)
             .setContentTitle(presentation.title)
             .setContentText(presentation.detail)
             .setContentIntent(contentIntent(presentation))
@@ -920,7 +920,7 @@ class TurnMonitorService : Service() {
         shouldAlert: Boolean,
     ): Notification =
         notificationBuilder(if (presentation.useAttentionChannel) RESULT_CHANNEL else MONITOR_CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.palomar_notification_mask)
             .setContentTitle(presentation.title)
             .setContentText(presentation.detail)
             .setContentIntent(contentIntent(presentation))
@@ -938,7 +938,7 @@ class TurnMonitorService : Service() {
             .applyAlertBehavior(shouldAlert, presentation.useAttentionChannel)
             .addAction(
                 Notification.Action.Builder(
-                    Icon.createWithResource(this, R.drawable.ic_notification),
+                    Icon.createWithResource(this, R.drawable.palomar_notification_mask),
                     "Stop",
                     stopIntent(),
                 ).build(),
@@ -993,7 +993,7 @@ class TurnMonitorService : Service() {
         val (provider, rawSessionId) =
             parseProviderSessionKey(sessionId) ?: (PROVIDER_CODEX to sessionId)
         return notificationBuilder(RESULT_CHANNEL)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.palomar_notification_mask)
             .setContentTitle(outcome.title)
             .setContentText(outcome.detail)
             .setContentIntent(openSessionIntent(hostId, provider, rawSessionId))

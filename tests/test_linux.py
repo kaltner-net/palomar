@@ -5056,9 +5056,16 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
         (self.web_root / "palomar-mark.svg").write_text(
             '<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8"
         )
-        (self.web_root / "palomar-maskable.svg").write_text(
+        (self.web_root / "palomar-mark-16px.svg").write_text(
             '<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8"
         )
+        (self.web_root / "palomar-mark-monochrome-dark.svg").write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8"
+        )
+        (self.web_root / "palomar-app-icon.svg").write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg"/>', encoding="utf-8"
+        )
+        (self.web_root / "palomar-social-preview.png").write_bytes(b"PNG")
         (self.web_root / "manifest.webmanifest").write_text(
             '{"name":"Palomar"}', encoding="utf-8"
         )
@@ -5210,11 +5217,17 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("image/svg+xml", headers["content-type"])
         self.assertIn(b"<svg", body)
 
-        status, headers, body = await self.http_get("/palomar-maskable.svg")
+        status, headers, body = await self.http_get("/palomar-mark-16px.svg")
         self.assertIn("200", status)
         self.assertEqual(headers["cache-control"], "no-store")
         self.assertIn("image/svg+xml", headers["content-type"])
         self.assertIn(b"<svg", body)
+
+        status, headers, body = await self.http_get("/palomar-social-preview.png")
+        self.assertIn("200", status)
+        self.assertEqual(headers["cache-control"], "no-store")
+        self.assertEqual(headers["content-type"], "image/png")
+        self.assertEqual(body, b"PNG")
 
         status, headers, body = await self.http_get("/manifest.webmanifest")
         self.assertIn("200", status)

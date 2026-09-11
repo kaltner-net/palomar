@@ -1,9 +1,9 @@
 # Palomar — self-hosted coding-agent control plane
 
 <p align="center">
-  <img src="docs/assets/palomar-wordmark.svg" alt="Palomar" width="360">
+  <img src="docs/brand/palomar-hero-wide.svg" alt="Palomar — Persistent coding agents. Under your control." width="800">
   <br>
-  <strong>Self-hosted control plane for Codex and Claude Code on persistent Linux hosts.</strong>
+  <strong>Monitor / Steer / Approve / Anywhere</strong>
 </p>
 
 Palomar is designed for persistent Linux coding hosts: an always-on VM, server,
@@ -11,6 +11,9 @@ homelab machine, or remote development box where Codex and Claude Code run. The
 host is the durable execution environment; native Android and responsive web
 clients are remote control surfaces for monitoring, steering, interrupting,
 approving, resuming, and organizing its sessions.
+
+**Persistent coding agents. Under your control.** Palomar is self-hosted,
+authenticated, persistent, and on your network.
 
 Pair either client with one or more hosts and connect directly over a trusted
 LAN or private overlay such as Tailscale or WireGuard. No Palomar-hosted

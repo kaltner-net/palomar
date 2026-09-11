@@ -5311,6 +5311,21 @@ internal fun restartBlocked(state: UiState): Boolean =
         state.inputs.any { it.status == "pending" || it.status == "submitting" }
 
 @Composable
+private fun PalomarProductMark(
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+) {
+    Image(
+        painter = painterResource(
+            if (LocalPalomarDarkTheme.current) R.drawable.palomar_mark
+            else R.drawable.palomar_mark_dark,
+        ),
+        contentDescription = contentDescription,
+        modifier = modifier,
+    )
+}
+
+@Composable
 private fun SetupScreen(
     state: UiState,
     viewModel: PalomarViewModel,
@@ -5344,8 +5359,7 @@ private fun SetupScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Image(
-                    painter = painterResource(R.drawable.palomar_mark),
+                PalomarProductMark(
                     contentDescription = "Palomar logo",
                     modifier = Modifier.size(84.dp).clip(RoundedCornerShape(20.dp)),
                 )
@@ -5356,7 +5370,7 @@ private fun SetupScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "MONITOR. ORCHESTRATE. COMMAND.",
+                        "Monitor / Steer / Approve / Anywhere",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
@@ -5364,7 +5378,7 @@ private fun SetupScreen(
                 }
             }
             Text(
-                "Connect to Codex on your Linux host.",
+                "Connect directly to Codex or Claude Code on your Linux host.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -5458,8 +5472,7 @@ private fun UnifiedOverviewScreen(
             TopAppBar(
                 title = { Text("Unified overview", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    Image(
-                        painter = painterResource(R.drawable.palomar_mark),
+                    PalomarProductMark(
                         contentDescription = null,
                         modifier = Modifier.padding(start = 12.dp).size(36.dp).clip(RoundedCornerShape(9.dp)),
                     )
@@ -5761,7 +5774,7 @@ private fun DashboardHealthCard(state: UiState) {
                 }
                 Text(
                     if (state.connected) "CONNECTED" else "DISCONNECTED",
-                    color = if (state.connected) LocalPalomarColors.current.success else MaterialTheme.colorScheme.error,
+                    color = if (state.connected) LocalPalomarThemeVariant.current.contextFill else MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                 )
@@ -5887,7 +5900,7 @@ private fun HostOverviewCard(
                     Text(host.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("${host.host}:${host.tcpPort}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text(snapshot?.connection ?: host.lastKnownStatus, color = if (live) LocalPalomarColors.current.success else LocalPalomarColors.current.warning, style = MaterialTheme.typography.labelMedium)
+                Text(snapshot?.connection ?: host.lastKnownStatus, color = if (live) LocalPalomarThemeVariant.current.contextFill else LocalPalomarColors.current.warning, style = MaterialTheme.typography.labelMedium)
             }
             if (!live) Text("STALE · Last connected ${overviewAge(host.lastConnectedAt)} · checked ${overviewAge(snapshot?.observedAt)}", color = LocalPalomarColors.current.warning, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
             Text("Palomar ${snapshot?.palomarVersion ?: "—"}", style = MaterialTheme.typography.bodySmall)
@@ -5949,8 +5962,7 @@ private fun SessionsScreen(
             TopAppBar(
                 title = { HostSelectorMenu(state, viewModel) },
                 navigationIcon = {
-                    Image(
-                        painter = painterResource(R.drawable.palomar_mark),
+                    PalomarProductMark(
                         contentDescription = null,
                         modifier =
                             Modifier.padding(start = 12.dp)
@@ -8105,8 +8117,8 @@ private fun UiSettingsMenu(
                                 Text(themeId.displayName)
                                 Text(
                                     when (themeId) {
-                                        ThemeId.Palomar -> "Signature violet Palomar palette"
-                                        ThemeId.Harbor -> "Calm ocean blue and teal surfaces"
+                                        ThemeId.Palomar -> "Dark violet, lavender, and cyan production palette"
+                                        ThemeId.Harbor -> "Calm ocean blue and blue-green surfaces"
                                         ThemeId.Grove -> "Natural green with warm neutrals"
                                         ThemeId.Ember -> "Warm plum and clay surfaces"
                                         ThemeId.Dune -> "Warm sand and amber with earthy neutrals"
@@ -8193,7 +8205,7 @@ private fun UiSettingsMenu(
                     Text(
                         it,
                         style = MaterialTheme.typography.bodySmall,
-                        color = LocalPalomarColors.current.success,
+                        color = LocalPalomarThemeVariant.current.contextFill,
                         modifier = Modifier.width(320.dp).padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
@@ -8224,7 +8236,7 @@ private fun UiSettingsMenu(
                         ) {
                             Text(
                                 if (pairedClient.connected) "●" else "○",
-                                color = if (pairedClient.connected) LocalPalomarColors.current.success else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (pairedClient.connected) LocalPalomarThemeVariant.current.contextFill else MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.labelSmall,
                             )
                             Column(Modifier.weight(1f)) {
@@ -8892,8 +8904,7 @@ private fun AboutDialog(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            Image(
-                                painter = painterResource(R.drawable.palomar_mark),
+                            PalomarProductMark(
                                 contentDescription = "Palomar logo",
                                 modifier = Modifier.size(88.dp).clip(RoundedCornerShape(20.dp)),
                             )

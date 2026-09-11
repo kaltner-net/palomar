@@ -12,8 +12,8 @@ static documentation site without creating a second source of truth.
 - [User guide](user-guide.md) — hosts, sessions, controls, notifications,
   organization, web, Android, updates, and current limitations.
 - [Themes](themes.md) — curated appearance settings and local persistence.
-- [Product marks](branding.md) — canonical logo, compact notification icon,
-  and presence-indicator rules.
+- [Production identity](branding.md) — Network Dome masters, platform masks,
+  approved palette and messaging, and asset-use rules.
 - [Compatibility policy](compatibility.md) — supported protocol, clients,
   upgrades, state, and versioning expectations.
 - [Development workflow](development.md) — web assets, Claude bridge checks,

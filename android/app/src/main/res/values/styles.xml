@@ -2,13 +2,13 @@
 <resources>
     <style name="Theme.Palomar" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#6C2BD9</item>
+        <item name="android:colorAccent">@color/palomar_platform_accent</item>
         <item name="android:windowBackground">@color/app_background</item>
     </style>
 
     <style name="Theme.Palomar.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/app_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/palomar_mark</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/palomar_mark_dark</item>
         <item name="postSplashScreenTheme">@style/Theme.Palomar</item>
         <item name="isLightTheme">true</item>
     </style>

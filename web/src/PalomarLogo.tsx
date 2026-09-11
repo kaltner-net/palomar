@@ -1,9 +1,13 @@
 export function PalomarLogo({ large = false, labelled = false }: { large?: boolean; labelled?: boolean }) {
   return (
-    <img
+    <span
       className={`brand-mark${large ? " large" : ""}`}
-      src="/palomar-mark.svg"
-      alt={labelled ? "Palomar logo" : ""}
-    />
+      role={labelled ? "img" : undefined}
+      aria-label={labelled ? "Palomar Network Dome logo" : undefined}
+      aria-hidden={labelled ? undefined : true}
+    >
+      <img className="brand-mark-color" src="/palomar-mark.svg" alt="" />
+      <img className="brand-mark-dark" src="/palomar-mark-monochrome-dark.svg" alt="" />
+    </span>
   );
 }

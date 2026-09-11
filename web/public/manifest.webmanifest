@@ -1,22 +1,22 @@
 {
   "name": "Palomar",
   "short_name": "Palomar",
-  "description": "Remote control for persistent Codex and Claude Code sessions on your Linux hosts.",
+  "description": "Persistent coding agents. Under your control.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#171527",
-  "theme_color": "#6b3fb5",
+  "theme_color": "#171527",
   "icons": [
     {
-      "src": "/palomar-mark.svg",
+      "src": "/palomar-app-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/palomar-maskable.svg",
+      "src": "/palomar-app-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "maskable"

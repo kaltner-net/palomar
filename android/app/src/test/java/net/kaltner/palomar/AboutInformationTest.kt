@@ -74,16 +74,29 @@ class AboutInformationTest {
             generateSequence(File(requireNotNull(System.getProperty("user.dir")))) { it.parentFile }
                 .first { File(it, "app/src/main/AndroidManifest.xml").isFile }
         val manifest = File(project, "app/src/main/AndroidManifest.xml").readText()
-        val notification = File(project, "app/src/main/res/drawable/ic_notification.xml").readText()
-
-        val adaptive = File(project, "app/src/main/res/mipmap-anydpi-v33/ic_launcher.xml").readText()
+        val notification = File(project, "app/src/main/res/drawable/palomar_notification_mask.xml").readText()
+        val api26 = File(project, "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml").readText()
+        val api33 = File(project, "app/src/main/res/mipmap-anydpi-v33/ic_launcher.xml").readText()
+        val foreground = File(project, "app/src/main/res/drawable/palomar_launcher_foreground.xml").readText()
+        val monochrome = File(project, "app/src/main/res/drawable/palomar_launcher_monochrome_mask.xml").readText()
         val fullColor = File(project, "app/src/main/res/drawable/palomar_mark.xml").readText()
+        val colors = File(project, "app/src/main/res/values/colors.xml").readText()
+        val nightColors = File(project, "app/src/main/res/values-night/colors.xml").readText()
 
         assertTrue(manifest.contains("@mipmap/ic_launcher"))
         assertTrue(manifest.contains("@mipmap/ic_launcher_round"))
-        assertTrue(adaptive.contains("@drawable/palomar_launcher_monochrome"))
-        assertTrue(fullColor.contains("#FF7CE7E0"))
-        assertTrue(notification.contains("M3,15C3,8.37"))
-        assertFalse(notification.contains("M5,3h14.5"))
+        assertFalse(api26.contains("<monochrome"))
+        assertTrue(api33.contains("@drawable/palomar_launcher_monochrome_mask"))
+        assertTrue(foreground.contains("android:translateX=\"22\""))
+        assertTrue(foreground.contains("android:translateY=\"22\""))
+        assertTrue(monochrome.contains("android:translateX=\"22\""))
+        assertTrue(fullColor.contains("@color/palomar_lavender"))
+        assertTrue(fullColor.contains("@color/palomar_cyan"))
+        assertTrue(notification.contains("M 9.080,36.550"))
+        assertTrue(colors.contains("<color name=\"app_background\">#F7F5FC</color>"))
+        assertTrue(colors.contains("<color name=\"palomar_dark\">#171527</color>"))
+        assertTrue(colors.contains("<color name=\"palomar_lavender\">#CFC1FD</color>"))
+        assertTrue(colors.contains("<color name=\"palomar_cyan\">#62F9F8</color>"))
+        assertTrue(nightColors.contains("<color name=\"app_background\">#171527</color>"))
     }
 }

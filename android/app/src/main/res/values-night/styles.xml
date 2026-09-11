@@ -2,7 +2,7 @@
 <resources>
     <style name="Theme.Palomar" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#CBB4FF</item>
+        <item name="android:colorAccent">@color/palomar_platform_accent</item>
         <item name="android:windowBackground">@color/app_background</item>
     </style>
 

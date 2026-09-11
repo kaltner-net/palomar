@@ -179,6 +179,26 @@ describe("storage, appearance, and interaction helpers", () => {
     expect(loadAppearance()).toEqual({ colorMode: "system", themeId: "palomar", activityDetail: "focused", groupSessionsByRepository: true });
   });
 
+  it("migrates the former persisted theme ID without losing appearance settings", () => {
+    localStorage.setItem("palomar.appearance.v2.host-a", JSON.stringify({
+      version: 2,
+      colorMode: "dark",
+      themeId: "foreman",
+      activityDetail: "full",
+      groupSessionsByRepository: false,
+    }));
+
+    expect(loadAppearance("host-a")).toEqual({
+      colorMode: "dark",
+      themeId: "palomar",
+      activityDetail: "full",
+      groupSessionsByRepository: false,
+    });
+    expect(localStorage.getItem("palomar.appearance.v2.host-a")).toBe(
+      '{"version":2,"colorMode":"dark","themeId":"palomar","activityDetail":"full","groupSessionsByRepository":false}',
+    );
+  });
+
   it("migrates every legacy accent deterministically without losing unrelated appearance settings", () => {
     const migrations = {
       purple: "palomar",

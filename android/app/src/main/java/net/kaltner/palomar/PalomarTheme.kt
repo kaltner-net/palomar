@@ -271,8 +271,24 @@ private fun darkVariant(
 internal fun palomarThemePalette(themeId: ThemeId): PalomarThemePalette =
     when (themeId) {
         ThemeId.Palomar -> PalomarThemePalette(
-            light = lightVariant(0xFFF5F3FA, 0xFFFFFFFF, 0xFFEEEBF4, 0xFFDDD7E7, 0xFF1C1A24, 0xFF6C6676, 0xFF6B3FB5, 0xFF4F298F, 0xFFE9DDF8, 0xFF281044, 0xFF523091, 0xFF7044BC),
-            dark = darkVariant(0xFF14111B, 0xFF1D1926, 0xFF292333, 0xFF443B50, 0xFFF4EFFA, 0xFFB0A6BC, 0xFFD0B7FA, 0xFF291443, 0xFFB58AE9, 0xFF4C2D72, 0xFFF3EAFF, 0xFFD6C2FF, 0xFFD0B7FA),
+            light = lightVariant(
+                0xFFF7F5FC, 0xFFFFFFFF, 0xFFEEEAF7, 0xFFD8D1E6,
+                0xFF171527, 0xFF625B77, 0xFF6542A6, 0xFF4D2D83,
+                0xFFEAE3FF, 0xFF2D1854, 0xFF006E73, 0xFF006E73,
+                disabledSurface = 0xFFE9E5F1,
+                disabledText = 0xFF685F7E,
+                disabledBorder = 0xFFCCC5D8,
+                semantic = baseLightSemantic,
+            ).copy(contextFill = Color(0xFF006E73)),
+            dark = darkVariant(
+                0xFF171527, 0xFF211E34, 0xFF2B2742, 0xFF4A435F,
+                0xFFF8F6FF, 0xFFBDB5D3, 0xFFCFC1FD, 0xFF171527,
+                0xFFB7A5FA, 0xFF3D355F, 0xFFF5F0FF, 0xFF62F9F8, 0xFF62F9F8,
+                disabledSurface = 0xFF302B45,
+                disabledText = 0xFF9D94B2,
+                disabledBorder = 0xFF403A55,
+                semantic = baseDarkSemantic,
+            ).copy(contextFill = Color(0xFF62F9F8)),
         )
         ThemeId.Harbor -> PalomarThemePalette(
             light = lightVariant(0xFFF1F7F8, 0xFFFFFFFF, 0xFFE5F0F2, 0xFFCBDFE2, 0xFF122326, 0xFF5D7377, 0xFF006B75, 0xFF00515A, 0xFFC5EDF0, 0xFF00363C, 0xFF005E8A, 0xFF007984),
@@ -356,6 +372,12 @@ internal val LocalPalomarColors = staticCompositionLocalOf {
     palomarThemePalette(ThemeId.Palomar).light.semantic
 }
 
+internal val LocalPalomarThemeVariant = staticCompositionLocalOf {
+    palomarThemePalette(ThemeId.Palomar).light
+}
+
+internal val LocalPalomarDarkTheme = staticCompositionLocalOf { false }
+
 @Composable
 internal fun PalomarTheme(
     themeId: ThemeId,
@@ -363,7 +385,11 @@ internal fun PalomarTheme(
     content: @Composable () -> Unit,
 ) {
     val variant = palomarThemeVariant(themeId, darkTheme)
-    CompositionLocalProvider(LocalPalomarColors provides variant.semantic) {
+    CompositionLocalProvider(
+        LocalPalomarColors provides variant.semantic,
+        LocalPalomarThemeVariant provides variant,
+        LocalPalomarDarkTheme provides darkTheme,
+    ) {
         MaterialTheme(colorScheme = palomarColorScheme(themeId, darkTheme), content = content)
     }
 }

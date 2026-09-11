@@ -8,6 +8,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
 HISTORICAL_PREFIXES = ("docs/releases/", "docs/acceptance-")
+THEME_MIGRATION_FILES = {
+    "android/app/src/main/java/net/kaltner/palomar/TokenStore.kt",
+    "android/app/src/test/java/net/kaltner/palomar/PalomarConnectionTest.kt",
+    "docs/themes.md",
+    "web/public/assets/theme-startup.js",
+    "web/src/storage-ui.test.ts",
+    "web/src/storage.ts",
+}
 
 
 class PalomarRebrandTests(unittest.TestCase):
@@ -37,7 +45,11 @@ class PalomarRebrandTests(unittest.TestCase):
         failures: list[str] = []
         for relative, text in self.current_text().items():
             old_name = "fore" + "man"
-            if old_name in text.casefold():
+            intentional_theme_migration = (
+                relative in THEME_MIGRATION_FILES
+                or relative.startswith("web/dist/assets/")
+            )
+            if old_name in text.casefold() and not intentional_theme_migration:
                 failures.append(relative)
             if ("mkaltner/" + "palomar") in text.casefold():
                 failures.append(f"{relative} (personal repository owner)")
@@ -81,7 +93,12 @@ class PalomarRebrandTests(unittest.TestCase):
             "scripts/install-palomar.sh",
             "palomar-release.properties",
             "web/public/palomar-mark.svg",
+            "web/public/palomar-mark-16px.svg",
+            "web/public/palomar-app-icon.svg",
             "web/public/manifest.webmanifest",
+            "docs/brand/palomar-mark.svg",
+            "docs/brand/palomar-hero-wide.svg",
+            "docs/brand/palomar-social-preview.png",
         ]
         for relative in required:
             self.assertTrue((ROOT / relative).is_file(), relative)

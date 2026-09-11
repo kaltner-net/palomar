@@ -557,7 +557,8 @@ enum class ThemeId(val id: String, val displayName: String) {
 }
 
 internal fun parseThemeId(value: String?): ThemeId =
-    ThemeId.entries.firstOrNull { it.id == value } ?: ThemeId.Palomar
+    if (value == "foreman") ThemeId.Palomar
+    else ThemeId.entries.firstOrNull { it.id == value } ?: ThemeId.Palomar
 
 internal fun themeIdForLegacyAccent(value: String?): ThemeId =
     when (value?.lowercase()) {

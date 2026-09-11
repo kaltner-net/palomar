@@ -1,28 +1,66 @@
-# Palomar product marks
+# Palomar production identity
 
-Palomar uses the original **Dome Path** mark: a bold observatory arc over a
-three-node control path. The mark can be read as an instrument looking outward
-or as a control plane connecting persistent hosts. It is intentionally abstract
-and is not based on Palomar Observatory or Caltech branding.
+Palomar uses the original **Network Dome**: a canonical semicircular instrument
+arc over three nodes joined by a control path. It can be read as an observatory
+looking outward or infrastructure connecting persistent hosts. The identity is
+independent and does not imply affiliation with Palomar Observatory or Caltech.
 
-The geometry must remain recognizable without color at favicon and Android
-status-bar sizes. Violet and cyan distinguish the instrument and control path
-in full-color uses, but neither color nor a gradient is required for recognition.
-Connection state is separate UI information and is never baked into the mark.
+## Brand foundation
 
-## Canonical family
+- Dark: `#171527`
+- Lavender: `#CFC1FD`
+- Cyan: `#62F9F8`
 
-| Variant | Source asset | Use |
-| --- | --- | --- |
-| Primary SVG mark | `web/public/palomar-mark.svg` | Web identity, favicon, PWA icon, and shared geometry reference |
-| Horizontal wordmark | `docs/assets/palomar-wordmark.svg` | README and repository presentation |
-| Repository preview | `docs/assets/palomar-social-preview.svg` | Source for the GitHub social preview |
-| Android full-color vector | `android/app/src/main/res/drawable/palomar_mark.xml` | Splash, setup, pairing, headers, and About |
-| Android adaptive foreground | `android/app/src/main/res/drawable/palomar_launcher_foreground.xml` | Launcher and round adaptive icons |
-| Android monochrome | `android/app/src/main/res/drawable/palomar_launcher_monochrome.xml` | Android themed launcher icon |
-| Notification silhouette | `android/app/src/main/res/drawable/ic_notification.xml` | Status-bar and notification small icon only |
+Use the full-color lavender/cyan mark on dark branded surfaces and the dark
+monochrome mark on light surfaces. Do not ship a general-purpose white logo.
+Android notification, themed-launcher, and system-status assets are technical
+alpha masks whose visible color is supplied by the platform.
 
-Do not draw substitute letter avatars inside components. Reuse the platform
-asset, preserve its aspect ratio and clear space, and keep presence/status dots
-as separate semantic elements. The full-color mark uses `#171527`, `#D7CCFF`,
-and `#7CE7E0`; monochrome variants use one platform-tinted solid silhouette.
+Use `currentColor` only in a component that intentionally owns the glyph color.
+Do not stretch or redraw the semicircular geometry. Gradients, glow, texture,
+shadows, and waves belong to presentation artwork, never the canonical mark.
+Status and connectivity indicators remain separate semantic UI elements.
+
+## Canonical repository assets
+
+The maintainable masters live in [`docs/brand`](brand/). Runtime derivatives
+must preserve their geometry and palette.
+
+| Asset | Purpose |
+| --- | --- |
+| `palomar-mark.svg` | Canonical transparent full-color mark at 24 px and larger |
+| `palomar-mark-16px.svg` | Manually pixel-fitted favicon and exact 16 px use |
+| `palomar-mark-monochrome-dark.svg` | Dark mark on light surfaces |
+| `palomar-mark-currentcolor.svg` | Deliberately UI-controlled monochrome glyph |
+| `palomar-app-icon.svg` | Complete dark launcher/app tile |
+| `palomar-wordmark.svg` | Horizontal wordmark for light documents |
+| `palomar-lockup.svg` | Extended product lockup for light documents |
+| `palomar-hero-wide.svg` | Presentation artwork for README and launch surfaces |
+| `palomar-social-preview.svg` | Editable repository/social-preview master |
+| `palomar-social-preview.png` | 1200×630 sharing and Open Graph derivative |
+
+Do not substitute letter avatars or use the complete launcher tile where a
+transparent in-product mark is appropriate. The web runtime copies only the
+favicon, canonical mark, light-surface mark, app icon, and social preview.
+
+Android uses `palomar_mark` and `palomar_mark_dark` for theme-appropriate
+in-product surfaces, `palomar_launcher_foreground` for adaptive icons,
+`palomar_launcher_monochrome_mask` for Android 13+ themed icons, and
+`palomar_notification_mask` for status-bar notifications. API 26–32 adaptive
+icons intentionally omit `<monochrome>`; API 33+ icons include it. The 108 dp
+foreground and mask preserve the same 64-unit geometry at `(22,22)`, keeping
+the mark inside circle, squircle, rounded-square, and themed-icon safe areas.
+
+## Approved messaging
+
+- “Persistent coding agents. Under your control.”
+- “Monitor / Steer / Approve / Anywhere”
+- “Self-hosted / Authenticated / Persistent / On your network”
+- “LAN / Tailscale / WireGuard”
+
+Palomar is a control plane; do not imply that it deploys software. Describe
+the authenticated direct connection precisely instead of making an
+unqualified “secure” claim.
+
+Palomar is an open-source project created by
+[Michael Kaltner](https://kaltner.net).
