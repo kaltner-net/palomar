@@ -5335,7 +5335,7 @@ class WebIntegrationTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertTrue(revoked["payload"]["revoked"])
             trailing = await reader.read()
-            for encoded in trailing.splitlines():
+            for encoded in trailing.splitlines(keepends=True):
                 event = protocol.decode(encoded)
                 self.assertEqual(event.get("type"), "service.event")
                 tcp_events.append(event)
