@@ -1050,8 +1050,8 @@ class PalomarConnectionTest {
                 assertEquals(palette.background, scheme.surfaceContainerLowest)
                 assertEquals(palette.raisedSurface, scheme.surfaceContainer)
                 assertEquals(palette.card, scheme.surfaceContainerLow)
-                assertEquals(palette.groupedHeader, scheme.surfaceContainerHigh)
-                assertEquals(palette.card, scheme.surfaceContainerHighest)
+                assertEquals(palette.dialog, scheme.surfaceContainerHigh)
+                assertEquals(palette.popover, scheme.surfaceContainerHighest)
                 assertEquals(palette.border, scheme.outline)
                 assertEquals(palette.text, scheme.onSurface)
                 assertEquals(palette.mutedText, scheme.onSurfaceVariant)
@@ -1156,6 +1156,11 @@ class PalomarConnectionTest {
         }
         with(palomarThemeVariant(ThemeId.NeonWave, darkTheme = false)) {
             assertEquals(Color(0xFFF8F6FC), background)
+            assertEquals(Color(0xFFF0ECF8), raisedSurface)
+            assertEquals(Color(0xFFFFFFFF), card)
+            assertEquals(Color(0xFFE9E2F6), groupedHeader)
+            assertEquals(Color(0xFFF0ECF8), navigation)
+            assertEquals(Color(0xFFF8F6FC), dialog)
             assertEquals(Color(0xFF9B006F), accent)
             assertEquals(Color(0xFF006F78), accentEmphasis)
             assertEquals(Color(0xFF6C3CB2), brandStructure)
@@ -1164,6 +1169,11 @@ class PalomarConnectionTest {
         }
         with(palomarThemeVariant(ThemeId.NeonWave, darkTheme = true)) {
             assertEquals(Color(0xFF060817), background)
+            assertEquals(Color(0xFF161438), raisedSurface)
+            assertEquals(Color(0xFF161438), card)
+            assertEquals(Color(0xFF211B49), groupedHeader)
+            assertEquals(Color(0xFF0C1024), navigation)
+            assertEquals(Color(0xFF161438), dialog)
             assertEquals(Color(0xFFFF4FD8), accent)
             assertEquals(Color(0xFF55F6FF), accentEmphasis)
             assertEquals(Color(0xFFB69CFF), brandStructure)
@@ -1172,6 +1182,11 @@ class PalomarConnectionTest {
         }
         with(palomarThemeVariant(ThemeId.Obsidian, darkTheme = false)) {
             assertEquals(Color(0xFFF7F5F6), background)
+            assertEquals(Color(0xFFFFFFFF), raisedSurface)
+            assertEquals(Color(0xFFFFFFFF), card)
+            assertEquals(Color(0xFFEEE9ED), groupedHeader)
+            assertEquals(Color(0xFFFFFFFF), navigation)
+            assertEquals(Color(0xFFF7F5F6), dialog)
             assertEquals(Color(0xFF872957), accent)
             assertEquals(Color(0xFF67507C), accentEmphasis)
             assertEquals(Color(0xFF67507C), brandStructure)
@@ -1180,12 +1195,29 @@ class PalomarConnectionTest {
         }
         with(palomarThemeVariant(ThemeId.Obsidian, darkTheme = true)) {
             assertEquals(Color(0xFF0B0C0F), background)
+            assertEquals(Color(0xFF1C1E24), raisedSurface)
+            assertEquals(Color(0xFF13151A), card)
+            assertEquals(Color(0xFF24262C), groupedHeader)
+            assertEquals(Color(0xFF13151A), navigation)
+            assertEquals(Color(0xFF1C1E24), dialog)
             assertEquals(Color(0xFFD66A99), accent)
             assertEquals(Color(0xFFB39BC8), accentEmphasis)
             assertEquals(Color(0xFFB39BC8), brandStructure)
             assertEquals(Color(0xFFD66A99), contextFill)
             assertEquals(Color(0xFFB39BC8), semantic.working)
         }
+        assertEquals(
+            listOf(Color(0xFF0C1024), Color(0xFF211B49), Color(0xFFFF4FD8), Color(0xFF55F6FF)),
+            themePreviewColors(ThemeId.NeonWave, darkTheme = true),
+        )
+        assertEquals(
+            listOf(Color(0xFF13151A), Color(0xFF24262C), Color(0xFFD66A99), Color(0xFFB39BC8)),
+            themePreviewColors(ThemeId.Obsidian, darkTheme = true),
+        )
+        assertFalse(
+            themePreviewColors(ThemeId.NeonWave, darkTheme = true) ==
+                themePreviewColors(ThemeId.Obsidian, darkTheme = true),
+        )
     }
 
     @Test

@@ -269,7 +269,7 @@ private fun lightVariant(
     contextTrack = Color(border),
     contextFill = Color(accent),
     navigation = Color(surface),
-    dialog = Color(surface),
+    dialog = Color(alternate),
     popover = Color(surface),
     semantic = semantic ?: themedSemanticColors(
         baseLightSemantic,
@@ -329,7 +329,7 @@ private fun darkVariant(
     contextTrack = Color(border),
     contextFill = Color(accent),
     navigation = Color(surface),
-    dialog = Color(surface),
+    dialog = Color(alternate),
     popover = Color(surface),
     semantic = semantic ?: themedSemanticColors(
         baseDarkSemantic,
@@ -394,7 +394,15 @@ internal fun palomarThemePalette(themeId: ThemeId): PalomarThemePalette =
                 disabledText = 0xFF716A7B,
                 disabledBorder = 0xFFD4CCDF,
                 semantic = neonWaveLightSemantic,
-            ).copy(contextFill = Color(0xFF006F78)),
+            ).copy(
+                raisedSurface = Color(0xFFF0ECF8),
+                card = Color(0xFFFFFFFF),
+                groupedHeader = Color(0xFFE9E2F6),
+                navigation = Color(0xFFF0ECF8),
+                dialog = Color(0xFFF8F6FC),
+                popover = Color(0xFFF0ECF8),
+                contextFill = Color(0xFF006F78),
+            ),
             dark = darkVariant(
                 0xFF060817, 0xFF0C1024, 0xFF161438, 0xFF3B3F6B,
                 0xFFF8F6FF, 0xFFB7B3C9, 0xFFFF4FD8, 0xFF200018,
@@ -404,7 +412,15 @@ internal fun palomarThemePalette(themeId: ThemeId): PalomarThemePalette =
                 disabledText = 0xFF9692A8,
                 disabledBorder = 0xFF34374D,
                 semantic = neonWaveDarkSemantic,
-            ).copy(contextFill = Color(0xFF55F6FF)),
+            ).copy(
+                raisedSurface = Color(0xFF161438),
+                card = Color(0xFF161438),
+                groupedHeader = Color(0xFF211B49),
+                navigation = Color(0xFF0C1024),
+                dialog = Color(0xFF161438),
+                popover = Color(0xFF161438),
+                contextFill = Color(0xFF55F6FF),
+            ),
         )
         ThemeId.Obsidian -> PalomarThemePalette(
             light = lightVariant(
@@ -416,6 +432,13 @@ internal fun palomarThemePalette(themeId: ThemeId): PalomarThemePalette =
                 disabledText = 0xFF746C73,
                 disabledBorder = 0xFFCFC8CE,
                 semantic = obsidianLightSemantic,
+            ).copy(
+                raisedSurface = Color(0xFFFFFFFF),
+                card = Color(0xFFFFFFFF),
+                groupedHeader = Color(0xFFEEE9ED),
+                navigation = Color(0xFFFFFFFF),
+                dialog = Color(0xFFF7F5F6),
+                popover = Color(0xFFFFFFFF),
             ),
             dark = darkVariant(
                 0xFF0B0C0F, 0xFF13151A, 0xFF1C1E24, 0xFF45414B,
@@ -426,6 +449,13 @@ internal fun palomarThemePalette(themeId: ThemeId): PalomarThemePalette =
                 disabledText = 0xFF999298,
                 disabledBorder = 0xFF3A3B42,
                 semantic = obsidianDarkSemantic,
+            ).copy(
+                raisedSurface = Color(0xFF1C1E24),
+                card = Color(0xFF13151A),
+                groupedHeader = Color(0xFF24262C),
+                navigation = Color(0xFF13151A),
+                dialog = Color(0xFF1C1E24),
+                popover = Color(0xFF1C1E24),
             ),
         )
         ThemeId.HighContrast -> PalomarThemePalette(
@@ -477,8 +507,8 @@ internal fun palomarColorScheme(themeId: ThemeId, darkTheme: Boolean) =
             surfaceContainerLowest = colors.background,
             surfaceContainer = colors.raisedSurface,
             surfaceContainerLow = colors.card,
-            surfaceContainerHigh = colors.groupedHeader,
-            surfaceContainerHighest = colors.card,
+            surfaceContainerHigh = colors.dialog,
+            surfaceContainerHighest = colors.popover,
             outline = colors.border,
             outlineVariant = colors.divider,
             error = semantic.failure,
