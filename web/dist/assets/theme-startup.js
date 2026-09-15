@@ -32,8 +32,8 @@
       ember: { light: "#8a3d61", dark: "#25191e" },
       dune: { light: "#7a4f00", dark: "#221c12" },
       slate: { light: "#365a8c", dark: "#171f2b" },
-      "neon-wave": { light: "#f8f6fc", dark: "#060817" },
-      obsidian: { light: "#f7f5f6", dark: "#0b0c0f" },
+      "neon-wave": { light: "#fcf6fb", dark: "#070315" },
+      obsidian: { light: "#f6f7f8", dark: "#0b0c0f" },
       "high-contrast": { light: "#0033a0", dark: "#000000" },
     };
     document.querySelector('meta[name="theme-color"]').content = chromeColors[themeId][resolved];

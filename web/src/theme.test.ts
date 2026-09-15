@@ -207,22 +207,25 @@ describe("curated Palomar themes", () => {
     expect(baseLight["--usage-fill"]).toBe("var(--brand-structure)");
     expect({ ...baseLight, ...baseDark }["--usage-fill"]).toBe("var(--brand-structure)");
     expect(rule(":root[data-palomar-theme=neon-wave]")).toMatchObject({
-      "--app-background": "#f8f6fc", "--surface-primary": "#fff", "--surface-alternate": "#f0ecf8",
-      "--accent-primary": "#9b006f", "--accent-emphasis": "#006f78", "--brand-structure": "#6c3cb2",
-      "--context-fill": "#006f78",
+      "--app-background": "#fcf6fb", "--surface-primary": "#fff", "--surface-alternate": "#f5e9fa",
+      "--grouped-header-surface": "#ebd8f7", "--navigation-surface": "#f4e9fa",
+      "--accent-primary": "#b30078", "--accent-emphasis": "#007480", "--brand-structure": "#713db9",
+      "--usage-fill": "#a83d5d", "--context-fill": "#007480",
     });
     expect(rule(":root[data-color-mode=dark][data-palomar-theme=neon-wave]")).toMatchObject({
-      "--app-background": "#060817", "--surface-primary": "#0c1024", "--surface-alternate": "#161438",
-      "--accent-primary": "#ff4fd8", "--accent-emphasis": "#55f6ff", "--brand-structure": "#b69cff",
-      "--context-fill": "#55f6ff",
+      "--app-background": "#070315", "--surface-primary": "#100826", "--surface-alternate": "#1c0c3a",
+      "--card-surface": "#160a33", "--grouped-header-surface": "#2c1055", "--navigation-surface": "#0d0622",
+      "--accent-primary": "#ff3cac", "--accent-emphasis": "#4debff", "--brand-structure": "#a864ff",
+      "--link": "#ff8a9f", "--usage-fill": "#ff7794", "--context-fill": "#4debff",
     });
     expect(rule(":root[data-palomar-theme=obsidian]")).toMatchObject({
-      "--app-background": "#f7f5f6", "--surface-primary": "#fff", "--surface-alternate": "#eee9ed",
-      "--accent-primary": "#872957", "--accent-emphasis": "#67507c", "--brand-structure": "#67507c",
+      "--app-background": "#f6f7f8", "--surface-primary": "#fff", "--surface-alternate": "#eceef1",
+      "--accent-primary": "#7d3b52", "--accent-emphasis": "#665e6b", "--brand-structure": "#6f6875",
     });
     expect(rule(":root[data-color-mode=dark][data-palomar-theme=obsidian]")).toMatchObject({
       "--app-background": "#0b0c0f", "--surface-primary": "#13151a", "--surface-alternate": "#1c1e24",
-      "--accent-primary": "#d66a99", "--accent-emphasis": "#b39bc8", "--brand-structure": "#b39bc8",
+      "--border-default": "#3f4248", "--accent-container": "#292a2e",
+      "--accent-primary": "#b65f78", "--accent-emphasis": "#958a9b", "--brand-structure": "#958a9b",
     });
     expect(css).toContain(":root[data-palomar-theme=neon-wave] .session-card.selected");
     expect(css).not.toContain(":root[data-palomar-theme=obsidian] .session-card.selected");

@@ -5999,8 +5999,8 @@ private fun SessionsScreen(
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                        containerColor = LocalPalomarThemeVariant.current.navigation,
+                        scrolledContainerColor = LocalPalomarThemeVariant.current.navigation,
                     ),
             )
         },
@@ -6975,8 +6975,8 @@ private fun SessionDetailScreen(
                 },
                 colors =
                     TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                        containerColor = LocalPalomarThemeVariant.current.navigation,
+                        scrolledContainerColor = LocalPalomarThemeVariant.current.navigation,
                     ),
             )
         },
@@ -9369,9 +9369,9 @@ private fun RepositoryOverrideItem(
 
 @Composable
 private fun ThemePreview(themeId: ThemeId, selected: Boolean = false) {
-    val palette = palomarThemePalette(themeId).light
+    val palette = palomarThemeVariant(themeId, LocalPalomarDarkTheme.current)
     Surface(
-        modifier = Modifier.width(44.dp).height(24.dp),
+        modifier = Modifier.width(50.dp).height(24.dp),
         shape = RoundedCornerShape(7.dp),
         color = palette.background,
         border =
@@ -9389,12 +9389,17 @@ private fun ThemePreview(themeId: ThemeId, selected: Boolean = false) {
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            listOf(palette.surface, palette.brandStructure, palette.accent).forEach { color ->
-                Box(Modifier.size(9.dp).background(color, CircleShape))
+            themePreviewColors(themeId, LocalPalomarDarkTheme.current).forEach { color ->
+                Box(Modifier.size(8.dp).background(color, CircleShape))
             }
         }
     }
 }
+
+internal fun themePreviewColors(themeId: ThemeId, darkTheme: Boolean): List<Color> =
+    palomarThemeVariant(themeId, darkTheme).let { palette ->
+        listOf(palette.surface, palette.groupedHeader, palette.accent, palette.accentEmphasis)
+    }
 
 @Composable
 private fun SessionActionsMenu(
