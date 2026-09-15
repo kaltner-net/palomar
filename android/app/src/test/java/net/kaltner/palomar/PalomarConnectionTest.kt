@@ -1155,43 +1155,48 @@ class PalomarConnectionTest {
             assertEquals(Color(0xFF62F9F8), contextFill)
         }
         with(palomarThemeVariant(ThemeId.NeonWave, darkTheme = false)) {
-            assertEquals(Color(0xFFF8F6FC), background)
-            assertEquals(Color(0xFFF0ECF8), raisedSurface)
+            assertEquals(Color(0xFFFCF6FB), background)
+            assertEquals(Color(0xFFF4E9FA), raisedSurface)
             assertEquals(Color(0xFFFFFFFF), card)
-            assertEquals(Color(0xFFE9E2F6), groupedHeader)
-            assertEquals(Color(0xFFF0ECF8), navigation)
-            assertEquals(Color(0xFFF8F6FC), dialog)
-            assertEquals(Color(0xFF9B006F), accent)
-            assertEquals(Color(0xFF006F78), accentEmphasis)
-            assertEquals(Color(0xFF6C3CB2), brandStructure)
-            assertEquals(Color(0xFF006F78), contextFill)
+            assertEquals(Color(0xFFEBD8F7), groupedHeader)
+            assertEquals(Color(0xFFF4E9FA), navigation)
+            assertEquals(Color(0xFFFCF6FB), dialog)
+            assertEquals(Color(0xFFB30078), accent)
+            assertEquals(Color(0xFF007480), accentEmphasis)
+            assertEquals(Color(0xFF713DB9), brandStructure)
+            assertEquals(Color(0xFFA83D5D), usageFill)
+            assertEquals(Color(0xFF007480), contextFill)
             assertEquals(Color(0xFF006F78), semantic.working)
         }
         with(palomarThemeVariant(ThemeId.NeonWave, darkTheme = true)) {
-            assertEquals(Color(0xFF060817), background)
-            assertEquals(Color(0xFF161438), raisedSurface)
-            assertEquals(Color(0xFF161438), card)
-            assertEquals(Color(0xFF211B49), groupedHeader)
-            assertEquals(Color(0xFF0C1024), navigation)
-            assertEquals(Color(0xFF161438), dialog)
-            assertEquals(Color(0xFFFF4FD8), accent)
-            assertEquals(Color(0xFF55F6FF), accentEmphasis)
-            assertEquals(Color(0xFFB69CFF), brandStructure)
-            assertEquals(Color(0xFF55F6FF), contextFill)
+            assertEquals(Color(0xFF070315), background)
+            assertEquals(Color(0xFF1D0D3E), raisedSurface)
+            assertEquals(Color(0xFF160A33), card)
+            assertEquals(Color(0xFF2C1055), groupedHeader)
+            assertEquals(Color(0xFF0D0622), navigation)
+            assertEquals(Color(0xFF1D0D3E), dialog)
+            assertEquals(Color(0xFFFF3CAC), accent)
+            assertEquals(Color(0xFF4DEBFF), accentEmphasis)
+            assertEquals(Color(0xFFA864FF), brandStructure)
+            assertEquals(Color(0xFFFF8A9F), link)
+            assertEquals(Color(0xFF4DEBFF), focus)
+            assertEquals(Color(0xFFFF7794), usageFill)
+            assertEquals(Color(0xFF4DEBFF), contextFill)
             assertEquals(Color(0xFF55F6FF), semantic.working)
         }
         with(palomarThemeVariant(ThemeId.Obsidian, darkTheme = false)) {
-            assertEquals(Color(0xFFF7F5F6), background)
+            assertEquals(Color(0xFFF6F7F8), background)
             assertEquals(Color(0xFFFFFFFF), raisedSurface)
             assertEquals(Color(0xFFFFFFFF), card)
-            assertEquals(Color(0xFFEEE9ED), groupedHeader)
+            assertEquals(Color(0xFFECEEF1), groupedHeader)
             assertEquals(Color(0xFFFFFFFF), navigation)
-            assertEquals(Color(0xFFF7F5F6), dialog)
-            assertEquals(Color(0xFF872957), accent)
-            assertEquals(Color(0xFF67507C), accentEmphasis)
-            assertEquals(Color(0xFF67507C), brandStructure)
-            assertEquals(Color(0xFF872957), contextFill)
-            assertEquals(Color(0xFF67507C), semantic.working)
+            assertEquals(Color(0xFFF6F7F8), dialog)
+            assertEquals(Color(0xFF7D3B52), accent)
+            assertEquals(Color(0xFF665E6B), accentEmphasis)
+            assertEquals(Color(0xFFE8E8EA), accentContainer)
+            assertEquals(Color(0xFF6F6875), brandStructure)
+            assertEquals(Color(0xFF7D3B52), contextFill)
+            assertEquals(Color(0xFF655B69), semantic.working)
         }
         with(palomarThemeVariant(ThemeId.Obsidian, darkTheme = true)) {
             assertEquals(Color(0xFF0B0C0F), background)
@@ -1200,18 +1205,19 @@ class PalomarConnectionTest {
             assertEquals(Color(0xFF24262C), groupedHeader)
             assertEquals(Color(0xFF13151A), navigation)
             assertEquals(Color(0xFF1C1E24), dialog)
-            assertEquals(Color(0xFFD66A99), accent)
-            assertEquals(Color(0xFFB39BC8), accentEmphasis)
-            assertEquals(Color(0xFFB39BC8), brandStructure)
-            assertEquals(Color(0xFFD66A99), contextFill)
-            assertEquals(Color(0xFFB39BC8), semantic.working)
+            assertEquals(Color(0xFFB65F78), accent)
+            assertEquals(Color(0xFF958A9B), accentEmphasis)
+            assertEquals(Color(0xFF292A2E), accentContainer)
+            assertEquals(Color(0xFF958A9B), brandStructure)
+            assertEquals(Color(0xFFC87388), contextFill)
+            assertEquals(Color(0xFFA79BAB), semantic.working)
         }
         assertEquals(
-            listOf(Color(0xFF0C1024), Color(0xFF211B49), Color(0xFFFF4FD8), Color(0xFF55F6FF)),
+            listOf(Color(0xFF100826), Color(0xFF2C1055), Color(0xFFFF3CAC), Color(0xFF4DEBFF)),
             themePreviewColors(ThemeId.NeonWave, darkTheme = true),
         )
         assertEquals(
-            listOf(Color(0xFF13151A), Color(0xFF24262C), Color(0xFFD66A99), Color(0xFFB39BC8)),
+            listOf(Color(0xFF13151A), Color(0xFF24262C), Color(0xFFB65F78), Color(0xFF958A9B)),
             themePreviewColors(ThemeId.Obsidian, darkTheme = true),
         )
         assertFalse(

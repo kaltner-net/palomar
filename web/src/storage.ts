@@ -131,13 +131,13 @@ export const CURATED_THEMES: readonly CuratedTheme[] = [
     id: "neon-wave",
     name: "Neon Wave",
     description: "Deep indigo with focused magenta, cyan, and violet energy.",
-    preview: ["#060817", "#161438", "#FF4FD8", "#55F6FF"],
+    preview: ["#100826", "#2C1055", "#FF3CAC", "#4DEBFF"],
   },
   {
     id: "obsidian",
     name: "Obsidian",
     description: "Graphite depth with restrained wine and violet structure.",
-    preview: ["#0B0C0F", "#1C1E24", "#D66A99", "#B39BC8"],
+    preview: ["#0B0C0F", "#24262C", "#B65F78", "#958A9B"],
   },
   {
     id: "high-contrast",
