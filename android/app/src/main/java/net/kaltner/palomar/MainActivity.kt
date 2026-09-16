@@ -7001,6 +7001,14 @@ private fun SessionDetailScreen(
         !readOnly && selectedProvider == PROVIDER_CODEX && it.sessionId == selected?.id
     }
     val messages = selected?.messages.orEmpty()
+    val transcriptSelectionContext =
+        selected?.let {
+            TranscriptSelectionContext(
+                hostId = state.activeHostId,
+                provider = selectedProvider,
+                sessionId = it.id,
+            )
+        }
     val messageItemIds = messages.mapTo(mutableSetOf()) { it.id }
     val protectedItemIds =
         buildSet {
@@ -7240,11 +7248,15 @@ private fun SessionDetailScreen(
                         key = { index, block -> "${if (block.collapsedActivity) "activity" else "message"}-${block.items.first().id}-$index" },
                     ) { _, block ->
                         if (block.collapsedActivity) {
-                            CollapsedActivityGroup(block.items)
+                            CollapsedActivityGroup(block.items, checkNotNull(transcriptSelectionContext))
                         } else {
                             val item = block.items.single()
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                ConversationRow(item, viewModel::openWorkspaceFile)
+                                ConversationRow(
+                                    item = item,
+                                    selectionContext = checkNotNull(transcriptSelectionContext),
+                                    onOpenWorkspaceFile = viewModel::openWorkspaceFile,
+                                )
                                 selectedApprovals.filter { !readOnly && it.itemId == item.id }.forEach { approval ->
                                     ApprovalCard(
                                         approval = approval,
@@ -7302,7 +7314,10 @@ private fun SessionDetailScreen(
 }
 
 @Composable
-private fun CollapsedActivityGroup(items: List<ConversationItem>) {
+private fun CollapsedActivityGroup(
+    items: List<ConversationItem>,
+    selectionContext: TranscriptSelectionContext,
+) {
     var expanded by remember(items.map { it.id }) { mutableStateOf(false) }
     val theme = LocalPalomarThemeVariant.current
     Card(
@@ -7334,7 +7349,7 @@ private fun CollapsedActivityGroup(items: List<ConversationItem>) {
             if (expanded) {
                 HorizontalDivider()
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items.forEach { ConversationRow(it) }
+                    items.forEach { ConversationRow(it, selectionContext) }
                 }
             }
         }
@@ -7386,6 +7401,7 @@ private fun LiveActivityRow(session: SessionSummary) {
 @Composable
 private fun ConversationRow(
     item: ConversationItem,
+    selectionContext: TranscriptSelectionContext,
     onOpenWorkspaceFile: ((WorkspaceFileTarget) -> Unit)? = null,
 ) {
     when (item.kind) {
@@ -7412,10 +7428,12 @@ private fun ConversationRow(
                     )
                 }
                 if (item.text.isNotBlank()) {
-                    MarkdownText(
-                        text = item.text,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
+                    SelectableTranscriptMessage(selectionContext.forItem(item.id)) {
+                        MarkdownText(
+                            text = item.text,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
                 }
             }
         }
@@ -7429,11 +7447,15 @@ private fun ConversationRow(
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.labelSmall,
             )
-            MarkdownText(
-                text = item.text,
-                contentColor = MaterialTheme.colorScheme.onBackground,
-                onOpenWorkspaceFile = onOpenWorkspaceFile,
-            )
+            if (item.text.isNotBlank()) {
+                SelectableTranscriptMessage(selectionContext.forItem(item.id)) {
+                    MarkdownText(
+                        text = item.text,
+                        contentColor = MaterialTheme.colorScheme.onBackground,
+                        onOpenWorkspaceFile = onOpenWorkspaceFile,
+                    )
+                }
+            }
         }
         "command", "tool" -> {
             val tone = activityStatusTone(item)

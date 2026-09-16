@@ -311,12 +311,19 @@ class SessionCardContextActionsTest {
         composeRule.setContent {
             PalomarTheme(ThemeId.Palomar, darkTheme = false) {
                 Column {
-                    MarkdownText("Selectable transcript text")
+                    SelectableTranscriptMessage(
+                        TranscriptSelectionIdentity("host-1", PROVIDER_CODEX, "session-1", "message-1"),
+                    ) {
+                        MarkdownText("Selectable transcript text")
+                    }
                 }
             }
         }
 
-        composeRule.onNodeWithText("Selectable transcript text").performTouchInput { longClick() }
+        composeRule.onNodeWithTag(TRANSCRIPT_SELECTION_CONTAINER_TEST_TAG).assertIsDisplayed()
+        val transcriptSemantics =
+            composeRule.onNodeWithText("Selectable transcript text").fetchSemanticsNode().config
+        assertFalse(transcriptSemantics.contains(SemanticsActions.CustomActions))
         composeRule.onNodeWithTag(SESSION_ACTIONS_SHEET_TEST_TAG).assertDoesNotExist()
     }
 

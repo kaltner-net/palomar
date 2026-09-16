@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Checkbox
@@ -33,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -439,11 +441,13 @@ internal fun MarkdownText(
                     }
                 is MarkdownBlock.TaskItem ->
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = block.checked,
-                            onCheckedChange = null,
-                            modifier = Modifier.size(36.dp),
-                        )
+                        DisableSelection {
+                            Checkbox(
+                                checked = block.checked,
+                                onCheckedChange = null,
+                                modifier = Modifier.size(36.dp).testTag(TRANSCRIPT_TASK_CONTROL_TEST_TAG),
+                            )
+                        }
                         Text(
                             inlineMarkdown(block.text, contentColor, onOpenWorkspaceFile),
                             style = MaterialTheme.typography.bodyLarge,
@@ -501,20 +505,25 @@ internal fun MarkdownText(
                         shape = RoundedCornerShape(8.dp),
                     ) {
                         Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp, end = 4.dp),
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    block.language.orEmpty(),
-                                    modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                                CopyFeedbackIconButton(
-                                    onCopy = { copyCodeBlockToClipboard(context, block.text) },
-                                    enabled = block.text.isNotEmpty(),
-                                )
+                            DisableSelection {
+                                Row(
+                                    modifier =
+                                        Modifier.fillMaxWidth()
+                                            .testTag(TRANSCRIPT_CODE_HEADER_TEST_TAG)
+                                            .padding(start = 12.dp, top = 4.dp, end = 4.dp),
+                                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        block.language.orEmpty(),
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                    CopyFeedbackIconButton(
+                                        onCopy = { copyCodeBlockToClipboard(context, block.text) },
+                                        enabled = block.text.isNotEmpty(),
+                                    )
+                                }
                             }
                             Box(
                                 Modifier.horizontalScroll(rememberScrollState())
@@ -546,40 +555,44 @@ internal fun MarkdownText(
                         block.attributes["branch"]
                             ?: block.attributes["cwd"]?.trimEnd('/')?.substringAfterLast('/')
                     val url = block.attributes["url"]?.let(::safeMarkdownUrl)
-                    Surface(
-                        modifier =
-                            Modifier.fillMaxWidth().let { base ->
-                                if (url == null) base else base.clickable { uriHandler.openUri(url) }
-                            },
-                        color = theme.subtleAccentSurface,
-                        contentColor = theme.text,
-                        shape = RoundedCornerShape(10.dp),
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    DisableSelection {
+                        Surface(
+                            modifier =
+                                Modifier.fillMaxWidth()
+                                    .testTag(TRANSCRIPT_DIRECTIVE_TEST_TAG)
+                                    .let { base ->
+                                        if (url == null) base else base.clickable { uriHandler.openUri(url) }
+                                    },
+                            color = theme.subtleAccentSurface,
+                            contentColor = theme.text,
+                            shape = RoundedCornerShape(10.dp),
                         ) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    label,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.primary,
                                 )
-                                detail?.let {
+                                Column(Modifier.weight(1f)) {
                                     Text(
-                                        it,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = theme.mutedText,
+                                        label,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
                                     )
+                                    detail?.let {
+                                        Text(
+                                            it,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = theme.mutedText,
+                                        )
+                                    }
                                 }
+                                if (url != null) Text("↗", color = MaterialTheme.colorScheme.primary)
                             }
-                            if (url != null) Text("↗", color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
