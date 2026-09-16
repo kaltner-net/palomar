@@ -27,6 +27,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -76,6 +77,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
@@ -95,7 +97,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
@@ -130,7 +134,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -560,6 +568,8 @@ internal fun diagnosticsText(events: List<DiagnosticEvent>): String =
 
 internal enum class SessionAction { Archive, Restore, Delete }
 
+internal enum class SessionContextAction { Pin, Unpin, Hide, Show, Archive, Restore, Delete }
+
 internal enum class SessionHapticEvent { Completed, Attention, Failed }
 
 internal data class PendingSessionAction(
@@ -613,6 +623,35 @@ internal fun sessionActionCanBeConfirmed(
     capabilities: Set<String>,
     action: SessionAction,
 ): Boolean = connected && sessionActionSupported(capabilities, action)
+
+internal fun sessionContextActions(
+    session: SessionSummary,
+    pinned: Boolean,
+    hidden: Boolean,
+    capabilities: Set<String>,
+    providerUsable: Boolean,
+): List<SessionContextAction> = buildList {
+    add(if (pinned) SessionContextAction.Unpin else SessionContextAction.Pin)
+    add(if (hidden) SessionContextAction.Show else SessionContextAction.Hide)
+    if (!providerUsable || !sessionCanBeManaged(session.status)) return@buildList
+    if (sessionActionSupported(session, capabilities, SessionAction.Restore)) {
+        add(SessionContextAction.Restore)
+    }
+    if (sessionActionSupported(session, capabilities, SessionAction.Archive)) {
+        add(SessionContextAction.Archive)
+    }
+    if (sessionActionSupported(session, capabilities, SessionAction.Delete)) {
+        add(SessionContextAction.Delete)
+    }
+}
+
+internal fun SessionContextAction.lifecycleAction(): SessionAction? =
+    when (this) {
+        SessionContextAction.Archive -> SessionAction.Archive
+        SessionContextAction.Restore -> SessionAction.Restore
+        SessionContextAction.Delete -> SessionAction.Delete
+        else -> null
+    }
 
 internal fun sessionHapticEvent(previous: String?, current: String?): SessionHapticEvent? {
     if (previous == null || current == null || previous == current) return null
@@ -5685,16 +5724,29 @@ private fun HostDashboardScreen(
                     }
                     dashboard.oldestTurn?.let { oldest ->
                         item {
-                            Card(Modifier.fillMaxWidth()) {
-                                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                                    Text("OLDEST ACTIVE TURN", style = MaterialTheme.typography.labelSmall, color = LocalPalomarThemeVariant.current.brandStructure, fontWeight = FontWeight.Bold)
-                                    Text(sessionDisplayTitle(oldest), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        "${liveActivityLabel(oldest)} · ${overviewElapsed(epochMillis(oldest.activeTurnStartedAt))}",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Button(onClick = { viewModel.openSession(oldest.id, provider = sessionProvider(oldest)) }, modifier = Modifier.align(Alignment.End)) {
-                                        Text("Open")
+                            SessionContextActionHost(
+                                session = oldest,
+                                pinned = oldest.providerKey() in state.pinnedSessionIds,
+                                hidden = oldest.providerKey() in state.hiddenSessionIds,
+                                capabilities = state.capabilities,
+                                providerUsable = providerUsableForTasks(state.providers, sessionProvider(oldest)),
+                                hapticsEnabled = state.hapticsEnabled,
+                                onOpen = { viewModel.openSession(oldest.id, provider = sessionProvider(oldest)) },
+                                onAction = { viewModel.requestSessionAction(oldest, it) },
+                                onPin = { viewModel.togglePinnedSession(oldest.id, sessionProvider(oldest)) },
+                                onHide = { viewModel.toggleHiddenSession(oldest.id, sessionProvider(oldest)) },
+                            ) {
+                                Card(Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                        Text("OLDEST ACTIVE TURN", style = MaterialTheme.typography.labelSmall, color = LocalPalomarThemeVariant.current.brandStructure, fontWeight = FontWeight.Bold)
+                                        Text(sessionDisplayTitle(oldest), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            "${liveActivityLabel(oldest)} · ${overviewElapsed(epochMillis(oldest.activeTurnStartedAt))}",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Button(onClick = { viewModel.openSession(oldest.id, provider = sessionProvider(oldest)) }, modifier = Modifier.align(Alignment.End)) {
+                                            Text("Open")
+                                        }
                                     }
                                 }
                             }
@@ -5722,7 +5774,15 @@ private fun HostDashboardScreen(
                                         else -> dashboardSessionDetail(session)
                                     },
                                 showProviderIdentity = showProviderIdentity || !providerUsableForTasks(state.providers, sessionProvider(session)),
+                                pinned = session.providerKey() in state.pinnedSessionIds,
+                                hidden = session.providerKey() in state.hiddenSessionIds,
+                                capabilities = state.capabilities,
+                                providerUsable = providerUsableForTasks(state.providers, sessionProvider(session)),
+                                hapticsEnabled = state.hapticsEnabled,
                                 onOpen = { viewModel.openSession(session.id, focusedApprovalId = requestId, provider = sessionProvider(session)) },
+                                onAction = { viewModel.requestSessionAction(session, it) },
+                                onPin = { viewModel.togglePinnedSession(session.id, sessionProvider(session)) },
+                                onHide = { viewModel.toggleHiddenSession(session.id, sessionProvider(session)) },
                             )
                         }
                     }
@@ -5736,7 +5796,15 @@ private fun HostDashboardScreen(
                                 repositoryLabel = sessionRepositoryIdentity(session.repository, state.repositories, state.repositoryRoot).label,
                                 detail = liveActivityMessage(session) ?: liveActivityLabel(session),
                                 showProviderIdentity = showProviderIdentity || !providerUsableForTasks(state.providers, sessionProvider(session)),
+                                pinned = session.providerKey() in state.pinnedSessionIds,
+                                hidden = session.providerKey() in state.hiddenSessionIds,
+                                capabilities = state.capabilities,
+                                providerUsable = providerUsableForTasks(state.providers, sessionProvider(session)),
+                                hapticsEnabled = state.hapticsEnabled,
                                 onOpen = { viewModel.openSession(session.id, provider = sessionProvider(session)) },
+                                onAction = { viewModel.requestSessionAction(session, it) },
+                                onPin = { viewModel.togglePinnedSession(session.id, sessionProvider(session)) },
+                                onHide = { viewModel.toggleHiddenSession(session.id, sessionProvider(session)) },
                             )
                         }
                     }
@@ -5750,7 +5818,15 @@ private fun HostDashboardScreen(
                                 repositoryLabel = sessionRepositoryIdentity(session.repository, state.repositories, state.repositoryRoot).label,
                                 detail = session.failureSummary ?: session.activityText.ifBlank { session.activityLabel.ifBlank { "Turn finished" } },
                                 showProviderIdentity = showProviderIdentity || !providerUsableForTasks(state.providers, sessionProvider(session)),
+                                pinned = session.providerKey() in state.pinnedSessionIds,
+                                hidden = session.providerKey() in state.hiddenSessionIds,
+                                capabilities = state.capabilities,
+                                providerUsable = providerUsableForTasks(state.providers, sessionProvider(session)),
+                                hapticsEnabled = state.hapticsEnabled,
                                 onOpen = { viewModel.openSession(session.id, provider = sessionProvider(session)) },
+                                onAction = { viewModel.requestSessionAction(session, it) },
+                                onPin = { viewModel.togglePinnedSession(session.id, sessionProvider(session)) },
+                                onHide = { viewModel.toggleHiddenSession(session.id, sessionProvider(session)) },
                             )
                         }
                     }
@@ -5837,45 +5913,66 @@ private fun DashboardEmptyState(message: String) {
 }
 
 @Composable
-private fun DashboardSessionCard(
+internal fun DashboardSessionCard(
     session: SessionSummary,
     repositoryLabel: String,
     detail: String,
     showProviderIdentity: Boolean,
+    pinned: Boolean,
+    hidden: Boolean,
+    capabilities: Set<String>,
+    providerUsable: Boolean,
+    hapticsEnabled: Boolean,
     onOpen: () -> Unit,
+    onAction: (SessionAction) -> Unit,
+    onPin: () -> Unit,
+    onHide: () -> Unit,
 ) {
-    Card(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
-        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    sessionDisplayTitle(session),
-                    modifier = Modifier.weight(1f),
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (showProviderIdentity) {
-                    Spacer(Modifier.width(8.dp))
-                    ProviderBadge(sessionProvider(session))
-                    Spacer(Modifier.width(6.dp))
+    SessionContextActionHost(
+        session = session,
+        pinned = pinned,
+        hidden = hidden,
+        capabilities = capabilities,
+        providerUsable = providerUsable,
+        hapticsEnabled = hapticsEnabled,
+        onOpen = onOpen,
+        onAction = onAction,
+        onPin = onPin,
+        onHide = onHide,
+    ) {
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        sessionDisplayTitle(session),
+                        modifier = Modifier.weight(1f),
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (showProviderIdentity) {
+                        Spacer(Modifier.width(8.dp))
+                        ProviderBadge(sessionProvider(session))
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    StatusPill(if (!providerUsable) "Provider unavailable" else sessionDisplayStatus(session))
                 }
-                StatusPill(sessionDisplayStatus(session))
-            }
-            Text(repositoryLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (detail.isNotBlank()) {
+                Text(repositoryLabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (detail.isNotBlank()) {
+                    Text(
+                        detail,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Text(
-                    detail,
-                    style = MaterialTheme.typography.bodyMedium,
+                    overviewAge(epochMillis(session.lastActivity ?: session.terminalAt)),
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
-                overviewAge(epochMillis(session.lastActivity ?: session.terminalAt)),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
@@ -6126,6 +6223,7 @@ private fun SessionsScreen(
                                     state.repositoryRoot,
                                     usableProviderIds,
                                     showProviderIdentity,
+                                    state.hapticsEnabled,
                                 )
                             }
                         } else {
@@ -6136,6 +6234,7 @@ private fun SessionsScreen(
                                 { provider, id -> viewModel.togglePinnedSession(id, provider) },
                                 { provider, id -> viewModel.toggleHiddenSession(id, provider) },
                                 state.capabilities, state.repositories, state.repositoryRoot, usableProviderIds, showProviderIdentity,
+                                state.hapticsEnabled,
                             )
                             sessionSection(
                                 "Waiting", waiting,
@@ -6144,6 +6243,7 @@ private fun SessionsScreen(
                                 { provider, id -> viewModel.togglePinnedSession(id, provider) },
                                 { provider, id -> viewModel.toggleHiddenSession(id, provider) },
                                 state.capabilities, state.repositories, state.repositoryRoot, usableProviderIds, showProviderIdentity,
+                                state.hapticsEnabled,
                             )
                             sessionSection(
                                 "Active", active,
@@ -6152,6 +6252,7 @@ private fun SessionsScreen(
                                 { provider, id -> viewModel.togglePinnedSession(id, provider) },
                                 { provider, id -> viewModel.toggleHiddenSession(id, provider) },
                                 state.capabilities, state.repositories, state.repositoryRoot, usableProviderIds, showProviderIdentity,
+                                state.hapticsEnabled,
                             )
                             sessionSection(
                                 "Recent", recent,
@@ -6160,6 +6261,7 @@ private fun SessionsScreen(
                                 { provider, id -> viewModel.togglePinnedSession(id, provider) },
                                 { provider, id -> viewModel.toggleHiddenSession(id, provider) },
                                 state.capabilities, state.repositories, state.repositoryRoot, usableProviderIds, showProviderIdentity,
+                                state.hapticsEnabled,
                             )
                         }
                     }
@@ -6480,6 +6582,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.repositorySessionSect
     repositoryRoot: String,
     usableProviderIds: Set<String>,
     showProviderIdentity: Boolean,
+    hapticsEnabled: Boolean,
 ) {
     item(key = "repository:${group.repository.id}") {
         Surface(
@@ -6536,6 +6639,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.repositorySessionSect
             repositoryRoot,
             usableProviderIds,
             showProviderIdentity,
+            hapticsEnabled,
             renderContext = SessionCardRenderContext(
                 groupSessionsByRepository = true,
                 repositoryGroupId = group.repository.id,
@@ -6556,6 +6660,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sessionSection(
     repositoryRoot: String,
     usableProviderIds: Set<String>,
     showProviderIdentity: Boolean,
+    hapticsEnabled: Boolean,
 ) {
     if (sessions.isEmpty()) return
     item {
@@ -6567,7 +6672,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sessionSection(
             modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
         )
     }
-    sessionCards(sessions, open, action, pin, hide, capabilities, repositories, repositoryRoot, usableProviderIds, showProviderIdentity)
+    sessionCards(
+        sessions,
+        open,
+        action,
+        pin,
+        hide,
+        capabilities,
+        repositories,
+        repositoryRoot,
+        usableProviderIds,
+        showProviderIdentity,
+        hapticsEnabled,
+    )
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.sessionCards(
@@ -6581,6 +6698,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sessionCards(
     repositoryRoot: String,
     usableProviderIds: Set<String>,
     showProviderIdentity: Boolean,
+    hapticsEnabled: Boolean,
     renderContext: SessionCardRenderContext = SessionCardRenderContext(),
 ) {
     items(sessions, key = { it.session.providerKey() }) { visible ->
@@ -6604,12 +6722,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.sessionCards(
             capabilities = capabilities,
             providerUsable = provider in usableProviderIds,
             showProviderIdentity = showProviderIdentity,
+            hapticsEnabled = hapticsEnabled,
         )
     }
 }
 
 @Composable
-private fun SessionCard(
+internal fun SessionCard(
     session: SessionSummary,
     matches: List<SessionSearchMatch>,
     pinned: Boolean,
@@ -6622,83 +6741,100 @@ private fun SessionCard(
     capabilities: Set<String>,
     providerUsable: Boolean,
     showProviderIdentity: Boolean,
+    hapticsEnabled: Boolean,
 ) {
     val theme = LocalPalomarThemeVariant.current
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = if (session.archived) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
-            else theme.card,
-        ),
-        border = if (session.archived) BorderStroke(1.dp, MaterialTheme.colorScheme.secondary) else null,
+    SessionContextActionHost(
+        session = session,
+        pinned = pinned,
+        hidden = hidden,
+        capabilities = capabilities,
+        providerUsable = providerUsable,
+        hapticsEnabled = hapticsEnabled,
+        onOpen = onClick,
+        onAction = onAction,
+        onPin = onPin,
+        onHide = onHide,
     ) {
-        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                sessionDisplayTitle(session),
-                modifier = Modifier.fillMaxWidth(),
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (showProviderIdentity || !providerUsable) {
-                    ProviderBadge(sessionProvider(session))
-                    Spacer(Modifier.width(6.dp))
-                }
-                StatusPill(if (!providerUsable) "Provider unavailable" else if (session.archived) "Archived" else sessionDisplayStatus(session))
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = onPin, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        if (pinned) Icons.Default.Star else Icons.Default.StarBorder,
-                        contentDescription = if (pinned) "Unpin session" else "Pin session",
-                        tint = if (pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                IconButton(onClick = onHide, modifier = Modifier.size(36.dp)) {
-                    Icon(Icons.Default.VisibilityOff, contentDescription = if (hidden) "Restore session" else "Hide session")
-                }
-                if (providerUsable) SessionActionsMenu(
-                    enabled = sessionCanBeManaged(session.status),
-                    archiveSupported = sessionActionSupported(session, capabilities, SessionAction.Archive),
-                    restoreSupported = sessionActionSupported(session, capabilities, SessionAction.Restore),
-                    deleteSupported = sessionActionSupported(session, capabilities, SessionAction.Delete),
-                    onAction = onAction,
-                )
-            }
-            if (sessionProvider(session) == PROVIDER_CLAUDE_CODE && session.source == "external") {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = if (session.archived) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+                else theme.card,
+            ),
+            border = if (session.archived) BorderStroke(1.dp, MaterialTheme.colorScheme.secondary) else null,
+        ) {
+            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
-                    (if (session.status == "working") "External active" else "Resumable") +
-                        " · Not live-attached",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            repositoryLabel?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            matches.take(3).forEach { match ->
-                Text(
-                    "${match.kind.replaceFirstChar { it.uppercase() }} · ${match.snippet}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    sessionDisplayTitle(session),
+                    modifier = Modifier.fillMaxWidth(),
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-            session.lastActivity?.let {
-                Text(
-                    DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
-                        .format(Date(it * 1000)),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (showProviderIdentity || !providerUsable) {
+                        ProviderBadge(sessionProvider(session))
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    StatusPill(if (!providerUsable) "Provider unavailable" else if (session.archived) "Archived" else sessionDisplayStatus(session))
+                    Spacer(Modifier.weight(1f))
+                    IconButton(onClick = onPin, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            if (pinned) Icons.Default.Star else Icons.Default.StarBorder,
+                            contentDescription = if (pinned) "Unpin session" else "Pin session",
+                            tint = if (pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = onHide, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            if (hidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (hidden) "Show in session list" else "Hide from session list",
+                        )
+                    }
+                    if (providerUsable) SessionActionsMenu(
+                        enabled = sessionCanBeManaged(session.status),
+                        archiveSupported = sessionActionSupported(session, capabilities, SessionAction.Archive),
+                        restoreSupported = sessionActionSupported(session, capabilities, SessionAction.Restore),
+                        deleteSupported = sessionActionSupported(session, capabilities, SessionAction.Delete),
+                        onAction = onAction,
+                    )
+                }
+                if (sessionProvider(session) == PROVIDER_CLAUDE_CODE && session.source == "external") {
+                    Text(
+                        (if (session.status == "working") "External active" else "Resumable") +
+                            " · Not live-attached",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                repositoryLabel?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                matches.take(3).forEach { match ->
+                    Text(
+                        "${match.kind.replaceFirstChar { it.uppercase() }} · ${match.snippet}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                session.lastActivity?.let {
+                    Text(
+                        DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT)
+                            .format(Date(it * 1000)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -9401,6 +9537,152 @@ internal fun themePreviewColors(themeId: ThemeId, darkTheme: Boolean): List<Colo
         listOf(palette.surface, palette.groupedHeader, palette.accent, palette.accentEmphasis)
     }
 
+internal const val SESSION_ACTIONS_SHEET_TEST_TAG = "session-actions-sheet"
+
+internal fun sessionCardTestTag(session: SessionSummary): String =
+    "session-card:${session.providerKey()}"
+
+internal fun sessionContextActionLabel(action: SessionContextAction): String =
+    when (action) {
+        SessionContextAction.Pin -> "Pin session"
+        SessionContextAction.Unpin -> "Unpin session"
+        SessionContextAction.Hide -> "Hide from session list"
+        SessionContextAction.Show -> "Show in session list"
+        SessionContextAction.Archive -> "Archive"
+        SessionContextAction.Restore -> "Restore"
+        SessionContextAction.Delete -> "Delete permanently"
+    }
+
+@Composable
+internal fun SessionContextActionHost(
+    session: SessionSummary,
+    pinned: Boolean,
+    hidden: Boolean,
+    capabilities: Set<String>,
+    providerUsable: Boolean,
+    hapticsEnabled: Boolean,
+    onOpen: () -> Unit,
+    onAction: (SessionAction) -> Unit,
+    onPin: () -> Unit,
+    onHide: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    var actionsVisible by remember(session.providerKey()) { mutableStateOf(false) }
+    val hapticFeedback = LocalHapticFeedback.current
+    val showActions = { actionsVisible = true }
+    Box(
+        modifier =
+            Modifier.fillMaxWidth()
+                .testTag(sessionCardTestTag(session))
+                .combinedClickable(
+                    onClickLabel = "Open session",
+                    onLongClickLabel = "Session actions",
+                    onLongClick = {
+                        if (hapticsEnabled) {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
+                        showActions()
+                    },
+                    onClick = onOpen,
+                ).semantics {
+                    customActions =
+                        listOf(
+                            CustomAccessibilityAction("Session actions") {
+                                showActions()
+                                true
+                            },
+                        )
+                },
+    ) {
+        content()
+    }
+    if (actionsVisible) {
+        SessionContextActionSheet(
+            session = session,
+            actions =
+                sessionContextActions(
+                    session = session,
+                    pinned = pinned,
+                    hidden = hidden,
+                    capabilities = capabilities,
+                    providerUsable = providerUsable,
+                ),
+            onAction = { selected ->
+                actionsVisible = false
+                when (selected) {
+                    SessionContextAction.Pin,
+                    SessionContextAction.Unpin -> onPin()
+                    SessionContextAction.Hide,
+                    SessionContextAction.Show -> onHide()
+                    else -> selected.lifecycleAction()?.let(onAction)
+                }
+            },
+            onDismiss = { actionsVisible = false },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SessionContextActionSheet(
+    session: SessionSummary,
+    actions: List<SessionContextAction>,
+    onAction: (SessionContextAction) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.testTag(SESSION_ACTIONS_SHEET_TEST_TAG),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                .navigationBarsPadding().padding(bottom = 8.dp),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text("Session actions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    sessionDisplayTitle(session),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            actions.forEach { action ->
+                val destructive = action == SessionContextAction.Delete
+                val actionColor =
+                    if (destructive) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurface
+                ListItem(
+                    headlineContent = {
+                        Text(sessionContextActionLabel(action), color = actionColor)
+                    },
+                    leadingContent = {
+                        Icon(
+                            imageVector =
+                                when (action) {
+                                    SessionContextAction.Pin -> Icons.Default.StarBorder
+                                    SessionContextAction.Unpin -> Icons.Default.Star
+                                    SessionContextAction.Hide -> Icons.Default.VisibilityOff
+                                    SessionContextAction.Show -> Icons.Default.Visibility
+                                    SessionContextAction.Archive -> Icons.Default.Archive
+                                    SessionContextAction.Restore -> Icons.Default.Refresh
+                                    SessionContextAction.Delete -> Icons.Default.Delete
+                                },
+                            contentDescription = null,
+                            tint = actionColor,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().clickable { onAction(action) },
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun SessionActionsMenu(
     enabled: Boolean,
@@ -9458,7 +9740,7 @@ private fun SessionActionsMenu(
 }
 
 @Composable
-private fun SessionActionDialog(
+internal fun SessionActionDialog(
     pending: PendingSessionAction,
     busy: Boolean,
     onConfirm: () -> Unit,
