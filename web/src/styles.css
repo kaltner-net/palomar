@@ -360,6 +360,7 @@ input,select{border:1px solid var(--border);background:var(--bg);border-radius:9
 .new-session-settings{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;display:grid}
 .modal textarea{border:1px solid var(--border);background:var(--surface-alt);color:var(--text);resize:vertical;border-radius:9px;min-height:88px;padding:10px;font:inherit}
 .modal label small{font-weight:500;line-height:1.35}
+.full-access-warning{border:1px solid var(--full-access);background:var(--full-access-container);color:var(--text);box-sizing:border-box;grid-column:1/-1;max-width:100%;border-radius:9px;gap:4px;padding:10px 12px;font-size:12px;font-weight:500;line-height:1.45;overflow-wrap:anywhere;display:grid}.full-access-warning strong{color:var(--full-access)}
 .modal-actions{justify-content:flex-end;gap:8px;margin-top:8px;display:flex}
 .modal-actions button:not(.primary){border:1px solid var(--border);background:var(--surface);border-radius:9px;padding:8px 12px}
 .dashboard-page{grid-row:4;width:100%;max-height:100%;padding:30px clamp(16px,3vw,40px) 60px;overflow-y:auto}

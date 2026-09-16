@@ -2562,6 +2562,41 @@ describe("NewSessionDialog", () => {
     accessLevels: [{ id: "ask", displayName: "Ask for approval" }, { id: "full", displayName: "Full access" }],
   };
 
+  afterEach(() => vi.restoreAllMocks());
+
+  it("shows and accessibly describes Full access until a safer level is selected", () => {
+    render(<NewSessionDialog repositories={[]} repositoryRoot="/projects" {...routeProps} onClose={vi.fn()} onCreate={vi.fn()} />);
+
+    const access = screen.getByLabelText("Access");
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+
+    fireEvent.change(access, { target: { value: "full" } });
+
+    const warning = screen.getByRole("note");
+    expect(warning).toHaveTextContent("Full access allows commands outside the workspace without approval.");
+    expect(warning).toHaveTextContent("Codex may use the Internet and read or change files available to your user account.");
+    expect(access).toHaveAccessibleDescription(/commands outside the workspace without approval/i);
+
+    fireEvent.change(access, { target: { value: "ask" } });
+
+    expect(screen.queryByRole("note")).not.toBeInTheDocument();
+    expect(access).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("shows the Full access warning when Full access is initially selected", () => {
+    render(<NewSessionDialog
+      repositories={[]}
+      repositoryRoot="/projects"
+      {...routeProps}
+      accessLevels={[{ id: "full", displayName: "Full access" }, { id: "ask", displayName: "Ask for approval" }]}
+      onClose={vi.fn()}
+      onCreate={vi.fn()}
+    />);
+
+    expect(screen.getByLabelText("Access")).toHaveValue("full");
+    expect(screen.getByRole("note")).toHaveTextContent("Full access warning");
+  });
+
   it("hides provider selection and defaults to the sole enabled provider", () => {
     render(<NewSessionDialog
       repositories={[]}
@@ -2648,6 +2683,7 @@ describe("NewSessionDialog", () => {
     fireEvent.change(screen.getByLabelText("Workspace"), { target: { value: "palomar" } });
     fireEvent.change(screen.getByLabelText("Reasoning"), { target: { value: "low" } });
     fireEvent.change(screen.getByLabelText("Access"), { target: { value: "full" } });
+    expect(screen.getByRole("note")).toBeInTheDocument();
     fireEvent.click(button);
 
     expect(create).toHaveBeenLastCalledWith({
@@ -2673,6 +2709,7 @@ describe("NewSessionDialog", () => {
 
   it("starts Claude with the adapter model and exact permission mode", () => {
     const create = vi.fn().mockResolvedValue(undefined);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<NewSessionDialog
       repositories={[]}
       repositoryRoot="/projects"
@@ -2700,6 +2737,7 @@ describe("NewSessionDialog", () => {
     fireEvent.change(screen.getByLabelText("Permission mode"), { target: { value: "bypassPermissions" } });
     fireEvent.click(screen.getByRole("button", { name: "Start Claude session" }));
 
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/bypasses Claude Code permission checks/i));
     expect(create).toHaveBeenCalledWith({
       provider: "claude-code",
       repositoryId: ".",
@@ -2708,6 +2746,90 @@ describe("NewSessionDialog", () => {
       permissionMode: "bypassPermissions",
     });
     expect(screen.getAllByText(/high risk/i).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the previous safe Claude permission mode when high-risk confirmation is canceled", () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<NewSessionDialog
+      repositories={[]}
+      repositoryRoot="/projects"
+      {...routeProps}
+      providers={[
+        { id: "codex", displayName: "Codex", available: true, capabilities: [], limitations: [] },
+        { id: "claude-code", displayName: "Claude Code", available: true, capabilities: [], limitations: [] },
+      ]}
+      claudePermissionModes={[
+        { id: "default", displayName: "Default" },
+        { id: "trust-session", displayName: "Trust session", highRisk: true },
+      ]}
+      onClose={vi.fn()}
+      onCreate={vi.fn()}
+    />);
+
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "claude-code" } });
+    const permissionMode = screen.getByLabelText("Permission mode");
+    fireEvent.change(permissionMode, { target: { value: "trust-session" } });
+
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(permissionMode).toHaveValue("default");
+
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "codex" } });
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "claude-code" } });
+    expect(screen.getByLabelText("Permission mode")).toHaveValue("default");
+  });
+
+  it("changes normal Claude permission modes without confirmation", () => {
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<NewSessionDialog
+      repositories={[]}
+      repositoryRoot="/projects"
+      {...routeProps}
+      providers={[{ id: "claude-code", displayName: "Claude Code", available: true, capabilities: [], limitations: [] }]}
+      claudePermissionModes={[
+        { id: "default", displayName: "Default" },
+        { id: "acceptEdits", displayName: "Accept edits" },
+      ]}
+      onClose={vi.fn()}
+      onCreate={vi.fn()}
+    />);
+
+    fireEvent.change(screen.getByLabelText("Permission mode"), { target: { value: "acceptEdits" } });
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Permission mode")).toHaveValue("acceptEdits");
+  });
+
+  it("does not submit a confirmed Claude high-risk mode after switching to Codex", () => {
+    const create = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<NewSessionDialog
+      repositories={[]}
+      repositoryRoot="/projects"
+      {...routeProps}
+      providers={[
+        { id: "codex", displayName: "Codex", available: true, capabilities: [], limitations: [] },
+        { id: "claude-code", displayName: "Claude Code", available: true, capabilities: [], limitations: [] },
+      ]}
+      claudePermissionModes={[
+        { id: "default", displayName: "Default" },
+        { id: "trust-session", displayName: "Trust session", highRisk: true },
+      ]}
+      onClose={vi.fn()}
+      onCreate={create}
+    />);
+
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "claude-code" } });
+    fireEvent.change(screen.getByLabelText("Permission mode"), { target: { value: "trust-session" } });
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "codex" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start in workspace" }));
+
+    expect(create).toHaveBeenCalledWith({
+      provider: "codex",
+      repositoryId: ".",
+      model: "model-test",
+      reasoningEffort: "high",
+      accessLevel: "ask",
+    });
   });
 
   it("shows an actionable state when neither enabled provider is usable", () => {
