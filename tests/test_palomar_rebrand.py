@@ -71,10 +71,10 @@ class PalomarRebrandTests(unittest.TestCase):
         android_build = (ROOT / "android/app/build.gradle.kts").read_text(encoding="utf-8")
         android_manifest = (ROOT / "android/app/src/main/AndroidManifest.xml").read_text(encoding="utf-8")
 
-        self.assertIn("palomarVersion=2.0.0", release)
+        self.assertIn("palomarVersion=2.1.0", release)
         self.assertEqual("palomar-web", web_package["name"])
-        self.assertEqual("2.0.0", web_package["version"])
-        self.assertEqual("2.0.0", bridge_package["version"])
+        self.assertEqual("2.1.0", web_package["version"])
+        self.assertEqual("2.1.0", bridge_package["version"])
         self.assertIn('namespace = "net.kaltner.palomar"', android_build)
         self.assertIn('applicationId = "net.kaltner.palomar"', android_build)
         self.assertIn('@string/app_name', android_manifest)
