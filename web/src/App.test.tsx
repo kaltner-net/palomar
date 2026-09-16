@@ -1568,7 +1568,7 @@ describe("session card repository context", () => {
     expect(repositoryCard.querySelector(".session-meta")).toBeInTheDocument();
 
     view.rerender(<SessionList {...baseProps} filters={DEFAULT_SESSION_FILTERS} groupByRepository={false} />);
-    expect(within(screen.getByRole("heading", { name: "Repository work" }).closest("article") as HTMLElement).getByText("src")).toBeInTheDocument();
+    expect(within(screen.getByRole("heading", { name: "Repository work" }).closest("article") as HTMLElement).getByText("palomar")).toBeInTheDocument();
     expect(within(screen.getByRole("heading", { name: "Workspace work" }).closest("article") as HTMLElement).getByText("operator")).toBeInTheDocument();
   });
 
@@ -1578,6 +1578,39 @@ describe("session card repository context", () => {
     expect(screen.getByText("/projects/palomar/src")).toBeInTheDocument();
     expect(screen.getByText("/home/operator")).toBeInTheDocument();
     expect(screen.getByLabelText("Unpin Repository work")).toBeInTheDocument();
+  });
+
+  it("disambiguates colliding group labels while cards keep canonical group context", () => {
+    const collidingRepositories = [
+      { id: "root-android", name: "android", path: "android", branch: "main", dirty: false },
+      { id: "admin-android", name: "android", path: "accounts-admin/android", branch: "main", dirty: false },
+    ];
+    const collidingSessions: SessionSummary[] = [
+      { id: "root", repository: "/projects/android", title: "Root Android", status: "idle" },
+      { id: "admin", repository: "/projects/accounts-admin/android", title: "Admin Android", status: "idle" },
+    ];
+    const collidingResults = collidingSessions.map((session) => ({ session, pinned: false, hidden: false, matches: [] }));
+    const view = render(<SessionList
+      {...baseProps}
+      results={collidingResults}
+      repositories={collidingRepositories}
+      filters={DEFAULT_SESSION_FILTERS}
+      groupByRepository
+    />);
+
+    expect(screen.getByRole("button", { name: /Collapse Repository: android \(1 sessions\)/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Collapse Repository: accounts-admin\/android \(1 sessions\)/ })).toBeInTheDocument();
+    expect(document.querySelectorAll(".session-card .repository")).toHaveLength(0);
+
+    view.rerender(<SessionList
+      {...baseProps}
+      results={collidingResults}
+      repositories={collidingRepositories}
+      filters={DEFAULT_SESSION_FILTERS}
+      groupByRepository={false}
+    />);
+    expect(screen.getByText("android")).toBeInTheDocument();
+    expect(screen.getByText("accounts-admin/android")).toBeInTheDocument();
   });
 
   it("preserves repository grouping and collapsed state in Archived scope", () => {

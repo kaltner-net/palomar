@@ -36,6 +36,13 @@ data class RepositorySessionGroup(
     val sessions: List<VisibleSession>,
 )
 
+internal fun repositoryGroupContentDescription(
+    repository: SessionRepositoryOption,
+    sessionCount: Int,
+    collapsed: Boolean,
+): String =
+    "${if (collapsed) "Expand" else "Collapse"} ${repository.label} ($sessionCount sessions)"
+
 internal data class SessionCardRenderContext(
     val groupSessionsByRepository: Boolean = false,
     val repositoryGroupId: String? = null,
@@ -58,16 +65,17 @@ internal fun sessionRepositoryIdentity(
     repositories: List<RepositoryInfo>,
     repositoryRoot: String,
 ): SessionRepositoryOption {
-    val cwd = normalizeSessionPath(path)
-    val match = repositories.map { repository ->
-        val absolute =
-            if (repository.path.startsWith('/')) repository.path
-            else "${repositoryRoot.trimEnd('/')}/${repository.path}"
-        repository to normalizeSessionPath(absolute)
-    }.sortedByDescending { it.second.length }
-        .firstOrNull { (_, root) -> cwd == root || cwd.startsWith("$root/") }
+    return sessionRepositoryIdentity(path, resolveRepositorySet(repositories, repositoryRoot))
+}
+
+private fun sessionRepositoryIdentity(
+    path: String,
+    repositories: List<ResolvedRepository>,
+): SessionRepositoryOption {
+    val cwd = normalizeRepositoryPath(path)
+    val match = matchResolvedRepository(cwd, repositories)
     return if (match != null) {
-        SessionRepositoryOption(match.second, "Repository: ${match.first.name}")
+        SessionRepositoryOption(match.canonicalPath, "Repository: ${match.label}")
     } else {
         SessionRepositoryOption(cwd, "Workspace: ${cwd.ifBlank { "(unknown)" }}")
     }
@@ -78,7 +86,9 @@ internal fun sessionRepositoryOptions(
     repositories: List<RepositoryInfo>,
     repositoryRoot: String,
 ): List<SessionRepositoryOption> =
-    sessions.map { sessionRepositoryIdentity(it.repository, repositories, repositoryRoot) }
+    resolveRepositorySet(repositories, repositoryRoot).let { resolved ->
+        sessions.map { sessionRepositoryIdentity(it.repository, resolved) }
+    }
         .distinctBy { it.id }
         .sortedWith(::compareRepositoryOptions)
 
@@ -87,9 +97,10 @@ internal fun repositorySessionGroups(
     repositories: List<RepositoryInfo>,
     repositoryRoot: String,
 ): List<RepositorySessionGroup> {
+    val resolvedRepositories = resolveRepositorySet(repositories, repositoryRoot)
     val groups = linkedMapOf<String, Pair<SessionRepositoryOption, MutableList<VisibleSession>>>()
     sessions.forEach { session ->
-        val repository = sessionRepositoryIdentity(session.session.repository, repositories, repositoryRoot)
+        val repository = sessionRepositoryIdentity(session.session.repository, resolvedRepositories)
         groups.getOrPut(repository.id) { repository to mutableListOf() }.second += session
     }
     return groups.values.map { (repository, groupedSessions) ->
@@ -170,6 +181,7 @@ internal fun filterSessions(
     repositoryRoot: String,
     nowMillis: Long = System.currentTimeMillis(),
 ): List<VisibleSession> {
+    val resolvedRepositories = resolveRepositorySet(repositories, repositoryRoot)
     val normalizedPinnedIds = pinnedIds.mapTo(linkedSetOf(), ::legacySessionKey)
     val normalizedHiddenIds = hiddenIds.mapTo(linkedSetOf(), ::legacySessionKey)
     // The protocol's transcript search remains Codex-only. Claude sessions still
@@ -195,7 +207,7 @@ internal fun filterSessions(
         val hidden = key in normalizedHiddenIds
         if (filters.hiddenOnly != hidden) return@mapNotNull null
         if (filters.pinnedOnly && key !in normalizedPinnedIds) return@mapNotNull null
-        val identity = sessionRepositoryIdentity(session.repository, repositories, repositoryRoot)
+        val identity = sessionRepositoryIdentity(session.repository, resolvedRepositories)
         if (filters.repository.isNotBlank() && identity.id != filters.repository) return@mapNotNull null
         if (!sessionStatusMatches(session.status, filters.status)) return@mapNotNull null
         val activity = session.lastActivity?.let { if (it > 10_000_000_000) it / 1000 else it }
@@ -286,5 +298,3 @@ private fun parseLocalDate(value: String, end: Boolean): Long? {
     }
     return calendar.timeInMillis / 1000
 }
-
-private fun normalizeSessionPath(value: String): String = value.trimEnd('/').ifBlank { "/" }

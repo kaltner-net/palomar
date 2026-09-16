@@ -142,13 +142,13 @@ export function SessionSearchResults({
   if (loading && results.length === 0) return <div className="search-state" role="status">Searching sessions…</div>;
   if (results.length === 0) return <div className="search-state"><strong>No matching sessions</strong><span>Try clearing a filter or using a shorter substring.</span></div>;
   return <div className="search-results" aria-live="polite">
-    {results.map(({ session, matches, pinned, hidden }, index) => {
+    {results.map(({ session, matches, pinned, hidden, repository }, index) => {
       const provider = sessionProvider(session);
       const providerUsable = usableProviderIds?.has(provider) ?? true;
       return <article className={`search-result ${session.archived ? "archived" : ""}`} key={`${provider}:${session.id}`}>
       <button data-search-result={index === 0 ? "first" : ""} className="search-result-main" onClick={() => onOpen(sessionProvider(session), session.id, matches.find((match) => match.itemId)?.itemId)}>
         <span className="search-result-title"><strong>{session.title}</strong>{(showProviderIdentity || !providerUsable) && <ProviderBadge provider={provider} />}{!providerUsable ? <span className="status-pill disconnected">Provider unavailable</span> : session.archived ? <span className="status-pill archived">Archived</span> : <StatusLabel status={session.status} />}</span>
-        <small title={session.repository}>{session.repository || "Unknown workspace"}</small>
+        <small title={session.repository}>{repository?.label ?? (session.repository || "Unknown workspace")}</small>
         {matches.slice(0, 3).map((match, matchIndex) => <p key={`${match.itemId ?? match.kind}-${matchIndex}`}><span>{match.kind}</span>{match.snippet}</p>)}
         {!matches.length && query && <p><span>title</span>{session.title}</p>}
         <time>{formatActivity(session.lastActivity)}</time>
