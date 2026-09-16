@@ -16,6 +16,16 @@ const clientMock = vi.hoisted(() => ({
   onAuthenticationRejected: undefined as undefined | ((detail: string) => void),
 }));
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
+
 vi.mock("./client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client")>();
   return {
@@ -805,6 +815,7 @@ describe("host navigation history", () => {
   it("keeps last sessions isolated while switching hosts", async () => {
     const homeSession: SessionSummary = { id: "home-thread", repository: "/home", title: "Home session", status: "idle", messages: [] };
     const workSession: SessionSummary = { id: "work-thread", provider: "claude-code", repositoryId: "work", repository: "/work", title: "Work session", status: "idle", messages: [] };
+    const workRead = deferred<{ session: SessionSummary }>();
     saveHostRegistry({ hosts: [home, work], activeHostId: home.id });
     saveRememberedSession({ hostId: home.id, provider: "codex", sessionId: homeSession.id });
     saveRememberedSession({ hostId: work.id, provider: "claude-code", sessionId: workSession.id });
@@ -812,12 +823,15 @@ describe("host navigation history", () => {
     mockConnectedState([homeSession, workSession], [
       { id: "codex", displayName: "Codex", enabled: true, available: true },
       { id: "claude-code", displayName: "Claude Code", enabled: true, available: true },
-    ]);
+    ], (session) => session.id === workSession.id ? workRead.promise : Promise.resolve({ session }));
 
     render(<App />);
     await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(homeSession.title));
     fireEvent.change(screen.getByLabelText("Saved host"), { target: { value: work.id } });
 
+    expect(await screen.findByRole("status")).toHaveTextContent("Loading session…");
+    expect(document.querySelector(".conversation-header h1")).toBeNull();
+    workRead.resolve({ session: workSession });
     await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(workSession.title));
     expect(window.location.search).toContain(`host=${work.id}`);
   });
@@ -1079,11 +1093,215 @@ describe("host navigation history", () => {
 
     render(<App />);
     fireEvent.click((await screen.findAllByRole("heading", { name: first.title }))[0]);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading session…");
     fireEvent.click(screen.getAllByRole("heading", { name: second.title })[0]);
     await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(second.title));
 
     await act(async () => { resolveFirst({ session: first }); });
     await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(second.title));
+  });
+
+  it("replaces the previous transcript with an accessible loading state and restores session-local state", async () => {
+    const first: SessionSummary = {
+      id: "first-session",
+      repository: "/projects/palomar",
+      title: "First session",
+      status: "idle",
+      messages: [{ id: "first-answer", kind: "assistant", text: "Previous transcript content" }],
+    };
+    const second: SessionSummary = {
+      provider: "claude-code",
+      id: "second-session",
+      repositoryId: "palomar",
+      repository: "/projects/palomar",
+      title: "Second session",
+      status: "idle",
+      messages: [{ id: "second-answer", kind: "assistant", text: "Requested transcript content" }],
+    };
+    const secondRead = deferred<{ session: SessionSummary }>();
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(480);
+    const scrollTo = vi.spyOn(HTMLElement.prototype, "scrollTo");
+    saveHostRegistry({ hosts: [home], activeHostId: home.id });
+    window.history.replaceState(null, "", `/sessions/codex/${first.id}?host=${home.id}`);
+    mockConnectedState([first, second], [
+      { id: "codex", displayName: "Codex", enabled: true, available: true },
+      { id: "claude-code", displayName: "Claude Code", enabled: true, available: true },
+    ], (session) => session.id === second.id ? secondRead.promise : Promise.resolve({ session }));
+
+    render(<App />);
+    await screen.findByText("Previous transcript content");
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Draft for the first session" } });
+    const firstTranscript = document.querySelector<HTMLElement>(".transcript")!;
+    Object.defineProperties(firstTranscript, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, writable: true, value: 321 },
+    });
+    fireEvent.scroll(firstTranscript);
+
+    fireEvent.click(screen.getByRole("heading", { name: second.title }));
+
+    const loading = screen.getByRole("status");
+    expect(loading).toHaveTextContent("Loading session…");
+    expect(loading.querySelector(".session-loading-spinner")).toBeInTheDocument();
+    expect(screen.queryByText("Previous transcript content")).not.toBeInTheDocument();
+    expect(document.querySelector(".conversation-header h1")).toBeNull();
+    expect(document.querySelector(".workspace")).toHaveClass("show-detail");
+    expect(document.querySelector(".detail-pane")?.contains(loading)).toBe(true);
+
+    await act(async () => secondRead.resolve({ session: second }));
+    expect(await screen.findByText("Requested transcript content")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("heading", { name: first.title }));
+    await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(first.title));
+    expect(screen.getByRole("textbox")).toHaveValue("Draft for the first session");
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledWith({ top: 321 }));
+  });
+
+  it("keeps only the newest transcript when session reads resolve out of order", async () => {
+    const first: SessionSummary = { id: "race-a", repository: "/repo", title: "Race A", status: "idle", messages: [] };
+    const second: SessionSummary = { id: "race-b", repository: "/repo", title: "Race B", status: "idle", messages: [] };
+    const third: SessionSummary = { id: "race-c", repository: "/repo", title: "Race C", status: "idle", messages: [] };
+    const secondRead = deferred<{ session: SessionSummary }>();
+    const thirdRead = deferred<{ session: SessionSummary }>();
+    saveHostRegistry({ hosts: [home], activeHostId: home.id });
+    window.history.replaceState(null, "", `/sessions/codex/${first.id}?host=${home.id}`);
+    mockConnectedState([first, second, third], undefined, (session) => {
+      if (session.id === second.id) return secondRead.promise;
+      if (session.id === third.id) return thirdRead.promise;
+      return Promise.resolve({ session });
+    });
+
+    render(<App />);
+    await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(first.title));
+    fireEvent.click(screen.getByRole("heading", { name: second.title }));
+    fireEvent.click(screen.getByRole("heading", { name: third.title }));
+    expect(screen.getByRole("status")).toHaveTextContent("Loading session…");
+
+    await act(async () => thirdRead.resolve({ session: third }));
+    await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(third.title));
+    await act(async () => secondRead.resolve({ session: second }));
+    expect(document.querySelector(".conversation-header h1")).toHaveTextContent(third.title);
+    expect(window.location.pathname).toBe(`/sessions/codex/${third.id}`);
+  });
+
+  it("does not let an older failure disrupt a newer successful selection", async () => {
+    const first: SessionSummary = { id: "failure-a", repository: "/repo", title: "Failure A", status: "idle", messages: [] };
+    const second: SessionSummary = { id: "failure-b", repository: "/repo", title: "Failure B", status: "idle", messages: [] };
+    const third: SessionSummary = { id: "failure-c", repository: "/repo", title: "Failure C", status: "idle", messages: [] };
+    const secondRead = deferred<{ session: SessionSummary }>();
+    saveHostRegistry({ hosts: [home], activeHostId: home.id });
+    window.history.replaceState(null, "", `/sessions/codex/${first.id}?host=${home.id}`);
+    mockConnectedState([first, second, third], undefined, (session) =>
+      session.id === second.id ? secondRead.promise : Promise.resolve({ session })
+    );
+
+    render(<App />);
+    await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(first.title));
+    fireEvent.click(screen.getByRole("heading", { name: second.title }));
+    fireEvent.click(screen.getByRole("heading", { name: third.title }));
+    await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(third.title));
+
+    await act(async () => secondRead.reject(new Error("Older read failed")));
+    expect(document.querySelector(".conversation-header h1")).toHaveTextContent(third.title);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("leaves no previous transcript visible when the selected target fails", async () => {
+    const first: SessionSummary = {
+      id: "loaded-before-failure",
+      repository: "/repo",
+      title: "Loaded before failure",
+      status: "idle",
+      messages: [{ id: "old-answer", kind: "assistant", text: "Old transcript must stay hidden" }],
+    };
+    const failed: SessionSummary = { id: "failed-target", repository: "/repo", title: "Failed target", status: "idle", messages: [] };
+    const failedRead = deferred<{ session: SessionSummary }>();
+    saveHostRegistry({ hosts: [home], activeHostId: home.id });
+    window.history.replaceState(null, "", `/sessions/codex/${first.id}?host=${home.id}`);
+    mockConnectedState([first, failed], undefined, (session) =>
+      session.id === failed.id ? failedRead.promise : Promise.resolve({ session })
+    );
+
+    render(<App />);
+    await screen.findByText("Old transcript must stay hidden");
+    fireEvent.click(screen.getByRole("heading", { name: failed.title }));
+    expect(screen.getByRole("status")).toHaveTextContent("Loading session…");
+    expect(screen.queryByText("Old transcript must stay hidden")).not.toBeInTheDocument();
+
+    await act(async () => failedRead.reject(new Error("Target read failed")));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Target read failed");
+    expect(screen.queryByText("Old transcript must stay hidden")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/sessions");
+  });
+
+  it("uses the same loading transition for browser history navigation", async () => {
+    const first: SessionSummary = {
+      id: "history-a",
+      repository: "/repo",
+      title: "History A",
+      status: "idle",
+      messages: [{ id: "history-old", kind: "assistant", text: "History A transcript" }],
+    };
+    const second: SessionSummary = { id: "history-b", repository: "/repo", title: "History B", status: "idle", messages: [] };
+    const secondRead = deferred<{ session: SessionSummary }>();
+    saveHostRegistry({ hosts: [home], activeHostId: home.id });
+    window.history.replaceState(null, "", `/sessions/codex/${first.id}?host=${home.id}`);
+    mockConnectedState([first, second], undefined, (session) =>
+      session.id === second.id ? secondRead.promise : Promise.resolve({ session })
+    );
+
+    render(<App />);
+    await screen.findByText("History A transcript");
+    window.history.pushState(null, "", `/sessions/codex/${second.id}?host=${home.id}`);
+    act(() => window.dispatchEvent(new PopStateEvent("popstate")));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading session…");
+    expect(screen.queryByText("History A transcript")).not.toBeInTheDocument();
+    await act(async () => secondRead.resolve({ session: second }));
+    await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(second.title));
+  });
+
+  it("shows loading while restoring a remembered session", async () => {
+    const remembered: SessionSummary = { id: "remembered-loading", repository: "/repo", title: "Remembered loading", status: "idle", messages: [] };
+    const rememberedRead = deferred<{ session: SessionSummary }>();
+    saveHostRegistry({ hosts: [home], activeHostId: home.id });
+    saveRememberedSession({ hostId: home.id, provider: "codex", sessionId: remembered.id });
+    window.history.replaceState(null, "", `/?host=${home.id}`);
+    mockConnectedState([remembered], undefined, () => rememberedRead.promise);
+
+    render(<App />);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading session…");
+    await act(async () => rememberedRead.resolve({ session: remembered }));
+    await waitFor(() => expect(document.querySelector(".conversation-header h1")).toHaveTextContent(remembered.title));
+  });
+
+  it("keeps the visible transcript while reopening the same session", async () => {
+    const session: SessionSummary = {
+      id: "same-session",
+      repository: "/repo",
+      title: "Same session",
+      status: "idle",
+      messages: [{ id: "same-answer", kind: "assistant", text: "Keep this transcript visible" }],
+    };
+    const refreshRead = deferred<{ session: SessionSummary }>();
+    let readCount = 0;
+    saveHostRegistry({ hosts: [home], activeHostId: home.id });
+    window.history.replaceState(null, "", `/sessions/codex/${session.id}?host=${home.id}`);
+    mockConnectedState([session], undefined, () =>
+      readCount++ === 0 ? Promise.resolve({ session }) : refreshRead.promise
+    );
+
+    render(<App />);
+    await screen.findByText("Keep this transcript visible");
+    fireEvent.click(screen.getAllByRole("heading", { name: session.title })[0]);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText("Keep this transcript visible")).toBeInTheDocument();
+    await act(async () => refreshRead.resolve({ session }));
+    expect(screen.getByText("Keep this transcript visible")).toBeInTheDocument();
   });
 });
 

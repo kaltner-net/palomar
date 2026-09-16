@@ -194,6 +194,24 @@ interface WorkspaceFile extends WorkspaceFileTarget {
   content: string;
 }
 
+interface SessionLoadTarget {
+  hostId: string;
+  provider: ProviderId;
+  sessionId: string;
+}
+
+function sessionLoadTargetMatches(
+  target: SessionLoadTarget | null,
+  hostId: string | null,
+  provider: ProviderId,
+  sessionId: string | null,
+): boolean {
+  return target !== null &&
+    target.hostId === hostId &&
+    target.provider === provider &&
+    target.sessionId === sessionId;
+}
+
 export function appShellClassName(view: View): string {
   return view === "settings" ? "app-shell settings-shell" : "app-shell";
 }
@@ -301,6 +319,11 @@ function App() {
   const [archivedError, setArchivedError] = useState("");
   const [archivedRevision, setArchivedRevision] = useState(0);
   const [current, setCurrent] = useState<SessionSummary | null>(null);
+  const [sessionLoadTarget, setSessionLoadTarget] = useState<SessionLoadTarget | null>(() =>
+    initialHostId && initialRoute.view === "detail"
+      ? { hostId: initialHostId, provider: initialRoute.provider, sessionId: initialRoute.sessionId }
+      : null
+  );
   const [selectedId, setSelectedId] = useState<string | null>(
     initialRoute.view === "detail" ? initialRoute.sessionId : null,
   );
@@ -619,7 +642,17 @@ function App() {
       }
     }).catch((caught) => {
       if (generation === archivedGenerationRef.current) {
-        setArchivedError(caught instanceof Error ? caught.message : "Archived sessions could not be loaded");
+        const message = caught instanceof Error ? caught.message : "Archived sessions could not be loaded";
+        setArchivedError(message);
+        if (viewRef.current === "detail" && selectedIdRef.current) {
+          const hostId = activeHostIdRef.current;
+          const provider = selectedProviderRef.current;
+          const sessionId = selectedIdRef.current;
+          setSessionLoadTarget((target) =>
+            sessionLoadTargetMatches(target, hostId, provider, sessionId) ? null : target
+          );
+          setError(message);
+        }
       }
     }).finally(() => {
       if (generation === archivedGenerationRef.current) setArchivedLoading(false);
@@ -895,6 +928,7 @@ function App() {
           setSelectedId(null);
           setSelectedProvider("codex");
           setCurrent(null);
+          setSessionLoadTarget(null);
           setView("sessions");
           setHighlightItemId(null);
           setFocusedApprovalId(null);
@@ -981,6 +1015,7 @@ function App() {
           setSelectedId(null);
           setSelectedProvider("codex");
           setCurrent(null);
+          setSessionLoadTarget(null);
           setView("sessions");
           updateRoute({ view: "sessions" }, true);
         }
@@ -1107,6 +1142,7 @@ function App() {
     setArchivedLoading(false);
     setArchivedError("");
     setCurrent(null);
+    setSessionLoadTarget(null);
     setSelectedId(null);
     setSelectedProvider("codex");
     setHighlightItemId(null);
@@ -1375,6 +1411,7 @@ function App() {
       const reopenId = selectedIdRef.current;
       if (reopenId && viewRef.current === "detail") {
         const reopenProvider = selectedProviderRef.current;
+        const loadTarget = { hostId, provider: reopenProvider, sessionId: reopenId };
         if (searchFiltersRef.current.scope === "archived") {
           // Archived discovery is a separate provider-backed request. Its
           // effect will reopen the detail only after that authoritative list
@@ -1397,6 +1434,9 @@ function App() {
           setSelectedId(null);
           setSelectedProvider("codex");
           setCurrent(null);
+          setSessionLoadTarget((target) =>
+            sessionLoadTargetMatches(target, hostId, reopenProvider, reopenId) ? null : target
+          );
           setBusy(false);
           setView("sessions");
           updateRoute({ view: "sessions" }, true);
@@ -1418,6 +1458,12 @@ function App() {
           fallbackFromReopen(false);
           return;
         }
+        if (
+          currentRef.current?.id !== reopenId ||
+          sessionProvider(currentRef.current) !== reopenProvider
+        ) {
+          setSessionLoadTarget(loadTarget);
+        }
         try {
           const result = await client.request<
             { session: SessionSummary } & Record<string, unknown>
@@ -1433,7 +1479,14 @@ function App() {
             selectedIdRef.current !== reopenId ||
             selectedProviderRef.current !== reopenProvider
           ) return;
-          setCurrent((previous) => reconcileSessionSettings(previous, { ...result.session, provider: reopenProvider }));
+          setCurrent((previous) => {
+            const next = reconcileSessionSettings(previous, { ...result.session, provider: reopenProvider });
+            currentRef.current = next;
+            return next;
+          });
+          setSessionLoadTarget((target) =>
+            sessionLoadTargetMatches(target, hostId, reopenProvider, reopenId) ? null : target
+          );
           saveRememberedSession({ hostId, provider: reopenProvider, sessionId: reopenId });
           await client.request("provider.session.subscribe", { provider: reopenProvider, sessionId: reopenId });
         } catch {
@@ -1469,6 +1522,7 @@ function App() {
     async (provider: ProviderId, id: string, updateHistory = true, matchedItemId: string | null = null, approvalId: string | null = null) => {
       const generation = ++sessionOpenGenerationRef.current;
       const hostId = activeHostIdRef.current;
+      const loadTarget = hostId ? { hostId, provider, sessionId: id } : null;
       const approvalsAtOpen = approvals.filter((approval) => approval.sessionId === id);
       const inputsAtOpen = inputs.filter((input) => input.sessionId === id);
       setError("");
@@ -1481,6 +1535,14 @@ function App() {
       setFocusedApprovalId(approvalId);
       viewRef.current = "detail";
       setView("detail");
+      if (
+        loadTarget && (
+          currentRef.current?.id !== id ||
+          sessionProvider(currentRef.current) !== provider
+        )
+      ) {
+        setSessionLoadTarget(loadTarget);
+      }
       if (updateHistory) updateRoute({ view: "detail", provider, sessionId: id });
       const summary = [...archivedSessionsRef.current, ...sessionsRef.current]
         .find((session) => session.id === id && sessionProvider(session) === provider);
@@ -1489,6 +1551,9 @@ function App() {
         if (summary) {
           currentRef.current = summary;
           setCurrent(summary);
+          setSessionLoadTarget((target) =>
+            sessionLoadTargetMatches(target, hostId, provider, id) ? null : target
+          );
           if (hostId) saveRememberedSession({ hostId, provider, sessionId: id });
         } else {
           setError(`${providerDisplayName(provider)} is unavailable, so this session cannot be loaded right now.`);
@@ -1533,7 +1598,14 @@ function App() {
             setInputs((current) => reconcileSessionPending(current, refreshedInputs, id, inputsAtOpen));
           }
         }
-        setCurrent((previous) => reconcileSessionSettings(previous, { ...result.session, provider }));
+        setCurrent((previous) => {
+          const next = reconcileSessionSettings(previous, { ...result.session, provider });
+          currentRef.current = next;
+          return next;
+        });
+        setSessionLoadTarget((target) =>
+          sessionLoadTargetMatches(target, hostId, provider, id) ? null : target
+        );
         if (hostId) saveRememberedSession({ hostId, provider, sessionId: id });
         if (!archived) await client.request("provider.session.subscribe", { provider, sessionId: id });
       } catch (caught) {
@@ -1552,6 +1624,9 @@ function App() {
           setSelectedId(null);
           setSelectedProvider("codex");
           setCurrent(null);
+          setSessionLoadTarget((target) =>
+            sessionLoadTargetMatches(target, hostId, provider, id) ? null : target
+          );
           setView("sessions");
           updateRoute({ view: "sessions" }, true);
         }
@@ -1566,6 +1641,7 @@ function App() {
   const closeSelectedSession = useCallback(() => {
     sessionOpenGenerationRef.current += 1;
     setBusy(false);
+    setSessionLoadTarget(null);
     const sessionId = selectedIdRef.current;
     const provider = selectedProviderRef.current;
     const key = sessionId ? providerSessionKey(provider, sessionId) : "";
@@ -1586,6 +1662,7 @@ function App() {
     if (route.view !== "detail") {
       sessionOpenGenerationRef.current += 1;
       setBusy(false);
+      setSessionLoadTarget(null);
       selectedIdRef.current = null;
       selectedProviderRef.current = "codex";
       currentRef.current = null;
@@ -1598,7 +1675,16 @@ function App() {
     selectedProviderRef.current = route.provider;
     setSelectedId(route.sessionId);
     setSelectedProvider(route.provider);
-    if (openConnectedDetail && (currentRef.current?.id !== route.sessionId || sessionProvider(currentRef.current) !== route.provider)) {
+    const currentMatchesRoute = currentRef.current?.id === route.sessionId &&
+      sessionProvider(currentRef.current) === route.provider;
+    if (!currentMatchesRoute && activeHostIdRef.current) {
+      setSessionLoadTarget({
+        hostId: activeHostIdRef.current,
+        provider: route.provider,
+        sessionId: route.sessionId,
+      });
+    }
+    if (openConnectedDetail && !currentMatchesRoute) {
       openSessionRef.current(route.provider, route.sessionId, false);
     }
   }, []);
@@ -2002,6 +2088,15 @@ function App() {
   }
 
   const connected = connection === "connected";
+  const selectedSessionIsLoading = sessionLoadTargetMatches(
+    sessionLoadTarget,
+    activeHost.id,
+    selectedProvider,
+    selectedId,
+  );
+  const currentMatchesSelection = current !== null &&
+    current.id === selectedId &&
+    sessionProvider(current) === selectedProvider;
   return (
     <div className={appShellClassName(view)}>
       <header className="topbar">
@@ -2277,7 +2372,12 @@ function App() {
             }}
           />
           <section className="detail-pane">
-            {current ? (
+            {selectedSessionIsLoading ? (
+              <div className="empty-detail session-loading" role="status" aria-live="polite">
+                <span className="session-loading-spinner" aria-hidden="true" />
+                <h2>Loading session…</h2>
+              </div>
+            ) : currentMatchesSelection ? (
               <ConversationView
                 key={`${activeHost.id}:${sessionProvider(current)}:${current.id}`}
                 session={current}
@@ -2305,7 +2405,7 @@ function App() {
             ) : (
               <div className="empty-detail">
                 <PalomarLogo large />
-                <h2>{busy ? "Loading session…" : "Select a session"}</h2>
+                <h2>Select a session</h2>
                 <p>Open an existing session or start a new one.</p>
               </div>
             )}
