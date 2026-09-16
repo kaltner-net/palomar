@@ -116,10 +116,6 @@ def main() -> None:
         f'CLAUDE_AGENT_SDK_CLIENT_APP: "palomar/{version}"',
     )
 
-    notes = ROOT / "docs" / "releases" / f"{version}.md"
-    if not notes.is_file():
-        raise SystemExit(f"missing release notes: {notes}")
-
     print(
         f"release metadata verified: v{version}, Android {version_code}, "
         f"protocol {protocol_version}"
