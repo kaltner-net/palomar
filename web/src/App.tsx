@@ -3569,6 +3569,11 @@ export function NewSessionDialog({ repositories, repositoryRoot, providers = [{ 
       setProviderChoice(taskProviders[0].id);
     }
   }, [taskProviders, providerChoice]);
+  const updatePermissionMode = (value: string) => {
+    const next = claudePermissionModes.find((mode) => mode.id === value);
+    if (next?.highRisk && !window.confirm(`Use ${next.displayName} for this session? This high-risk mode bypasses Claude Code permission checks.`)) return;
+    setPermissionMode(value);
+  };
   const submit = () => onCreate({
     provider,
     repositoryId: location,
@@ -3592,11 +3597,11 @@ export function NewSessionDialog({ repositories, repositoryRoot, providers = [{ 
     {hasRepositories ? <label>Workspace<select value={selected} onChange={(event) => setSelected(event.target.value)} required><option value=".">Workspace root · {rootRepository ? "repository" : "no repository"}</option>{selectableRepositories.map((repository) => <option key={repository.id} value={repository.id}>{repository.path}{repository.dirty ? " · modified" : ""}</option>)}</select></label> : <div className="new-session-empty" role="status"><strong>No Git repositories yet</strong><p>Start in the configured workspace folder instead. You can initialize Git later if you need version control.</p>{repositoryRoot && <code title={repositoryRoot}>{repositoryRoot}</code>}</div>}
     {provider === "claude-code" && !unavailable && <label>Initial prompt<textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="What should Claude work on?" required /></label>}
     {!unavailable && <div className="new-session-settings">{provider === "codex" ? <>
-      {accessLevels.length > 0 && <label>Access<select value={access} onChange={(event) => setAccess(event.target.value)}>{accessLevels.map((level) => <option key={level.id} value={level.id}>{level.displayName}</option>)}</select></label>}
+      {accessLevels.length > 0 && <><label>Access<select value={access} aria-describedby={access === "full" ? "new-session-full-access-warning" : undefined} onChange={(event) => setAccess(event.target.value)}>{accessLevels.map((level) => <option key={level.id} value={level.id}>{level.displayName}</option>)}</select></label>{access === "full" && <div id="new-session-full-access-warning" className="full-access-warning" role="note"><strong><span aria-hidden="true">⚠ </span>Full access warning</strong><span>Full access allows commands outside the workspace without approval. Codex may use the Internet and read or change files available to your user account.</span></div>}</>}
       {models.length > 0 && <label>Model<select value={model} onChange={(event) => { const next = models.find((entry) => entry.id === event.target.value); setModel(event.target.value); setEffort(next?.defaultReasoningEffort ?? next?.reasoningEfforts[0] ?? ""); }}>{models.map((entry) => <option key={entry.id} value={entry.id}>{entry.displayName}</option>)}</select></label>}
       {selectedModel && selectedModel.reasoningEfforts.length > 0 && <label>Reasoning<select value={effort} onChange={(event) => setEffort(event.target.value)}>{selectedModel.reasoningEfforts.map((entry) => <option key={entry} value={entry}>{reasoningLabel(entry)}</option>)}</select></label>}
     </> : <>
-      <label>Permission mode<select aria-label="Permission mode" value={permissionMode} onChange={(event) => setPermissionMode(event.target.value)}>{claudePermissionModes.map((mode) => <option key={mode.id} value={mode.id}>{mode.displayName}{mode.highRisk ? " · high risk" : ""}</option>)}</select><small>{claudePermissionModes.find((mode) => mode.id === permissionMode)?.description}</small></label>
+      <label>Permission mode<select aria-label="Permission mode" value={permissionMode} onChange={(event) => updatePermissionMode(event.target.value)}>{claudePermissionModes.map((mode) => <option key={mode.id} value={mode.id}>{mode.displayName}{mode.highRisk ? " · high risk" : ""}</option>)}</select><small>{claudePermissionModes.find((mode) => mode.id === permissionMode)?.description}</small></label>
       <label>Claude model<select aria-label="Claude model" value={claudeModel} onChange={(event) => setClaudeModel(event.target.value)}>{claudeModels.map((entry) => <option key={entry.id} value={entry.id}>{entry.displayName}</option>)}</select><small>Adapter-supported list; not dynamically discovered.</small></label>
     </>}</div>}
     <div className="modal-actions"><button type="button" onClick={onClose}>Cancel</button><button className="primary" disabled={unavailable || (provider === "claude-code" && !prompt.trim())}>{provider === "claude-code" ? showProviderIdentity ? "Start Claude session" : "Start session" : hasRepositories ? "Create" : "Start in workspace"}</button></div>
