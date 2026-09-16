@@ -1,5 +1,6 @@
 import { providerSessionKey, sessionProvider, type RepositoryInfo, type SessionSearchResult, type SessionSummary } from "./protocol";
 import { compareStableSessionGroups, type StableSessionGroupIdentity } from "./group-order";
+import { matchResolvedRepository, normalizeRepositoryPath, resolveRepositorySet, type ResolvedRepository } from "./repository-labels";
 
 export type SearchStatus = "active" | "waiting" | "completed" | "failed" | "interrupted";
 export type DateRange = "all" | "today" | "7d" | "30d" | "custom";
@@ -31,6 +32,7 @@ export interface VisibleSession {
   matches: SessionSearchResult["matches"];
   pinned: boolean;
   hidden: boolean;
+  repository?: RepositoryFilterOption;
 }
 
 export interface RepositorySessionGroup {
@@ -78,16 +80,17 @@ export function repositoryIdentity(
   repositories: RepositoryInfo[],
   repositoryRoot: string,
 ): RepositoryFilterOption {
-  const cwd = normalizePath(path);
-  const known = repositories.map((repository) => {
-    const absolute = repository.path.startsWith("/")
-      ? repository.path
-      : `${repositoryRoot}/${repository.path}`;
-    return { repository, path: normalizePath(absolute) };
-  }).sort((left, right) => right.path.length - left.path.length);
-  const match = known.find(({ path: root }) => cwd === root || cwd.startsWith(`${root}/`));
+  return repositoryIdentityFromSet(path, resolveRepositorySet(repositories, repositoryRoot));
+}
+
+function repositoryIdentityFromSet(
+  path: string,
+  repositories: ResolvedRepository[],
+): RepositoryFilterOption {
+  const cwd = normalizeRepositoryPath(path);
+  const match = matchResolvedRepository(cwd, repositories);
   return match
-    ? { id: match.path, label: `Repository: ${match.repository.name}` }
+    ? { id: match.canonicalPath, label: `Repository: ${match.label}` }
     : { id: cwd, label: `Workspace: ${cwd || "(unknown)"}` };
 }
 
@@ -96,9 +99,10 @@ export function repositoryFilterOptions(
   repositories: RepositoryInfo[],
   repositoryRoot: string,
 ): RepositoryFilterOption[] {
+  const resolved = resolveRepositorySet(repositories, repositoryRoot);
   const options = new Map<string, RepositoryFilterOption>();
   sessions.forEach((session) => {
-    const option = repositoryIdentity(session.repository, repositories, repositoryRoot);
+    const option = repositoryIdentityFromSet(session.repository, resolved);
     options.set(option.id, option);
   });
   return [...options.values()].sort((left, right) =>
@@ -110,9 +114,10 @@ export function repositorySessionGroups(
   repositories: RepositoryInfo[],
   repositoryRoot: string,
 ): RepositorySessionGroup[] {
+  const resolved = resolveRepositorySet(repositories, repositoryRoot);
   const groups = new Map<string, RepositorySessionGroup>();
   sessions.forEach((session) => {
-    const repository = repositoryIdentity(session.session.repository, repositories, repositoryRoot);
+    const repository = repositoryIdentityFromSet(session.session.repository, resolved);
     const group = groups.get(repository.id);
     if (group) group.sessions.push(session);
     else groups.set(repository.id, { repository, sessions: [session] });
@@ -179,6 +184,7 @@ export function filterSessions(
   repositoryRoot: string,
   now = new Date(),
 ): VisibleSession[] {
+  const resolvedRepositories = resolveRepositorySet(repositories, repositoryRoot);
   const query = filters.query.trim().toLowerCase();
   const remote = new Map(searchResults.map((result) => [providerSessionKey(sessionProvider(result.session), result.session.id), result]));
   const source = new Map(sessions.map((session) => [providerSessionKey(sessionProvider(session), session.id), session]));
@@ -195,7 +201,7 @@ export function filterSessions(
     const hidden = identitySetHas(hiddenIds, session);
     if ((filters.hidden === "hidden") !== hidden) return false;
     if (filters.pinnedOnly && !identitySetHas(pinnedIds, session)) return false;
-    const identity = repositoryIdentity(session.repository, repositories, repositoryRoot);
+    const identity = repositoryIdentityFromSet(session.repository, resolvedRepositories);
     if (filters.repository && filters.repository !== identity.id) return false;
     if (filters.statuses.length && !filters.statuses.some((status) => statusMatches(session.status, status))) {
       return false;
@@ -212,6 +218,7 @@ export function filterSessions(
     matches: remote.get(providerSessionKey(sessionProvider(session), session.id))?.matches ?? [],
     pinned: identitySetHas(pinnedIds, session),
     hidden: identitySetHas(hiddenIds, session),
+    repository: repositoryIdentityFromSet(session.repository, resolvedRepositories),
   }));
   return visible.sort((left, right) => compareVisible(left, right, filters, query));
 }
@@ -317,10 +324,6 @@ function statusMatches(actual: string, selected: SearchStatus): boolean {
 function timestampSeconds(value?: number | null): number | null {
   if (typeof value !== "number") return null;
   return value > 10_000_000_000 ? value / 1000 : value;
-}
-
-function normalizePath(value: string): string {
-  return value.replace(/\/+$/, "") || "/";
 }
 
 function localDateStart(value: string): number | null {

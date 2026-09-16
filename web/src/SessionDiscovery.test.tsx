@@ -78,6 +78,19 @@ describe("SessionSearchControls", () => {
     expect(screen.queryByText(/GitHub:/)).not.toBeInTheDocument();
   });
 
+  it("shows a resolved repository label instead of an absolute host path", () => {
+    render(<SessionSearchResults results={[{
+      session: { id: "admin", title: "Admin Android", repository: "/home/operator/projects/accounts-admin/android", status: "idle" },
+      repository: { id: "/home/operator/projects/accounts-admin/android", label: "Repository: accounts-admin/android" },
+      matches: [],
+      pinned: false,
+      hidden: false,
+    }]} query="" loading={false} error="" onOpen={vi.fn()} onPin={vi.fn()} onHide={vi.fn()} />);
+
+    expect(screen.getByText("Repository: accounts-admin/android")).toBeInTheDocument();
+    expect(screen.queryByText("/home/operator/projects/accounts-admin/android")).not.toBeInTheDocument();
+  });
+
   it("pins and hides Claude results with provider-aware identity", () => {
     const pin = vi.fn();
     const hide = vi.fn();

@@ -5,6 +5,7 @@ import {
   dateBounds,
   filterSessions,
   parseSessionFilters,
+  repositoryIdentity,
   repositoryFilterOptions,
   repositorySessionGroups,
   sessionFiltersSearch,
@@ -153,6 +154,56 @@ describe("session discovery semantics", () => {
       { id: "/projects/palomar", label: "Repository: palomar" },
       { id: "/home/operator", label: "Workspace: /home/operator" },
     ]);
+  });
+
+  it("uses disambiguated labels with canonical filter, group, and collapse identities", () => {
+    const colliding = [
+      { id: "root-android", name: "android", path: "android", branch: "main", dirty: false },
+      { id: "admin-android", name: "android", path: "accounts-admin/android", branch: "main", dirty: false },
+    ];
+    const source: SessionSummary[] = [
+      { id: "root", title: "Root", repository: "/projects/android", status: "idle" },
+      { id: "admin", title: "Admin", repository: "/projects/accounts-admin/android/src", status: "idle" },
+    ];
+    const options = repositoryFilterOptions(source, colliding, "/projects");
+    expect(options).toEqual([
+      { id: "/projects/accounts-admin/android", label: "Repository: accounts-admin/android" },
+      { id: "/projects/android", label: "Repository: android" },
+    ]);
+
+    const visible = filterSessions(source, DEFAULT_SESSION_FILTERS, new Set(), new Set(), [], colliding, "/projects");
+    const groups = repositorySessionGroups(visible, colliding, "/projects");
+    expect(groups.map(({ repository, sessions }) => ({
+      id: repository.id,
+      label: repository.label,
+      sessions: sessions.map(({ session }) => session.id),
+    }))).toEqual([
+      { id: "/projects/accounts-admin/android", label: "Repository: accounts-admin/android", sessions: ["admin"] },
+      { id: "/projects/android", label: "Repository: android", sessions: ["root"] },
+    ]);
+    expect(filterSessions(
+      source,
+      { ...DEFAULT_SESSION_FILTERS, repository: "/projects/android" },
+      new Set(),
+      new Set(),
+      [],
+      colliding,
+      "/projects",
+    ).map(({ session }) => session.id)).toEqual(["root"]);
+
+    const collapsed = toggleCollapsedRepository(new Map(), "home", "/projects/accounts-admin/android");
+    expect(collapsed.get("home")).toEqual(new Set(["/projects/accounts-admin/android"]));
+  });
+
+  it("preserves workspace and unknown-repository fallbacks", () => {
+    expect(repositoryIdentity("/home/operator", repositories, "/projects")).toEqual({
+      id: "/home/operator",
+      label: "Workspace: /home/operator",
+    });
+    expect(repositoryIdentity("", repositories, "/projects")).toEqual({
+      id: "/",
+      label: "Workspace: /",
+    });
   });
 
   it("round trips robust, bookmarkable URL state without local ID lists", () => {

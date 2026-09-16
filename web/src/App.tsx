@@ -167,6 +167,7 @@ import {
   type RepositoryFilterOption,
   type VisibleSession,
 } from "./session-search";
+import { repositoryDisplayName, resolveRepositorySet } from "./repository-labels";
 import { applyAppearance } from "./theme";
 import {
   confirmSessionAction,
@@ -2011,6 +2012,10 @@ function App() {
     () => repositoryFilterOptions(discoverySessions, repositories, serviceStatus?.repositoryRoot ?? ""),
     [discoverySessions, repositories, serviceStatus?.repositoryRoot],
   );
+  const activeRepositorySet = useMemo(
+    () => resolveRepositorySet(repositories, serviceStatus?.repositoryRoot ?? ""),
+    [repositories, serviceStatus?.repositoryRoot],
+  );
   const visibleSessions = useMemo(
     () => filterSessions(
       discoverySessions,
@@ -2381,6 +2386,7 @@ function App() {
               <ConversationView
                 key={`${activeHost.id}:${sessionProvider(current)}:${current.id}`}
                 session={current}
+                repositoryLabel={repositoryDisplayName(current.repository, activeRepositorySet)}
                 approvals={currentApprovals}
                 inputs={currentInputs}
                 models={sessionProvider(current) === "claude-code" ? claudeModels : models}
@@ -2622,6 +2628,10 @@ export function SessionList({
 }) {
   const [localCollapsedRepositories, setLocalCollapsedRepositories] =
     useState<Set<string>>(() => new Set());
+  const resolvedRepositories = useMemo(
+    () => resolveRepositorySet(repositories, repositoryRoot),
+    [repositories, repositoryRoot],
+  );
   const collapsedRepositories = controlledCollapsedRepositories ?? localCollapsedRepositories;
   const toggleRepository = onToggleRepository ?? ((repositoryId: string) => {
     setLocalCollapsedRepositories((previous) => {
@@ -2707,7 +2717,7 @@ export function SessionList({
       onClick={() => onOpen(provider, session.id)}
     >
       <div className="session-title-row"><h3>{session.title}</h3>{(showProviderIdentity || !providerUsable) && <ProviderBadge provider={provider} />}{!providerUsable && providerCatalogLoaded ? <span className="status-pill disconnected">Provider unavailable</span> : session.archived ? <span className="status-pill archived">Archived</span> : <StatusPill status={session.status} />}</div>
-      {showRepository && <p className="repository">{shortRepository(session.repository)}</p>}
+      {showRepository && <p className="repository">{repositoryDisplayName(session.repository, resolvedRepositories)}</p>}
       {provider === "claude-code" && session.source === "external" && <p className="session-limitation"><strong>Resumable</strong> · Not live-attached</p>}
       <div className="session-meta">
         <span>{formatActivity(session.lastActivity)}</span>
@@ -2792,6 +2802,7 @@ function rateLimitResetLabel(resetsAt: number | undefined): string {
 
 export function ConversationView({
   session,
+  repositoryLabel,
   approvals,
   inputs = [],
   models,
@@ -2812,6 +2823,7 @@ export function ConversationView({
   onRestore,
 }: {
   session: SessionSummary;
+  repositoryLabel?: string;
   approvals: ApprovalRequest[];
   inputs?: InputRequest[];
   models: ModelInfo[];
@@ -3103,7 +3115,7 @@ export function ConversationView({
     <div className="conversation">
       <header className="conversation-header">
         <button className="mobile-back" onClick={onBack}>‹ Sessions</button>
-        <div className="conversation-title"><h1>{session.title}</h1><p>{showProviderIdentity && <ProviderBadge provider={provider} />} {shortRepository(session.repository)}</p></div>
+        <div className="conversation-title"><h1>{session.title}</h1><p>{showProviderIdentity && <ProviderBadge provider={provider} />} {repositoryLabel ?? shortRepository(session.repository)}</p></div>
         {readOnly ? <span className="status-pill archived">Archived</span> : <StatusPill status={session.status} />}
         {contextUsage && <span className="session-context-control" ref={sessionInfoRef}>
           <ContextUsageButton usage={contextUsage} open={sessionInfoOpen} onClick={() => setSessionInfoOpen((open) => !open)} />

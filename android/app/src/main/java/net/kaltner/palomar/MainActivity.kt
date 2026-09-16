@@ -137,6 +137,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -6586,7 +6587,17 @@ private fun androidx.compose.foundation.lazy.LazyListScope.repositorySessionSect
 ) {
     item(key = "repository:${group.repository.id}") {
         Surface(
-            modifier = Modifier.fillMaxWidth().clickable(onClick = toggleCollapsed),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .semantics {
+                        contentDescription = repositoryGroupContentDescription(
+                            group.repository,
+                            group.sessions.size,
+                            collapsed,
+                        )
+                    }
+                    .clickable(onClick = toggleCollapsed),
             shape = RoundedCornerShape(10.dp),
             color = LocalPalomarThemeVariant.current.groupedHeader,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),

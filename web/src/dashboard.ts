@@ -5,6 +5,7 @@ import type {
   SessionSummary,
 } from "./protocol";
 import { compareStableSessionGroups } from "./group-order";
+import { matchResolvedRepository, normalizeRepositoryPath, resolveRepositorySet } from "./repository-labels";
 
 export const RECENT_WINDOW_MS = 60 * 60 * 1000;
 export const STALE_ACTIVE_TURN_MS = 10 * 60 * 1000;
@@ -160,20 +161,15 @@ export function repositoryGroups(
   repositories: RepositoryInfo[] = [],
   repositoryRoot = "",
 ): RepositoryGroup[] {
-  const known = repositories.map((repository) => ({
-    info: repository,
-    canonical: normalizePath(repository.path.startsWith("/")
-      ? repository.path
-      : `${repositoryRoot}/${repository.path}`),
-  })).sort((left, right) => right.canonical.length - left.canonical.length);
+  const known = resolveRepositorySet(repositories, repositoryRoot);
   const groups = new Map<string, { sessions: SessionSummary[]; name: string; kind: "repository" | "workspace" }>();
   sessions.forEach((session) => {
-    const cwd = normalizePath(session.repository);
-    const repository = known.find(({ canonical }) => cwd === canonical || cwd.startsWith(`${canonical}/`));
-    const id = repository?.canonical || cwd || "(no repository)";
+    const cwd = session.repository ? normalizeRepositoryPath(session.repository) : "";
+    const repository = matchResolvedRepository(cwd, known);
+    const id = repository?.canonicalPath || cwd || "(no repository)";
     const current = groups.get(id) ?? {
       sessions: [],
-      name: repository?.info.name || shortRepository(id),
+      name: repository?.label || shortRepository(id),
       kind: repository ? "repository" as const : "workspace" as const,
     };
     current.sessions.push(session);
@@ -297,11 +293,6 @@ function parseServiceTimestamp(value?: string | null): number | null {
   if (!value) return null;
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? null : parsed;
-}
-
-function normalizePath(path: string): string {
-  if (!path) return "";
-  return path.replace(/\/{2,}/g, "/").replace(/\/$/, "");
 }
 
 function maximum(values: Array<number | null>): number | null {

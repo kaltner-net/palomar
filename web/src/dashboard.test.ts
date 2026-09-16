@@ -53,6 +53,22 @@ describe("dashboard projections", () => {
       .toEqual(expect.objectContaining({ active: 1, failed: 1, currentActivity: "Running tests" }));
   });
 
+  it("uses the same disambiguated labels and canonical identities for dashboard groups", () => {
+    const discovered = [
+      { id: "root-android", name: "android", path: "android", branch: "main", dirty: false },
+      { id: "admin-android", name: "android", path: "accounts-admin/android", branch: "main", dirty: false },
+    ];
+    const groups = repositoryGroups([
+      { ...base, id: "root", repository: "/projects/android" },
+      { ...base, id: "admin", repository: "/projects/accounts-admin/android/src" },
+    ], now, discovered, "/projects");
+
+    expect(groups.map(({ id, name, sessions }) => ({ id, name, sessions: sessions.map(({ id }) => id) }))).toEqual([
+      { id: "/projects/accounts-admin/android", name: "accounts-admin/android", sessions: ["admin"] },
+      { id: "/projects/android", name: "android", sessions: ["root"] },
+    ]);
+  });
+
   it("sorts attention before active work and then by latest activity", () => {
     const sorted = sortDashboardSessions([
       { ...base, id: "older-active", status: "working", lastActivity: 20 },

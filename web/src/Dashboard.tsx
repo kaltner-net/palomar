@@ -13,7 +13,6 @@ import {
   oldestActiveSession,
   repositoryGroups,
   sessionMatchesFilter,
-  shortRepository,
   sortDashboardSessions,
   type AttentionState,
   type DashboardFilter,
@@ -29,6 +28,7 @@ import {
 import { reasoningLabel } from "./ui";
 import { HostOperations } from "./HostOperations";
 import type { DiagnosticEvent } from "./protocol";
+import { repositoryDisplayName, resolveRepositorySet } from "./repository-labels";
 
 interface DashboardProps {
   hostId?: string;
@@ -84,6 +84,14 @@ export function Dashboard({
   const repositories = useMemo(
     () => repositoryGroups(sessions, now, discoveredRepositories, serviceStatus?.repositoryRoot),
     [discoveredRepositories, now, serviceStatus?.repositoryRoot, sessions],
+  );
+  const resolvedRepositories = useMemo(
+    () => resolveRepositorySet(discoveredRepositories, serviceStatus?.repositoryRoot ?? ""),
+    [discoveredRepositories, serviceStatus?.repositoryRoot],
+  );
+  const displayRepository = useCallback(
+    (path: string) => repositoryDisplayName(path, resolvedRepositories),
+    [resolvedRepositories],
   );
   const updatePreferences = useCallback((next: DashboardPreferences) => {
     setPreferences(next);
@@ -170,7 +178,7 @@ export function Dashboard({
 
       {oldest && (
         <section className="oldest-turn" aria-label="Oldest active turn">
-          <div><span className="eyebrow">Oldest active turn</span><strong>{oldest.title}</strong><small>{shortRepository(oldest.repository)}</small></div>
+          <div><span className="eyebrow">Oldest active turn</span><strong>{oldest.title}</strong><small>{displayRepository(oldest.repository)}</small></div>
           <div className="oldest-activity"><strong>{oldest.activityLabel || "Thinking"}</strong><small>{oldest.activityText || routeDetails(oldest)}</small></div>
           <time>{formatElapsed(oldest.activeTurnStartedAt, now)}</time>
           <button onClick={() => onOpen(oldest)} aria-label={`Open oldest active turn ${oldest.title}`}>Open</button>
@@ -179,13 +187,13 @@ export function Dashboard({
 
       {(pendingApprovals.length > 0 || pendingInputs.length > 0 || attentionPairs.length > 0) && (
         <DashboardSection title="Needs attention" count={pendingApprovals.length + pendingInputs.length + attentionPairs.length} className="attention-section">
-          <div className="monitor-grid">{pendingInputs.map((input) => <InputAttentionCard key={input.id} input={input} session={sessions.find((session) => session.id === input.sessionId && sessionProvider(session) === "codex")} now={now} onOpen={() => onOpenInput?.(input)} />)}{pendingApprovals.map((approval) => <ApprovalAttentionCard key={approval.id} approval={approval} session={sessions.find((session) => session.id === approval.sessionId && sessionProvider(session) === "codex")} now={now} onOpen={() => onOpenApproval?.(approval)} />)}{attentionPairs.map(({ session, attention }) => <MonitoringCard key={`${sessionProvider(session)}:${session.id}`} session={session} attention={attention} now={now} disabled={disabled || !providers.some((provider) => provider.id === sessionProvider(session) && providerUsableForTasks(provider))} showProviderIdentity={showProviderIdentity} onOpen={onOpen} onInterrupt={onInterrupt} onDismiss={() => dismissAttention(session, attention)} />)}</div>
+          <div className="monitor-grid">{pendingInputs.map((input) => { const session = sessions.find((candidate) => candidate.id === input.sessionId && sessionProvider(candidate) === "codex"); return <InputAttentionCard key={input.id} input={input} session={session} repositoryLabel={displayRepository(session?.repository ?? "")} now={now} onOpen={() => onOpenInput?.(input)} />; })}{pendingApprovals.map((approval) => { const session = sessions.find((candidate) => candidate.id === approval.sessionId && sessionProvider(candidate) === "codex"); return <ApprovalAttentionCard key={approval.id} approval={approval} session={session} repositoryLabel={displayRepository(session?.repository ?? "")} now={now} onOpen={() => onOpenApproval?.(approval)} />; })}{attentionPairs.map(({ session, attention }) => <MonitoringCard key={`${sessionProvider(session)}:${session.id}`} session={session} repositoryLabel={displayRepository(session.repository)} attention={attention} now={now} disabled={disabled || !providers.some((provider) => provider.id === sessionProvider(session) && providerUsableForTasks(provider))} showProviderIdentity={showProviderIdentity} onOpen={onOpen} onInterrupt={onInterrupt} onDismiss={() => dismissAttention(session, attention)} />)}</div>
         </DashboardSection>
       )}
 
       {(active.length > 0 || preferences.filter === "active") && (
         <DashboardSection title="Active work" count={active.length}>
-          {active.length ? <div className="monitor-grid">{active.map((session) => <MonitoringCard key={`${sessionProvider(session)}:${session.id}`} session={session} attention={null} now={now} disabled={disabled || !providers.some((provider) => provider.id === sessionProvider(session) && providerUsableForTasks(provider))} showProviderIdentity={showProviderIdentity} onOpen={onOpen} onInterrupt={onInterrupt} />)}</div> : <EmptySection text="No active sessions match this filter." />}
+          {active.length ? <div className="monitor-grid">{active.map((session) => <MonitoringCard key={`${sessionProvider(session)}:${session.id}`} session={session} repositoryLabel={displayRepository(session.repository)} attention={null} now={now} disabled={disabled || !providers.some((provider) => provider.id === sessionProvider(session) && providerUsableForTasks(provider))} showProviderIdentity={showProviderIdentity} onOpen={onOpen} onInterrupt={onInterrupt} />)}</div> : <EmptySection text="No active sessions match this filter." />}
         </DashboardSection>
       )}
 
@@ -194,13 +202,13 @@ export function Dashboard({
 
       {(recent.length > 0 || preferences.filter === "recent") && (
         <DashboardSection title="Recently completed" count={recent.length}>
-          {recent.length ? <div className="recent-list">{recent.map((session) => <button className="recent-row" key={`${sessionProvider(session)}:${session.id}`} onClick={() => onOpen(session)}><StatusIcon status={session.status} /><span className="recent-main"><strong>{session.title} {showProviderIdentity && <ProviderBadge session={session} />}</strong><small>{shortRepository(session.repository)} · {session.activityText || session.activityLabel || "Turn finished"}</small></span><StatusLabel status={session.status} /><span className="recent-duration">{formatDuration(session.turnDurationMs)}</span><time>{formatAge(session.terminalAt, now)}</time></button>)}</div> : <EmptySection text="No terminal turns were observed in the last hour." />}
+          {recent.length ? <div className="recent-list">{recent.map((session) => <button className="recent-row" key={`${sessionProvider(session)}:${session.id}`} onClick={() => onOpen(session)}><StatusIcon status={session.status} /><span className="recent-main"><strong>{session.title} {showProviderIdentity && <ProviderBadge session={session} />}</strong><small>{displayRepository(session.repository)} · {session.activityText || session.activityLabel || "Turn finished"}</small></span><StatusLabel status={session.status} /><span className="recent-duration">{formatDuration(session.turnDurationMs)}</span><time>{formatAge(session.terminalAt, now)}</time></button>)}</div> : <EmptySection text="No terminal turns were observed in the last hour." />}
         </DashboardSection>
       )}
 
       {recentActivity.length > 0 && (
         <DashboardSection title="Recent activity" count={recentActivity.length}>
-          <div className="activity-feed">{recentActivity.map((entry) => { const session = sessions.find((candidate) => candidate.id === entry.sessionId && sessionProvider(candidate) === "codex"); return session ? <button key={entry.id} onClick={() => onOpen(session)} aria-label={`Open ${entry.title}`}><time>{new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><span><strong>{entry.title}</strong><small>{shortRepository(entry.repository)}</small></span><p>{entry.description}</p><i aria-hidden="true">›</i></button> : null; })}</div>
+          <div className="activity-feed">{recentActivity.map((entry) => { const session = sessions.find((candidate) => candidate.id === entry.sessionId && sessionProvider(candidate) === "codex"); return session ? <button key={entry.id} onClick={() => onOpen(session)} aria-label={`Open ${entry.title}`}><time>{new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time><span><strong>{entry.title}</strong><small>{displayRepository(entry.repository)}</small></span><p>{entry.description}</p><i aria-hidden="true">›</i></button> : null; })}</div>
         </DashboardSection>
       )}
 
@@ -209,21 +217,21 @@ export function Dashboard({
   );
 }
 
-function ApprovalAttentionCard({ approval, session, now, onOpen }: { approval: ApprovalRequest; session?: SessionSummary; now: number; onOpen: () => void }) {
+function ApprovalAttentionCard({ approval, session, repositoryLabel, now, onOpen }: { approval: ApprovalRequest; session?: SessionSummary; repositoryLabel: string; now: number; onOpen: () => void }) {
   return <article className="monitor-card needs-attention approval-attention-card">
     <button className="monitor-card-main" onClick={onOpen} aria-label={`Open approval for ${session?.title ?? "session"}`}>
-      <div className="monitor-title-row"><StatusIcon status="waiting" /><span><strong>{session?.title ?? "Codex session"}</strong><small title={session?.repository}>{shortRepository(session?.repository ?? "")}</small></span><StatusLabel status="waiting" /></div>
+      <div className="monitor-title-row"><StatusIcon status="waiting" /><span><strong>{session?.title ?? "Codex session"}</strong><small title={session?.repository}>{repositoryLabel}</small></span><StatusLabel status="waiting" /></div>
       <div className="monitor-activity"><strong>{approvalAttentionLabel(approval)}</strong><p>{approval.reason || "Codex needs a decision before it can continue."}</p></div>
-      <dl className="monitor-metadata"><div><dt>Request age</dt><dd>{formatAge(approval.startedAt ?? approval.createdAt, now)}</dd></div><div><dt>Workspace</dt><dd>{shortRepository(session?.repository ?? "")}</dd></div></dl>
+      <dl className="monitor-metadata"><div><dt>Request age</dt><dd>{formatAge(approval.startedAt ?? approval.createdAt, now)}</dd></div><div><dt>Workspace</dt><dd>{repositoryLabel}</dd></div></dl>
     </button>
     <div className="monitor-actions"><button onClick={onOpen}>Open approval</button></div>
   </article>;
 }
 
-function InputAttentionCard({ input, session, now, onOpen }: { input: InputRequest; session?: SessionSummary; now: number; onOpen: () => void }) {
+function InputAttentionCard({ input, session, repositoryLabel, now, onOpen }: { input: InputRequest; session?: SessionSummary; repositoryLabel: string; now: number; onOpen: () => void }) {
   return <article className="monitor-card needs-attention input-attention-card">
     <button className="monitor-card-main" onClick={onOpen} aria-label={`Open input request for ${session?.title ?? "session"}`}>
-      <div className="monitor-title-row"><StatusIcon status="waiting" /><span><strong>{session?.title ?? "Codex session"}</strong><small title={session?.repository}>{shortRepository(session?.repository ?? "")}</small></span><span className="status-label waiting">Input</span></div>
+      <div className="monitor-title-row"><StatusIcon status="waiting" /><span><strong>{session?.title ?? "Codex session"}</strong><small title={session?.repository}>{repositoryLabel}</small></span><span className="status-label waiting">Input</span></div>
       <div className="monitor-activity"><strong>{inputAttentionLabel(input)}</strong><p>{input.supported ? "Codex needs information before it can continue." : input.unsupportedMessage}</p></div>
       <dl className="monitor-metadata"><div><dt>Request age</dt><dd>{formatAge(input.createdAt, now)}</dd></div><div><dt>Source</dt><dd>{input.source === "mcp" ? input.serverName ?? "MCP server" : "Codex"}</dd></div></dl>
     </button>
@@ -231,13 +239,13 @@ function InputAttentionCard({ input, session, now, onOpen }: { input: InputReque
   </article>;
 }
 
-const MonitoringCard = memo(function MonitoringCard({ session, attention, now, disabled, showProviderIdentity, onOpen, onInterrupt, onDismiss }: { session: SessionSummary; attention: AttentionState | null; now: number; disabled: boolean; showProviderIdentity: boolean; onOpen: (session: SessionSummary) => void; onInterrupt: (session: SessionSummary) => void; onDismiss?: () => void }) {
+const MonitoringCard = memo(function MonitoringCard({ session, repositoryLabel, attention, now, disabled, showProviderIdentity, onOpen, onInterrupt, onDismiss }: { session: SessionSummary; repositoryLabel: string; attention: AttentionState | null; now: number; disabled: boolean; showProviderIdentity: boolean; onOpen: (session: SessionSummary) => void; onInterrupt: (session: SessionSummary) => void; onDismiss?: () => void }) {
   const status = attention?.type === "disconnected" ? "disconnected" : attention?.type === "stale" ? "stale" : session.status;
   const activity = attention?.label || session.activityLabel || (session.status === "working" ? "Thinking" : "Turn failed");
   const stateSince = attention?.since;
   return <article className={`monitor-card ${attention ? "needs-attention" : ""}`}>
     <button className="monitor-card-main" onClick={() => onOpen(session)} aria-label={`Open ${session.title}`}>
-      <div className="monitor-title-row"><StatusIcon status={status} /><span><strong>{session.title} {showProviderIdentity && <ProviderBadge session={session} />}</strong><small title={session.repository}>{shortRepository(session.repository)}</small></span><StatusLabel status={status} /></div>
+      <div className="monitor-title-row"><StatusIcon status={status} /><span><strong>{session.title} {showProviderIdentity && <ProviderBadge session={session} />}</strong><small title={session.repository}>{repositoryLabel}</small></span><StatusLabel status={status} /></div>
       {attention
         ? <><div className="monitor-activity"><strong>{activity}</strong><p>{session.failureSummary || session.waitDescription || session.activityText || "Monitoring live Codex activity"}</p></div><div className="route-details">{routeDetails(session)}</div></>
         : <div className="monitor-compact-line"><strong>{activity}</strong><span>{routeDetails(session)}</span></div>}
@@ -286,7 +294,7 @@ function HealthPanel({ status, providers, connection, now, disabled, restartBloc
 
 function RepositorySection({ title, groups, now, showProviderIdentity, onOpen }: { title: string; groups: RepositoryGroup[]; now: number; showProviderIdentity: boolean; onOpen: (session: SessionSummary) => void }) {
   if (!groups.length) return null;
-  return <DashboardSection title={title} count={groups.length}><div className="repository-grid">{groups.map((repository) => <details className="repository-card" key={repository.id}><summary><span className="repository-identity"><strong>{repository.name}</strong><small title={repository.id}>{repository.id}</small></span><span className="repository-counts">{!!repository.active && <span>▶ {repository.active} active</span>}{!!repository.waiting && <span>◷ {repository.waiting} waiting</span>}{!!repository.failed && <span>! {repository.failed} failed</span>}{!!repository.recent && <span>✓ {repository.recent} completed recently</span>}</span><RepositoryActivity repository={repository} now={now} /></summary><div className="repository-sessions">{repository.sessions.map((session) => <button key={`${sessionProvider(session)}:${session.id}`} onClick={() => onOpen(session)}><span>{session.title} {showProviderIdentity && <ProviderBadge session={session} />}</span><StatusLabel status={session.status} /></button>)}</div></details>)}</div></DashboardSection>;
+  return <DashboardSection title={title} count={groups.length}><div className="repository-grid">{groups.map((repository) => <details className="repository-card" key={repository.id}><summary aria-label={`${repository.name} repository group`}><span className="repository-identity"><strong>{repository.name}</strong><small title={repository.id}>{repository.id}</small></span><span className="repository-counts">{!!repository.active && <span>▶ {repository.active} active</span>}{!!repository.waiting && <span>◷ {repository.waiting} waiting</span>}{!!repository.failed && <span>! {repository.failed} failed</span>}{!!repository.recent && <span>✓ {repository.recent} completed recently</span>}</span><RepositoryActivity repository={repository} now={now} /></summary><div className="repository-sessions">{repository.sessions.map((session) => <button key={`${sessionProvider(session)}:${session.id}`} onClick={() => onOpen(session)}><span>{session.title} {showProviderIdentity && <ProviderBadge session={session} />}</span><StatusLabel status={session.status} /></button>)}</div></details>)}</div></DashboardSection>;
 }
 
 function ProviderBadge({ session }: { session: SessionSummary }) {
@@ -309,7 +317,9 @@ function routeDetails(session: SessionSummary): string {
 }
 
 function repositoryIdentity(session: SessionSummary, groups: RepositoryGroup[]): string {
-  return groups.find((group) => group.sessions.some((entry) => entry.id === session.id))?.id ?? session.repository;
+  return groups.find((group) => group.sessions.some((entry) =>
+    entry.id === session.id && sessionProvider(entry) === sessionProvider(session)
+  ))?.id ?? session.repository;
 }
 
 function attentionKey(session: SessionSummary, attention: AttentionState, status: ServiceStatus | null): string {

@@ -76,6 +76,40 @@ describe("monitoring dashboard", () => {
     expect(screen.getAllByText("palomar").length).toBeGreaterThan(0);
   });
 
+  it("uses disambiguated repository labels across dashboard groups, filters, and session cards", () => {
+    const repositories = [
+      { id: "root-android", name: "android", path: "android", branch: "main", dirty: false },
+      { id: "admin-android", name: "android", path: "accounts-admin/android", branch: "main", dirty: false },
+    ];
+    const colliding: SessionSummary[] = [
+      { id: "root", repository: "/projects/android", title: "Root Android", status: "working", activeTurnStartedAt: now / 1000 },
+      { id: "admin", repository: "/projects/accounts-admin/android", title: "Admin Android", status: "working", activeTurnStartedAt: now / 1000 },
+    ];
+    render(<Dashboard sessions={colliding} repositories={repositories} serviceStatus={status} connection="connected" disabled={false} onOpen={vi.fn()} onInterrupt={vi.fn()} onRefresh={vi.fn()} />);
+
+    expect(screen.getByLabelText("android repository group")).toBeInTheDocument();
+    expect(screen.getByLabelText("accounts-admin/android repository group")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "android" })).toHaveValue("/projects/android");
+    expect(screen.getByRole("option", { name: "accounts-admin/android" })).toHaveValue("/projects/accounts-admin/android");
+    expect(screen.getAllByText("accounts-admin/android").length).toBeGreaterThan(1);
+  });
+
+  it("keeps repository filtering provider-aware when session IDs overlap", () => {
+    const repositories = [
+      { id: "alpha", name: "alpha", path: "alpha", branch: "main", dirty: false },
+      { id: "beta", name: "beta", path: "beta", branch: "main", dirty: false },
+    ];
+    const overlapping: SessionSummary[] = [
+      { id: "same", repository: "/projects/alpha", title: "Codex alpha", status: "idle" },
+      { provider: "claude-code", id: "same", repository: "/projects/beta", title: "Claude beta", status: "idle" },
+    ];
+    render(<Dashboard sessions={overlapping} repositories={repositories} serviceStatus={status} connection="connected" disabled={false} onOpen={vi.fn()} onInterrupt={vi.fn()} onRefresh={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Workspace"), { target: { value: "/projects/beta" } });
+    expect(screen.getByText("Claude beta")).toBeInTheDocument();
+    expect(screen.queryByText("Codex alpha")).not.toBeInTheDocument();
+  });
+
   it("renders concrete approval attention once and opens the exact approval", () => {
     const onOpenApproval = vi.fn();
     const approval: ApprovalRequest = {
