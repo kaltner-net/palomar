@@ -102,10 +102,12 @@ The default socket is
 home when `CODEX_HOME` is unset). `PALOMAR_CODEX_SOCKET` overrides it. Palomar
 only attaches to this path. It never unlinks, replaces, or launches an
 app-server on the Desktop socket; a listener with a failed WebSocket handshake
-is an explicit attach failure. A present but stale Desktop socket is likewise an
-explicit attach failure and is left untouched. Only when the Desktop path is
-absent does Palomar use `~/.local/state/palomar/codex-app-server.sock` for an
-independent owned runtime and report
+is treated as unavailable and left untouched. A dangling symlink, stale socket,
+or socket that disappears during attachment is likewise left untouched and does
+not make Desktop a required dependency. Whenever Palomar cannot attach to a
+viable Desktop app-server, it uses
+`~/.local/state/palomar/codex-app-server.sock` for an independent owned runtime
+and reports
 `SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE`. A closed connection triggers bounded
 reconnect, state refresh, and thread resubscription without prompt/control
 replay.

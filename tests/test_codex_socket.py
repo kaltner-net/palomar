@@ -595,7 +595,7 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.stop()
         self.assertIsNotNone(process.returncode)
 
-    async def test_preserves_a_stale_desktop_socket_and_reports_attach_failure(
+    async def test_preserves_a_stale_desktop_socket_and_uses_fallback(
         self,
     ) -> None:
         stale = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -608,12 +608,82 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
             self.socket_path,
             self.fallback_socket_path,
         )
-        with self.assertRaisesRegex(CodexError, "exists but Palomar could not attach"):
-            await adapter.start()
+        await adapter.start()
         try:
-            self.assertIsNone(adapter.process)
+            self.assertIsNotNone(adapter.process)
+            self.assertEqual(
+                adapter.runtime_status, SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE
+            )
             self.assertEqual(self.socket_path.stat().st_ino, inode)
-            self.assertFalse(self.fallback_socket_path.exists())
+            self.assertTrue(self.fallback_socket_path.exists())
+        finally:
+            await adapter.stop()
+
+    async def test_dangling_desktop_symlink_is_preserved_and_uses_fallback(self) -> None:
+        target = self.base / "missing" / "desktop.sock"
+        self.socket_path.symlink_to(target)
+        adapter = Codex(
+            str(self.executable),
+            lambda _: asyncio.sleep(0),
+            self.socket_path,
+            self.fallback_socket_path,
+        )
+        await adapter.start()
+        try:
+            self.assertIsNotNone(adapter.process)
+            self.assertEqual(
+                adapter.runtime_status, SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE
+            )
+            self.assertTrue(self.socket_path.is_symlink())
+            self.assertEqual(self.socket_path.readlink(), target)
+        finally:
+            await adapter.stop()
+
+    async def test_stale_managed_socket_is_replaced_for_headless_runtime(self) -> None:
+        stale = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        stale.bind(str(self.fallback_socket_path))
+        stale.close()
+        adapter = Codex(
+            str(self.executable),
+            lambda _: asyncio.sleep(0),
+            self.socket_path,
+            self.fallback_socket_path,
+        )
+        await adapter.start()
+        try:
+            self.assertIsNotNone(adapter.process)
+            self.assertTrue(adapter.is_connected)
+            self.assertEqual(
+                adapter.runtime_status, SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE
+            )
+        finally:
+            await adapter.stop()
+
+    async def test_desktop_socket_disappearing_during_attach_uses_fallback(self) -> None:
+        stale = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        stale.bind(str(self.socket_path))
+        stale.close()
+
+        class RacingCodex(Codex):
+            async def _open_websocket(self) -> Any:
+                if self.socket_path == self.primary_socket_path:
+                    self.socket_path.unlink(missing_ok=True)
+                    raise FileNotFoundError(self.socket_path)
+                return await super()._open_websocket()
+
+        adapter = RacingCodex(
+            str(self.executable),
+            lambda _: asyncio.sleep(0),
+            self.socket_path,
+            self.fallback_socket_path,
+        )
+        await adapter.start()
+        try:
+            self.assertIsNotNone(adapter.process)
+            self.assertEqual(adapter.socket_path, self.fallback_socket_path)
+            self.assertEqual(
+                adapter.runtime_status, SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE
+            )
         finally:
             await adapter.stop()
 
@@ -649,17 +719,40 @@ class SocketAdapterTests(unittest.IsolatedAsyncioTestCase):
             self.socket_path,
             self.fallback_socket_path,
         )
-        with self.assertRaisesRegex(CodexError, "WebSocket handshake failed"):
-            await adapter.start()
+        await adapter.start()
         try:
-            self.assertIsNone(adapter.process)
-            self.assertFalse(self.fallback_socket_path.exists())
+            self.assertIsNotNone(adapter.process)
+            self.assertTrue(self.fallback_socket_path.exists())
             self.assertIsNotNone(replacement)
         finally:
             await adapter.stop()
             if replacement:
                 replacement.close()
                 await replacement.wait_closed()
+
+    async def test_headless_runtime_creates_resumes_and_interacts_with_session(self) -> None:
+        adapter = Codex(
+            str(self.executable),
+            lambda _: asyncio.sleep(0),
+            self.socket_path,
+            self.fallback_socket_path,
+        )
+        await adapter.start()
+        try:
+            created = await adapter.start_thread("/projects/example")
+            resumed = await adapter.resume_thread(created["id"])
+            prompted = await adapter.prompt(created["id"], "hello headless Codex")
+            self.assertEqual(resumed["id"], created["id"])
+            self.assertEqual(prompted["turn"]["id"], "turn-one")
+            self.assertEqual(
+                adapter.runtime_status, SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE
+            )
+            methods = self.log_path.read_text(encoding="utf-8").splitlines()
+            self.assertIn("thread/start", methods)
+            self.assertIn("thread/resume", methods)
+            self.assertIn("turn/start", methods)
+        finally:
+            await adapter.stop()
 
     async def test_falls_back_after_disconnect_and_does_not_resend_prompt(self) -> None:
         server = FakeSocketServer(self.socket_path)
