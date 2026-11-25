@@ -197,8 +197,6 @@ class Codex:
             self.socket_path = self.primary_socket_path
             if await self._attach_existing(
                 SHARED_DESKTOP_LIVE_STATUS_AVAILABLE,
-                "Desktop Codex socket",
-                fail_if_present=True,
             ):
                 return
             if not self.allow_fallback:
@@ -210,7 +208,6 @@ class Codex:
             self.runtime_status = SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE
             if await self._attach_existing(
                 SHARED_DESKTOP_LIVE_STATUS_UNAVAILABLE,
-                "Palomar fallback socket",
             ):
                 return
             await self._launch_fallback_app_server()
@@ -236,25 +233,16 @@ class Codex:
                 f"{last_error or detail or self.socket_path}"
             )
 
-    async def _attach_existing(
-        self, status: str, label: str, fail_if_present: bool = False
-    ) -> bool:
-        path_was_present = os.path.lexists(self.socket_path)
-        if not path_was_present and not await self._socket_accepts_connections():
+    async def _attach_existing(self, status: str) -> bool:
+        if (
+            not os.path.lexists(self.socket_path)
+            and not await self._socket_accepts_connections()
+        ):
             return False
         websocket: Any | None = None
         try:
             websocket = await self._open_websocket()
-        except Exception as error:
-            if await self._socket_accepts_connections():
-                raise CodexError(
-                    f"{label} accepted a connection but its WebSocket handshake failed: "
-                    f"{self.socket_path}"
-                ) from error
-            if fail_if_present and path_was_present:
-                raise CodexError(
-                    f"{label} exists but Palomar could not attach: {self.socket_path}"
-                ) from error
+        except Exception:
             return False
         try:
             self.runtime_status = status
@@ -302,6 +290,8 @@ class Codex:
         self.socket_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         if self.socket_path.exists() and await self._socket_accepts_connections():
             return
+        if os.path.lexists(self.socket_path):
+            self.socket_path.unlink()
         self.process = await asyncio.create_subprocess_exec(
             self.executable,
             "app-server",
